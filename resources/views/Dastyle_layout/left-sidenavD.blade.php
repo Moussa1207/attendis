@@ -209,14 +209,7 @@
                     </li>            
                 </ul>
     
-                <div class="update-msg text-center">
-                    <a href="javascript: void(0);" class="float-right close-btn text-white" data-dismiss="update-msg" aria-label="Close" aria-hidden="true">
-                        <i class="mdi mdi-close"></i>
-                    </a>
-                    <h5 class="mt-3">Mannat Themes</h5>
-                    <p class="mb-3">We Design and Develop Clean and High Quality Web Applications</p>
-                    <a href="javascript: void(0);" class="btn btn-outline-warning btn-sm">Upgrade your plan</a>
-                </div>
+                
             </div>
         </div>
         <!-- end left-sidenav-->
