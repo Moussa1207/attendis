@@ -91,7 +91,7 @@
                                                     </div>
                                                 </div>
                                                 <div class="col-sm-6 text-right">
-                                                    <a href="" class="text-muted font-13"><i class="dripicons-lock"></i> Mot de passe oublié?</a>
+                                                    <a href="{{ asset('') }}" class="text-muted font-13"><i class="dripicons-lock"></i> Mot de passe oublié?</a>
                                                 </div>
                                             </div>
 
