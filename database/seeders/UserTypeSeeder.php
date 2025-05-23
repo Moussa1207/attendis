@@ -9,7 +9,9 @@ class UserTypeSeeder extends Seeder
 {
     public function run()
     {
-        UserType::create(['name' => 'Administrateur', 'description' => 'Accès complet au système']);
-        UserType::create(['name' => 'Utilisateur', 'description' => 'Accès limité au système']);
+        // ID=1: Administrateur
+        UserType::create(['name' => 'Administrateur', 'description' => 'Accès complet au système avec tous les privilèges']);
+        // ID=2: Utilisateur normal
+        UserType::create(['name' => 'Utilisateur', 'description' => 'Accès limité aux fonctionnalités de base']);
     }
 }

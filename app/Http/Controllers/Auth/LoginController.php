@@ -1,7 +1,6 @@
 <?php
 // app/Http/Controllers/Auth/LoginController.php
 namespace App\Http\Controllers\Auth;
-
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,44 +12,64 @@ class LoginController extends Controller
     {
         return view('auth.login');
     }
-    
+
     public function login(Request $request)
     {
         $request->validate([
-            'username' => 'required',
+            'email' => 'required|email',
             'password' => 'required',
+        ], [
+            'email.required' => 'L\'adresse email est obligatoire.',
+            'email.email' => 'Veuillez saisir une adresse email valide.',
+            'password.required' => 'Le mot de passe est obligatoire.',
         ]);
-        
-        $credentials = $request->only('username', 'password');
-        
-        if (Auth::attempt($credentials)) {
+
+        $credentials = $request->only('email', 'password');
+        $remember = $request->has('remember');
+
+        if (Auth::attempt($credentials, $remember)) {
             $user = Auth::user();
-            
-            // Vérifier si l'utilisateur est actif
-            if (!$user->isActive()) {
+
+            // Vérifier le statut de l'utilisateur
+            if ($user->isInactive()) {
                 Auth::logout();
                 return redirect()->route('login')
-                    ->with('error', 'Votre compte est inactif. Contactez l\'administrateur.');
+                    ->with('error', 'Votre compte n\'est pas encore activé. Contactez un administrateur.');
             }
-            
-            // Redirection en fonction du type d'utilisateur
+
+            if ($user->isSuspended()) {
+                Auth::logout();
+                return redirect()->route('login')
+                    ->with('error', 'Votre compte a été suspendu. Contactez un administrateur.');
+            }
+
+            // Régénérer la session pour la sécurité
+            $request->session()->regenerate();
+
+            // Redirection selon le type d'utilisateur
             if ($user->isAdmin()) {
-                return redirect()->route('dashboard_layout.index');
+                return redirect()->route('layouts.app')
+                    ->with('success', 'Bienvenue ' . $user->username . ' ! Vous êtes connecté en tant qu\'administrateur.');
             } else {
-                return redirect()->route('dashboard_layout.index');
+                return redirect()->route('layouts.app')
+                    ->with('success', 'Bienvenue ' . $user->username . ' !');
             }
         }
-        
+
         return redirect()->route('login')
-            ->with('error', 'Les identifiants sont incorrects.');
+            ->with('error', 'Les identifiants saisis sont incorrects.')
+            ->withInput($request->only('email'));
     }
-    
+
     public function logout(Request $request)
     {
+        $userName = Auth::user()->username ?? '';
+        
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        
-        return redirect()->route('login');
+
+        return redirect()->route('login')
+            ->with('success', 'Au revoir ' . $userName . ' ! Vous avez été déconnecté avec succès.');
     }
 }

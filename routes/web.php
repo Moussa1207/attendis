@@ -6,35 +6,23 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Auth;
 
-// Routes d'authentification
-Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
+
+Route::get('/', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login'])->name('login.post');
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.post');
 
-
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'adminDashboard'])->name('dashboard_layout.index');
+// Routes protégées
+Route::middleware(['auth', 'check.user.status'])->group(function () {
+    // Dashboard utilisateur
+    Route::get('/app', [DashboardController::class, 'userDashboard'])->name('layouts.app');
     
-});
-
-
-Route::middleware(['auth', 'role:user'])->prefix('dashboard')->group(function () {
-    Route::get('/index', [DashboardController::class, 'userDashboard'])->name('dashboard_layout.index');
-    
-});
-
-
-Route::get('/', function () {
-    if (Auth::check()) {
-        $user = Auth::user();
-        if ($user->isAdmin()) {
-            return redirect()->route('login');
-        } else {
-            return redirect()->route('login');
-        }
-    }
-    return redirect()->route('login');
+    // Routes admin
+    Route::middleware('admin')->prefix('admin')->name('layouts.')->group(function () {
+        Route::get('/app', [DashboardController::class, 'adminDashboard'])->name('app');
+        Route::get('/users', [DashboardController::class, 'manageUsers'])->name('layouts.app');
+        Route::patch('/users/{user}/activate', [DashboardController::class, 'activateUser'])->name('users.activate');
+        Route::patch('/users/{user}/suspend', [DashboardController::class, 'suspendUser'])->name('users.suspend');
+    });
 });

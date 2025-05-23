@@ -3,7 +3,7 @@
 
     <head>
         <meta charset="utf-8" />
-        <title>Shared on THEMELOCK.COM - Dastyle - Admin & Dashboard Template</title>
+        <title> Dashboard|Attendis </title>
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <meta content="Premium Multipurpose Admin & Dashboard Template" name="description" />
         <meta content="" name="author" />
@@ -47,7 +47,7 @@
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="{{asset(url('dashboard/index'))}}"><i class="ti-control-record"></i>Analytics</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{asset(url('dashboard/app'))}}"><i class="ti-control-record"></i>Analytics</a></li>
                         </ul>
                     </li>
     
