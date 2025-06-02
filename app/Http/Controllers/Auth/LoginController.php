@@ -1,6 +1,8 @@
 <?php
 // app/Http/Controllers/Auth/LoginController.php
+
 namespace App\Http\Controllers\Auth;
+
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -46,12 +48,14 @@ class LoginController extends Controller
             // Régénérer la session pour la sécurité
             $request->session()->regenerate();
 
-            // Redirection selon le type d'utilisateur
+            // NOUVELLE LOGIQUE DE REDIRECTION
             if ($user->isAdmin()) {
+                // Les admins vont sur le dashboard admin (layouts/app)
                 return redirect()->route('layouts.app')
                     ->with('success', 'Bienvenue ' . $user->username . ' ! Vous êtes connecté en tant qu\'administrateur.');
             } else {
-                return redirect()->route('layouts.app')
+                // Les utilisateurs normaux vont sur app-users
+                return redirect()->route('layouts.app-users')
                     ->with('success', 'Bienvenue ' . $user->username . ' !');
             }
         }
@@ -64,7 +68,7 @@ class LoginController extends Controller
     public function logout(Request $request)
     {
         $userName = Auth::user()->username ?? '';
-        
+       
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

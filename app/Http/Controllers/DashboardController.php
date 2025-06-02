@@ -1,9 +1,11 @@
 <?php
+// app/Http/Controllers/DashboardController.php
 
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\AdministratorUser;
 use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
@@ -14,14 +16,16 @@ class DashboardController extends Controller
     }
 
     /**
-     * Dashboard principal (admin et users - layouts/app.blade.php)
+     * Dashboard principal admin (layouts/app.blade.php)
+     * Accessible uniquement aux administrateurs
      */
     public function adminDashboard()
     {
         // Vérifier que l'utilisateur est bien admin
         if (!Auth::user()->isAdmin()) {
-            return redirect()->route('layouts.app')
-                ->with('error', 'Accès non autorisé à la zone administrateur.');
+            // Si c'est un utilisateur normal, rediriger vers app-users
+            return redirect()->route('app-users')
+                ->with('error', 'Accès réservé aux administrateurs.');
         }
 
         // Statistiques pour le dashboard admin
@@ -31,6 +35,10 @@ class DashboardController extends Controller
             'inactive_users' => User::where('status_id', 1)->count(),
             'suspended_users' => User::where('status_id', 3)->count(),
             'admin_users' => User::where('user_type_id', 1)->count(),
+            'normal_users' => User::where('user_type_id', 2)->count(),
+            // Nouvelles stats pour les créations
+            'my_created_users' => Auth::user()->createdUsers()->count(),
+            'my_active_created' => Auth::user()->createdUsers()->where('status_id', 2)->count(),
         ];
 
         // layouts/app.blade.php sert de dashboard admin avec les stats
@@ -38,21 +46,23 @@ class DashboardController extends Controller
     }
 
     /**
-     * Dashboard utilisateur normal (utilise aussi layouts/app.blade.php)
+     * ANCIENNE MÉTHODE - Maintenue pour compatibilité
+     * Redirige vers adminDashboard ou app-users selon le rôle
      */
     public function userDashboard()
     {
-        // Si c'est un admin, on redirige vers le dashboard admin avec stats
-        if (Auth::user()->isAdmin()) {
+        $user = Auth::user();
+        
+        if ($user->isAdmin()) {
             return redirect()->route('layouts.app');
+        } else {
+            return redirect()->route('app-users');
         }
-
-        // Pour les utilisateurs normaux, layouts/app.blade.php sans stats
-        return view('layouts.app');
     }
 
     /**
      * Liste complète des utilisateurs avec filtres (page dédiée)
+     * Accessible via le menu "Utilisateurs" > "Liste"
      */
     public function usersList(Request $request)
     {
@@ -97,12 +107,12 @@ class DashboardController extends Controller
 
         $users = $query->orderBy('created_at', 'desc')->paginate(15);
 
-        // CORRECTION : retourner la bonne vue
         return view('user.users-list', compact('users'));
     }
 
     /**
      * Liste des utilisateurs pour le dashboard admin (version simple)
+     * ANCIENNE MÉTHODE - Maintenue pour compatibilité
      */
     public function manageUsers()
     {
@@ -145,7 +155,8 @@ class DashboardController extends Controller
                     'user' => [
                         'id' => $user->id,
                         'username' => $user->username,
-                        'status' => 'active'
+                        'status' => 'active',
+                        'status_name' => $user->getStatusName()
                     ]
                 ]);
             }
@@ -215,7 +226,8 @@ class DashboardController extends Controller
                     'user' => [
                         'id' => $user->id,
                         'username' => $user->username,
-                        'status' => 'suspended'
+                        'status' => 'suspended',
+                        'status_name' => $user->getStatusName()
                     ]
                 ]);
             }
@@ -250,12 +262,26 @@ class DashboardController extends Controller
         }
 
         try {
+            $admin = Auth::user();
+            
             $stats = [
+                // Statistiques générales
                 'total_users' => User::count(),
                 'active_users' => User::where('status_id', 2)->count(),
                 'inactive_users' => User::where('status_id', 1)->count(),
                 'suspended_users' => User::where('status_id', 3)->count(),
                 'admin_users' => User::where('user_type_id', 1)->count(),
+                'normal_users' => User::where('user_type_id', 2)->count(),
+                
+                // Nouvelles statistiques pour les créations de l'admin connecté
+                'my_created_total' => $admin->createdUsers()->count(),
+                'my_created_active' => $admin->createdUsers()->where('status_id', 2)->count(),
+                'my_created_admins' => $admin->createdUsers()->where('user_type_id', 1)->count(),
+                'my_created_users' => $admin->createdUsers()->where('user_type_id', 2)->count(),
+                
+                // Statistiques de tous les administrateurs
+                'total_administrators' => User::where('user_type_id', 1)->count(),
+                'total_created_by_admins' => AdministratorUser::count(),
             ];
 
             return response()->json([
@@ -293,18 +319,22 @@ class DashboardController extends Controller
         }
 
         try {
-            $users = User::where('username', 'like', "%{$search}%")
+            $users = User::with(['userType', 'status'])
+                        ->where('username', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
                         ->orWhere('mobile_number', 'like', "%{$search}%")
                         ->limit(5)
-                        ->get(['id', 'username', 'email', 'mobile_number']);
+                        ->get();
 
             $suggestions = $users->map(function($user) {
                 return [
                     'id' => $user->id,
                     'text' => $user->username,
                     'email' => $user->email,
-                    'phone' => $user->mobile_number
+                    'phone' => $user->mobile_number,
+                    'type' => $user->getTypeName(),
+                    'status' => $user->getStatusName(),
+                    'created_by_admin' => $user->wasCreatedByAdmin()
                 ];
             });
 
@@ -352,13 +382,62 @@ class DashboardController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "{$activatedCount} utilisateur(s) ont été activés avec succès",
-                'activated_count' => $activatedCount
+                'activated_count' => $activatedCount,
+                'new_stats' => [
+                    'active_users' => User::where('status_id', 2)->count(),
+                    'inactive_users' => User::where('status_id', 1)->count(),
+                ]
             ]);
             
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'activation en masse : ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * NOUVELLE MÉTHODE : Obtenir les utilisateurs créés par l'admin connecté
+     */
+    public function getMyCreatedUsers(Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
+
+        try {
+            $admin = Auth::user();
+            $users = $admin->createdUsers()
+                          ->with(['userType', 'status'])
+                          ->orderBy('created_at', 'desc')
+                          ->get();
+
+            return response()->json([
+                'success' => true,
+                'users' => $users->map(function($user) {
+                    return [
+                        'id' => $user->id,
+                        'username' => $user->username,
+                        'email' => $user->email,
+                        'mobile_number' => $user->mobile_number,
+                        'type' => $user->getTypeName(),
+                        'status' => $user->getStatusName(),
+                        'created_at' => $user->created_at->format('d/m/Y H:i'),
+                        'is_active' => $user->isActive(),
+                        'is_admin' => $user->isAdmin()
+                    ];
+                }),
+                'total' => $users->count()
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des utilisateurs créés'
             ], 500);
         }
     }

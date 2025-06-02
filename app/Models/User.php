@@ -1,4 +1,5 @@
 <?php
+// app/Models/User.php
 
 namespace App\Models;
 
@@ -21,7 +22,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
     ];
 
-    // Relations
+    // Relations existantes
     public function userType()
     {
         return $this->belongsTo(UserType::class);
@@ -32,7 +33,42 @@ class User extends Authenticatable
         return $this->belongsTo(Status::class);
     }
 
-    // Méthodes utilitaires
+    // Nouvelles relations pour administrator_user
+    /**
+     * Utilisateurs créés par cet administrateur
+     */
+    public function createdUsers()
+    {
+        return $this->belongsToMany(User::class, 'administrator_user', 'administrator_id', 'user_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Administrateurs qui ont créé cet utilisateur
+     */
+    public function createdByAdministrators()
+    {
+        return $this->belongsToMany(User::class, 'administrator_user', 'user_id', 'administrator_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Obtenir l'administrateur qui a créé cet utilisateur
+     */
+    public function createdBy()
+    {
+        return $this->createdByAdministrators()->first();
+    }
+
+    /**
+     * Vérifier si cet utilisateur a été créé par un administrateur
+     */
+    public function wasCreatedByAdmin()
+    {
+        return $this->createdByAdministrators()->exists();
+    }
+
+    // Méthodes utilitaires existantes
     public function isAdmin()
     {
         return $this->user_type_id === 1; // ID 1 = Administrateur
