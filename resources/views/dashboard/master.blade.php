@@ -43,7 +43,7 @@
             <!--end logo-->
             <div class="menu-content h-100" data-simplebar>
                 <ul class="metismenu left-sidenav-menu">
-                    <li class="menu-label mt-0">Main</li>
+                    <li class="menu-label mt-0">Menu</li>
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -54,24 +54,15 @@
                     
     
                     <hr class="hr-dashed hr-menu">
-                    <li class="menu-label my-2">Components & Extra</li>
+                    <li class="menu-label my-2">Paramètres</li>
     
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="box" class="align-self-center menu-icon"></i><span>UI Kit</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                              
-                            <li>
-                                <a href="javascript: void(0);"><i class="ti-control-record"></i>Advanced UI <span class="menu-arrow left-has-menu"><i class="mdi mdi-chevron-right"></i></span></a>
-                                <ul class="nav-second-level" aria-expanded="false">
-                                    <li><a href="{{asset('advanced-animation.html')}}">Animation</a></li>
-                                </ul>
-                            </li>  
-                            
-                            
-                            
-                             
-                            
-                        </ul>                        
+                          <a href="javascript: void(0);"><i data-feather="box" class="align-self-center menu-icon"></i><span>Utilisateurs</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                          <ul class="nav-second-level" aria-expanded="false">
+                             <li>
+                               <a href="{{ route('user.users-list') }}"><i class="ti-control-record"></i>Liste</a>                           
+                            </li> 
+                          </ul>                        
                     </li>
     
                     

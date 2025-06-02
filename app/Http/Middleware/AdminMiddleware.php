@@ -10,7 +10,7 @@ class AdminMiddleware
     public function handle(Request $request, Closure $next)
     {
         if (!Auth::check() || !Auth::user()->isAdmin()) {
-            return redirect()->route('user.dashboard')
+            return redirect()->route('layouts.app')
                 ->with('error', 'Accès réservé aux administrateurs.');
         }
 
