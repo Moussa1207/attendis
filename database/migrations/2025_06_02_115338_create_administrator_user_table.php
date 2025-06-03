@@ -1,5 +1,5 @@
 <?php
-// database/migrations/xxxx_xx_xx_create_administrator_user_table.php
+// database/migrations/2025_06_03_create_administrator_user_table.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -11,16 +11,18 @@ class CreateAdministratorUserTable extends Migration
     {
         Schema::create('administrator_user', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('administrator_id'); // ID de l'admin qui a créé
-            $table->unsignedBigInteger('user_id'); // ID de l'utilisateur créé
-            $table->timestamps();
+            $table->unsignedBigInteger('administrator_id'); // Qui a créé
+            $table->unsignedBigInteger('user_id'); // Qui a été créé
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
             
-            // Relations
+            // Relations avec cascade
             $table->foreign('administrator_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             
-            // Éviter les doublons
-            $table->unique(['administrator_id', 'user_id']);
+            // Index pour performance
+            $table->index(['administrator_id', 'user_id']);
+            $table->unique(['user_id']); // Un utilisateur ne peut être créé que par un seul admin
         });
     }
 

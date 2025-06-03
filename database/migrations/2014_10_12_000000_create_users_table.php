@@ -18,8 +18,8 @@ class CreateUsersTable extends Migration
             $table->unsignedBigInteger('status_id');
             $table->rememberToken();
             $table->timestamps();
-            
-            // Relations
+                        
+            // Relations avec les tables créées précédemment
             $table->foreign('user_type_id')->references('id')->on('user_types')->onDelete('cascade');
             $table->foreign('status_id')->references('id')->on('statuses')->onDelete('cascade');
         });
