@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Auth/RegisterController.php (VERSION MISE À JOUR)
 
 namespace App\Http\Controllers\Auth;
 
@@ -31,16 +30,16 @@ class RegisterController extends Controller
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
         ]);
 
-        // NOUVELLE LOGIQUE: Inscription réservée aux admins uniquement
+        // Inscription réservée aux admins uniquement
         $isFirstUser = User::count() === 0;
         
-        // TOUS les nouveaux inscrits deviennent administrateurs
+        // role du nouvel inscrit
         $userTypeId = 1; // 1 = Admin TOUJOURS
         
         // Statut selon si c'est le premier utilisateur ou non
-        $statusId = $isFirstUser ? 2 : 1; // Premier = Actif, Autres = Inactif (en attente)
+        $statusId = $isFirstUser ? 2 : 1; // Premier = Actif
         
-        // Créer l'utilisateur administrateur
+        // Créer l'utilisateur: administrateur
         $user = User::create([
             'email' => $request->email,
             'username' => $request->username,
@@ -50,12 +49,6 @@ class RegisterController extends Controller
             'status_id' => $statusId,
         ]);
 
-        // Message personnalisé selon le statut
-        if ($isFirstUser) {
-            $message = 'Félicitations ! Vous êtes le premier administrateur et votre compte est actif. Vous pouvez vous connecter immédiatement.';
-        } else {
-            $message = 'Inscription réussie en tant qu\'administrateur ! Votre compte est en attente d\'activation par un autre administrateur.';
-        }
 
         return redirect()->route('login')->with('success', $message);
     }

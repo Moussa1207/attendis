@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/UserManagementController.php
 
 namespace App\Http\Controllers;
 
@@ -22,7 +21,8 @@ class UserManagementController extends Controller
     }
 
     /**
-     * Afficher le formulaire de création d'utilisateur professionnel
+     * Afficher le formulaire de création d'utilisateur 
+     * COHÉRENT avec user-create.blade.php
      */
     public function create()
     {
@@ -34,6 +34,7 @@ class UserManagementController extends Controller
 
     /**
      * Créer un nouvel utilisateur avec gestion sécurisée des mots de passe
+     *  L'admin voit TOUJOURS le mot de passe temporaire
      */
     public function store(Request $request)
     {
@@ -56,16 +57,15 @@ class UserManagementController extends Controller
             DB::beginTransaction();
 
             // Générer un mot de passe temporaire sécurisé
-            $temporaryPassword = User::generateSecureTemporaryPassword();
-
-            // Créer l'utilisateur - TOUJOURS utilisateur normal par défaut (comme demandé)
+              $temporaryPassword = $this->generateSecurePassword();
+            // Créer l'utilisateur - TOUJOURS utilisateur normal par défaut 
             $user = User::create([
                 'email' => $request->email,
                 'username' => $request->username,
                 'mobile_number' => $request->mobile_number,
                 'password' => Hash::make($temporaryPassword),
-                'user_type_id' => 2, // TOUJOURS utilisateur normal (selon vos exigences)
-                'status_id' => 2, // TOUJOURS actif par défaut (selon vos exigences)
+                'user_type_id' => 2, // TOUJOURS utilisateur normal 
+                'status_id' => 2, // TOUJOURS actif par défaut 
             ]);
 
             // Enregistrer la relation administrator_user avec informations détaillées
@@ -83,15 +83,16 @@ class UserManagementController extends Controller
                 'email' => $user->email,
                 'username' => $user->username,
                 'password' => $temporaryPassword,
-                'login_url' => url('/'),
+                'login_url' => route('login'),
                 'admin_creator' => Auth::user()->username
             ];
 
-            // Envoyer les identifiants si demandé (recommandé pour la sécurité)
-            if ($request->boolean('send_credentials', true)) {
+            // L'admin voit TOUJOURS le mot de passe
+            $credentialsSent = false;
+            
+            // Envoyer les identifiants si demandé (optionnel)
+            if ($request->boolean('send_credentials', false)) {
                 try {
-                    // Ici vous pouvez implémenter l'envoi d'email
-                    // Mail::to($user->email)->send(new UserCredentialsMail($userCredentials));
                     
                     $adminUserRecord->markPasswordResetSent();
                     $credentialsSent = true;
@@ -99,18 +100,23 @@ class UserManagementController extends Controller
                     \Log::error("Erreur envoi email pour {$user->email}: " . $e->getMessage());
                     $credentialsSent = false;
                 }
-            } else {
-                $credentialsSent = false;
             }
 
             DB::commit();
 
             // Log de l'action
-            \Log::info("Utilisateur {$user->username} créé par " . Auth::user()->username);
+            \Log::info("Utilisateur {$user->username} créé par " . Auth::user()->username, [
+                'user_id' => $user->id,
+                'admin_id' => Auth::id(),
+                'credentials_sent' => $credentialsSent
+            ]);
 
+            // NOUVEAU : Message avec mot de passe TOUJOURS visible pour l'admin
             $message = "L'utilisateur {$user->username} a été créé avec succès.";
             if ($credentialsSent) {
-                $message .= " Les identifiants ont été envoyés par email.";
+                $message .= " Les identifiants ont été envoyés par email ET sont affichés ci-dessous.";
+            } else {
+                $message .= " Voici les identifiants à communiquer à l'utilisateur :";
             }
 
             // Réponse AJAX
@@ -125,20 +131,23 @@ class UserManagementController extends Controller
                         'type' => $user->getTypeName(),
                         'status' => 'Actif',
                         'credentials_sent' => $credentialsSent,
-                        'temporary_password' => $credentialsSent ? null : $temporaryPassword // Seulement si pas envoyé par email
-                    ]
+                        // L'ADMIN VOIT TOUJOURS LE MOT DE PASSE
+                        'temporary_password' => $temporaryPassword,
+                        'login_url' => route('login')
+                    ],
+                    'credentials' => $userCredentials
                 ]);
             }
 
-            // Redirection avec informations sécurisées
-            $flashData = ['success' => $message];
-            if (!$credentialsSent) {
-                $flashData['temporary_credentials'] = $userCredentials;
-            }
+            $adminStats = AdministratorUser::getStatsForAdmin(Auth::id());
 
-            return redirect()->route('user.users-list')->with($flashData);
-
-        } catch (\Exception $e) {
+            return view('user.user-create', [
+               'adminStats' => $adminStats,
+               'newUser' => $user,
+               'temporaryPassword' => $temporaryPassword
+            ])->with('success', " Utilisateur '{$user->username}' créé avec succès ! ✅");
+       
+            } catch (\Exception $e) {
             DB::rollBack();
             
             \Log::error("Erreur création utilisateur: " . $e->getMessage());
@@ -165,13 +174,14 @@ class UserManagementController extends Controller
         try {
             $admin = Auth::user();
             $users = $admin->createdUsers()
-                ->with(['userType', 'status'])
+                ->with(['user.userType', 'user.status'])
                 ->paginate(10);
 
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
-                    'users' => $users->map(function($user) {
+                    'users' => $users->map(function($relation) {
+                        $user = $relation->user;
                         return [
                             'id' => $user->id,
                             'username' => $user->username,
@@ -179,12 +189,12 @@ class UserManagementController extends Controller
                             'mobile_number' => $user->mobile_number,
                             'type' => $user->getTypeName(),
                             'status' => $user->getStatusName(),
-                            'status_badge_class' => $user->getStatusBadgeClass(),
+                            'status_badge_class' => $user->getStatusBadgeColor(),
                             'created_at' => $user->created_at->format('d/m/Y H:i'),
                             'is_active' => $user->isActive(),
-                            'requires_password_reset' => $user->requiresPasswordReset(),
-                            'creation_method' => $user->pivot->creation_method ?? 'manual',
-                            'creation_notes' => $user->pivot->creation_notes
+                            'requires_password_reset' => $relation->requiresPasswordReset(),
+                            'creation_method' => $relation->creation_method ?? 'manual',
+                            'creation_notes' => $relation->creation_notes
                         ];
                     }),
                     'pagination' => [
@@ -229,9 +239,9 @@ class UserManagementController extends Controller
                 ->get()
                 ->map(function($record) {
                     return [
-                        'user' => $record->user->username,
+                        'user' => $record->user ? $record->user->username : 'Utilisateur supprimé',
                         'created_at' => $record->created_at->diffForHumans(),
-                        'status' => $record->user->getStatusName()
+                        'status' => $record->user ? $record->user->getStatusName() : 'N/A'
                     ];
                 });
 
@@ -261,7 +271,8 @@ class UserManagementController extends Controller
     }
 
     /**
-     * Renvoyer les identifiants à un utilisateur
+     * Renvoyer les identifiants à un utilisateur (NOUVEAU MOT DE PASSE)
+     * CORRECTION : L'admin voit le nouveau mot de passe généré
      */
     public function resendCredentials(User $user, Request $request)
     {
@@ -274,8 +285,8 @@ class UserManagementController extends Controller
                 ], 403);
             }
 
-            // Générer un nouveau mot de passe temporaire
-            $newPassword = User::generateSecureTemporaryPassword();
+            // Générer un NOUVEAU mot de passe temporaire
+            $newPassword = $this->generateSecurePassword();
             $user->update(['password' => Hash::make($newPassword)]);
 
             // Marquer comme nécessitant une réinitialisation
@@ -292,22 +303,22 @@ class UserManagementController extends Controller
                 'email' => $user->email,
                 'username' => $user->username,
                 'password' => $newPassword,
-                'login_url' => url('/'),
+                'login_url' => route('login'),
                 'admin_creator' => Auth::user()->username
             ];
-
-            // Ici vous pouvez implémenter l'envoi d'email
-            // Mail::to($user->email)->send(new UserCredentialsResendMail($userCredentials));
 
             if ($adminUserRecord) {
                 $adminUserRecord->markPasswordResetSent();
             }
 
-            \Log::info("Identifiants renvoyés pour {$user->username} par " . Auth::user()->username);
+            \Log::info("Nouveaux identifiants générés pour {$user->username} par " . Auth::user()->username);
 
+            //RETOURNER LE NOUVEAU MOT DE PASSE À L'ADMIN
             return response()->json([
                 'success' => true,
-                'message' => "Les nouveaux identifiants ont été envoyés à {$user->username}."
+                'message' => "Nouveaux identifiants générés pour {$user->username}",
+                'credentials' => $userCredentials,
+                'new_password' => $newPassword
             ]);
 
         } catch (\Exception $e) {
@@ -315,8 +326,23 @@ class UserManagementController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du renvoi des identifiants.'
+                'message' => 'Erreur lors de la génération des nouveaux identifiants.'
             ], 500);
         }
     }
+
+    private function generateSecurePassword($length = 6): string 
+{
+    $voyelles = 'aeiou';
+    $consonnes = 'bcdfghjklmnpqrstvwxz';
+    $password = '';
+    
+    // Consonne-Voyelle-Consonne + 3 chiffres
+    $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
+    $password .= $voyelles[rand(0, strlen($voyelles) - 1)];
+    $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
+    $password .= rand(100, 999);
+    
+    return $password;
+}
 }

@@ -8,6 +8,9 @@
     <meta content="Premium Multipurpose Admin & Dashboard Template" name="description" />
     <meta content="" name="author" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    
+    <!-- CSRF Token pour requêtes AJAX -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <!-- App favicon -->
     <link rel="shortcut icon" href="{{asset('frontend/assets/images/favicon.ico')}}">
@@ -202,6 +205,13 @@
 
 <!-- Scripts globaux pour la navigation -->
 <script>
+// Configuration CSRF pour requêtes AJAX
+$.ajaxSetup({
+    headers: {
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    }
+});
+
 // Fonctions globales pour la navigation
 function confirmLogout() {
     if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {

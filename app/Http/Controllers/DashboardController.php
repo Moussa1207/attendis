@@ -1,6 +1,4 @@
 <?php
-// app/Http/Controllers/DashboardController.php (VERSION COMPLÈTE RÉVISÉE)
-
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -20,7 +18,7 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // DASHBOARDS PRINCIPAUX
+    // DASHBOARDS PRINCIPAUX: app(admin) et app-users(utilisateur quelconque)
     // ===============================================
 
     /**
@@ -52,7 +50,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Dashboard admin (layouts/app.blade.php) avec statistiques complètes
+     * Dashboard admin (layouts/app.blade.php) - GARDE LE CONTENU ANALYTICS GÉNÉRIQUE
      */
     public function adminDashboard()
     {
@@ -63,7 +61,7 @@ class DashboardController extends Controller
         }
 
         try {
-            // Statistiques générales du système
+            // Statistiques de base pour les variables optionnelles dans le template
             $stats = [
                 'total_users' => User::count(),
                 'active_users' => User::active()->count(),
@@ -108,29 +106,12 @@ class DashboardController extends Controller
                 ->limit(15)
                 ->get();
 
-            // Statistiques par type d'utilisateur
-            $userTypeStats = UserType::with('users')->get()->map(function($type) {
-                return [
-                    'type' => $type,
-                    'stats' => $type->getStats()
-                ];
-            });
-
-            // Statistiques par statut
-            $statusStats = Status::with('users')->get()->map(function($status) {
-                return [
-                    'status' => $status,
-                    'count' => $status->getUsersCount()
-                ];
-            });
-
+            // GARDE LE TEMPLATE ANALYTICS GÉNÉRIQUE - Passe juste les stats optionnelles
             return view('layouts.app', compact(
                 'stats', 
                 'personalStats', 
                 'recentActivity', 
-                'pendingUsers',
-                'userTypeStats',
-                'statusStats'
+                'pendingUsers'
             ));
 
         } catch (\Exception $e) {
@@ -158,13 +139,13 @@ class DashboardController extends Controller
         }
 
         try {
-            // Statistiques personnelles pour l'utilisateur
+            // Statistiques personnelles pour l'utilisateur (cohérent avec app-users.blade.php)
             $userStats = [
                 'days_since_creation' => $user->created_at->diffInDays(now()),
                 'account_age_formatted' => $user->created_at->diffForHumans(),
                 'is_recently_created' => $user->created_at->diffInDays(now()) < 7,
                 'creator_info' => $user->getCreationInfo(),
-                'login_count_today' => 1, // Peut être implémenté avec un système de log
+                'login_count_today' => 1,
                 'last_password_change' => $user->updated_at->diffForHumans(),
             ];
 
@@ -182,11 +163,12 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // GESTION DES UTILISATEURS
+    // GESTION DES UTILISATEURS (Pour users-list.blade.php)
     // ===============================================
 
     /**
      * Liste complète des utilisateurs avec filtres (ADMINS UNIQUEMENT)
+     * COHÉRENT avec users-list.blade.php
      */
     public function usersList(Request $request)
     {
@@ -236,7 +218,7 @@ class DashboardController extends Controller
 
             $users = $query->orderBy('created_at', 'desc')->paginate(15);
 
-            // Ajouter les informations de traçabilité
+            //  informations de traçabilité
             $users->getCollection()->transform(function ($user) {
                 $user->creation_info = $user->getCreationInfo();
                 $user->can_be_deleted = $user->canBeDeleted();
@@ -258,7 +240,7 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // ACTIONS SUR LES UTILISATEURS
+    // ACTIONS SUR LES UTILISATEURS (Pour users-list.blade.php)
     // ===============================================
 
     /**
@@ -281,7 +263,6 @@ class DashboardController extends Controller
             
             $message = 'L\'utilisateur ' . $user->username . ' a été activé avec succès.';
             
-            // Log de l'activité
             \Log::info('User activated', [
                 'activated_user_id' => $user->id,
                 'activated_user_username' => $user->username,
@@ -289,7 +270,6 @@ class DashboardController extends Controller
                 'admin_username' => Auth::user()->username
             ]);
             
-            // Réponse AJAX
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true, 
@@ -341,7 +321,6 @@ class DashboardController extends Controller
         }
 
         try {
-            // Vérifications de sécurité
             if (!$user->canBeSuspended()) {
                 $message = 'Impossible de suspendre cet utilisateur.';
                 
@@ -355,7 +334,6 @@ class DashboardController extends Controller
                 return redirect()->back()->with('error', $message);
             }
 
-            // Empêcher de se suspendre soi-même
             if ($user->id === Auth::id()) {
                 $message = 'Vous ne pouvez pas suspendre votre propre compte.';
                 
@@ -373,7 +351,6 @@ class DashboardController extends Controller
             
             $message = 'L\'utilisateur ' . $user->username . ' a été suspendu.';
             
-            // Log de l'activité
             \Log::info('User suspended', [
                 'suspended_user_id' => $user->id,
                 'suspended_user_username' => $user->username,
@@ -381,7 +358,6 @@ class DashboardController extends Controller
                 'admin_username' => Auth::user()->username
             ]);
             
-            // Réponse AJAX
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true, 
@@ -433,7 +409,6 @@ class DashboardController extends Controller
         }
 
         try {
-            // Vérifier que l'utilisateur est bien suspendu
             if (!$user->isSuspended()) {
                 $message = 'L\'utilisateur ' . $user->username . ' n\'est pas suspendu.';
                 
@@ -447,11 +422,10 @@ class DashboardController extends Controller
                 return redirect()->back()->with('error', $message);
             }
 
-            $user->activate(); // Réactiver = statut actif
+            $user->activate();
             
             $message = 'L\'utilisateur ' . $user->username . ' a été réactivé avec succès.';
             
-            // Log de l'activité
             \Log::info('User reactivated', [
                 'reactivated_user_id' => $user->id,
                 'reactivated_user_username' => $user->username,
@@ -459,7 +433,6 @@ class DashboardController extends Controller
                 'admin_username' => Auth::user()->username
             ]);
             
-            // Réponse AJAX
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true, 
@@ -511,7 +484,6 @@ class DashboardController extends Controller
         }
 
         try {
-            // Vérifications de sécurité
             if (!$user->canBeDeleted()) {
                 $message = 'Impossible de supprimer cet utilisateur.';
                 
@@ -525,7 +497,6 @@ class DashboardController extends Controller
                 return redirect()->back()->with('error', $message);
             }
 
-            // Empêcher de se supprimer soi-même
             if ($user->id === Auth::id()) {
                 $message = 'Vous ne pouvez pas supprimer votre propre compte.';
                 
@@ -542,7 +513,6 @@ class DashboardController extends Controller
             $username = $user->username;
             $userId = $user->id;
             
-            // Log avant suppression
             \Log::warning('User deleted', [
                 'deleted_user_id' => $userId,
                 'deleted_user_username' => $username,
@@ -551,12 +521,10 @@ class DashboardController extends Controller
                 'admin_username' => Auth::user()->username
             ]);
             
-            // Supprimer l'utilisateur (cascade supprimera les relations)
             $user->delete();
             
             $message = 'L\'utilisateur ' . $username . ' a été supprimé définitivement.';
             
-            // Réponse AJAX
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true, 
@@ -608,7 +576,6 @@ class DashboardController extends Controller
             $userIds = $request->user_ids;
             $currentAdminId = Auth::id();
             
-            // Récupérer les utilisateurs à supprimer
             $usersToDelete = User::whereIn('id', $userIds)->get();
             
             if ($usersToDelete->isEmpty()) {
@@ -618,15 +585,12 @@ class DashboardController extends Controller
                 ]);
             }
             
-            // Vérifications de sécurité
             $errors = [];
             
-            // Empêcher de se supprimer soi-même
             if (in_array($currentAdminId, $userIds)) {
                 $errors[] = 'Vous ne pouvez pas supprimer votre propre compte';
             }
             
-            // Vérifier les administrateurs
             $adminUsers = $usersToDelete->where('user_type_id', 1);
             $activeAdmins = User::admins()->active()->count();
             
@@ -634,7 +598,6 @@ class DashboardController extends Controller
                 $errors[] = 'Impossible de supprimer tous les administrateurs actifs';
             }
             
-            // Vérifier les utilisateurs qui ne peuvent pas être supprimés
             foreach ($usersToDelete as $user) {
                 if (!$user->canBeDeleted() && $user->id !== $currentAdminId) {
                     $errors[] = "L'utilisateur {$user->username} ne peut pas être supprimé";
@@ -656,7 +619,6 @@ class DashboardController extends Controller
             foreach ($usersToDelete as $user) {
                 if ($user->canBeDeleted() && $user->id !== $currentAdminId) {
                     try {
-                        // Log avant suppression
                         \Log::warning('Bulk user deletion', [
                             'deleted_user_id' => $user->id,
                             'deleted_user_username' => $user->username,
@@ -738,7 +700,6 @@ class DashboardController extends Controller
                     $user->activate();
                     $activatedCount++;
                     
-                    // Log pour chaque activation
                     \Log::info('Bulk user activation', [
                         'activated_user_id' => $user->id,
                         'activated_user_username' => $user->username,
@@ -871,7 +832,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Obtenir les détails d'un utilisateur (AJAX - ADMINS)
+     * Obtenir les détails sur utilisateur (AJAX - ADMINS)
      */
     public function getUserDetails(User $user, Request $request)
     {

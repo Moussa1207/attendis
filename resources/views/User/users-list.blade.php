@@ -880,5 +880,4 @@ function exportUsers() {
     console.log('Export des utilisateurs');
 }
 </script>
-
 @endsection

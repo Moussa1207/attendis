@@ -1,10 +1,10 @@
 <?php
-// app/Models/User.php (VERSION MISE À JOUR)
 
 namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -29,7 +29,7 @@ class User extends Authenticatable
     // ===============================================
 
     /**
-     * Relation avec UserType
+     * Relation avec le model UserType
      */
     public function userType()
     {
@@ -37,7 +37,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Relation avec Status
+     * Relation avec le model Status
      */
     public function status()
     {
@@ -247,6 +247,48 @@ class User extends Authenticatable
     public function getTypeIcon(): string
     {
         return $this->isAdmin() ? 'shield' : 'user';
+    }
+
+    // ===============================================
+    // GESTION DES MOTS DE PASSE TEMPORAIRES
+    // ===============================================
+
+    /**
+     * Générer un mot de passe temporaire sécurisé
+     * UTILISÉ par UserManagementController
+     */
+    public static function generateSecureTemporaryPassword(int $length = 12): string
+    {
+        // Caractères pour le mot de passe
+        $lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        $uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $numbers = '0123456789';
+        $symbols = '@#$%&*!?';
+        
+        // Assurer au moins un caractère de chaque type
+        $password = '';
+        $password .= $lowercase[random_int(0, strlen($lowercase) - 1)];
+        $password .= $uppercase[random_int(0, strlen($uppercase) - 1)];
+        $password .= $numbers[random_int(0, strlen($numbers) - 1)];
+        $password .= $symbols[random_int(0, strlen($symbols) - 1)];
+        
+        // Compléter avec des caractères aléatoires
+        $allChars = $lowercase . $uppercase . $numbers . $symbols;
+        for ($i = 4; $i < $length; $i++) {
+            $password .= $allChars[random_int(0, strlen($allChars) - 1)];
+        }
+        
+        // Mélanger le mot de passe
+        return str_shuffle($password);
+    }
+
+    /**
+     * Vérifier si l'utilisateur nécessite un reset password
+     */
+    public function requiresPasswordReset(): bool
+    {
+        $relation = $this->createdBy;
+        return $relation && $relation->requiresPasswordReset();
     }
 
     // ===============================================

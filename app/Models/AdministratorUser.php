@@ -1,9 +1,9 @@
 <?php
-// app/Models/AdministratorUser.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class AdministratorUser extends Model
 {
@@ -12,9 +12,15 @@ class AdministratorUser extends Model
     protected $fillable = [
         'administrator_id',
         'user_id',
+        'creation_method',
+        'creation_notes',
+        'password_reset_required',
+        'password_reset_sent_at',
     ];
 
     protected $casts = [
+        'password_reset_required' => 'boolean',
+        'password_reset_sent_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -37,6 +43,47 @@ class AdministratorUser extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // ===============================================
+    // MÉTHODES POUR GESTION MOTS DE PASSE
+    // ===============================================
+
+    /**
+     * Marquer que le reset password a été envoyé
+     */
+    public function markPasswordResetSent()
+    {
+        $this->update([
+            'password_reset_sent_at' => now(),
+            'password_reset_required' => true
+        ]);
+    }
+
+    /**
+     * Marquer que le password a été changé
+     */
+    public function markPasswordChanged()
+    {
+        $this->update([
+            'password_reset_required' => false
+        ]);
+    }
+
+    /**
+     * Vérifier si le reset password a été envoyé
+     */
+    public function wasPasswordResetSent(): bool
+    {
+        return !is_null($this->password_reset_sent_at);
+    }
+
+    /**
+     * Vérifier si le reset password est requis
+     */
+    public function requiresPasswordReset(): bool
+    {
+        return $this->password_reset_required;
     }
 
     // ===============================================
@@ -63,12 +110,12 @@ class AdministratorUser extends Model
     /**
      * Créer une nouvelle relation administrateur-utilisateur
      */
-    public static function createRelation($administratorId, $userId): self
+    public static function createRelation($administratorId, $userId, $options = []): self
     {
-        return self::create([
+        return self::create(array_merge([
             'administrator_id' => $administratorId,
             'user_id' => $userId,
-        ]);
+        ], $options));
     }
 
     /**
@@ -84,17 +131,26 @@ class AdministratorUser extends Model
     /**
      * Obtenir les statistiques de création d'un admin
      */
-    public static function getAdminCreationStats($administratorId): array
+    public static function getStatsForAdmin($administratorId): array
     {
         $relations = self::where('administrator_id', $administratorId)->with('user')->get();
         
         return [
             'total_created' => $relations->count(),
-            'active_created' => $relations->where('user.status_id', 2)->count(),
-            'inactive_created' => $relations->where('user.status_id', 1)->count(),
-            'suspended_created' => $relations->where('user.status_id', 3)->count(),
+            'active_created' => $relations->filter(function($rel) {
+                return $rel->user && $rel->user->status_id === 2;
+            })->count(),
+            'inactive_created' => $relations->filter(function($rel) {
+                return $rel->user && $rel->user->status_id === 1;
+            })->count(),
+            'suspended_created' => $relations->filter(function($rel) {
+                return $rel->user && $rel->user->status_id === 3;
+            })->count(),
+            'password_reset_required' => $relations->where('password_reset_required', true)->count(),
+            'created_today' => $relations->where('created_at', '>=', Carbon::today())->count(),
+            'created_this_week' => $relations->where('created_at', '>=', Carbon::now()->startOfWeek())->count(),
+            'created_this_month' => $relations->where('created_at', '>=', Carbon::now()->startOfMonth())->count(),
             'latest_creation' => $relations->sortByDesc('created_at')->first(),
-            'creation_rate_this_month' => $relations->where('created_at', '>=', now()->startOfMonth())->count(),
         ];
     }
 
@@ -106,7 +162,7 @@ class AdministratorUser extends Model
         $admins = User::admins()->get();
         
         return $admins->map(function($admin) {
-            $stats = self::getAdminCreationStats($admin->id);
+            $stats = self::getStatsForAdmin($admin->id);
             return [
                 'admin_id' => $admin->id,
                 'admin_username' => $admin->username,
@@ -142,5 +198,29 @@ class AdministratorUser extends Model
     public function scopeCreatedThisMonth($query)
     {
         return $query->where('created_at', '>=', now()->startOfMonth());
+    }
+
+    /**
+     * Scope pour les utilisateurs créés par un admin spécifique
+     */
+    public function scopeCreatedBy($query, $administratorId)
+    {
+        return $query->where('administrator_id', $administratorId);
+    }
+
+    /**
+     * Scope pour les utilisateurs nécessitant un reset password
+     */
+    public function scopePasswordResetRequired($query)
+    {
+        return $query->where('password_reset_required', true);
+    }
+
+    /**
+     * Scope pour une méthode de création spécifique
+     */
+    public function scopeByCreationMethod($query, $method)
+    {
+        return $query->where('creation_method', $method);
     }
 }

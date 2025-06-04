@@ -141,6 +141,51 @@
             </div>
             @endif
 
+            <!-- ALERTE PRINCIPALE POUR LE MOT DE PASSE -->
+            @if(isset($temporaryPassword))
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="alert alert-warning alert-dismissible fade show animate__animated animate__pulse" role="alert">
+                        <h5><i data-feather="key" class="mr-2"></i>Identifiants générés pour l'utilisateur</h5>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                @if(isset($newUser))
+                                    <p class="mb-2"><strong>👤 Utilisateur :</strong> {{ $newUser->username }}</p>
+                                    <p class="mb-2"><strong>📧 Email :</strong> {{ $newUser->email }}</p>
+                                @else
+                                    <p class="mb-2"><strong>👤 Utilisateur :</strong> Utilisateur créé</p>
+                                    <p class="mb-2"><strong>📧 Email :</strong> Voir dans la liste</p>
+                                @endif
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-2"><strong>🔐 Mot de passe temporaire :</strong></p>
+                                <div class="d-flex align-items-center">
+                                    <code style="font-size: 18px; background: #f8f9fa; padding: 8px 15px; border: 2px solid #dee2e6; border-radius: 4px; font-family: monospace; letter-spacing: 2px; font-weight: bold;">{{ $temporaryPassword }}</code>
+                                    <button class="btn btn-sm btn-outline-secondary ml-3" onclick="copyPassword()" title="Copier le mot de passe">
+                                        <i data-feather="copy" class="mr-1"></i>Copier
+                                    </button>
+                                    @if(isset($newUser))
+                                    <button class="btn btn-sm btn-outline-info ml-2" onclick="copyAllCredentials()" title="Copier tous les identifiants">
+                                        <i data-feather="clipboard" class="mr-1"></i>Tout copier
+                                    </button>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <small class="text-muted">
+                            <i data-feather="info" class="mr-1"></i>
+                            <strong>⚠️ Important :</strong> Communiquez ces identifiants à l'utilisateur pour sa première connexion. L'utilisateur devra changer son mot de passe lors de sa première connexion.
+                        </small>
+                        <button type="button" class="close" data-dismiss="alert" title="Fermer (après avoir noté les identifiants)">
+                            <span>&times;</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Informations importantes -->
             <div class="row">
                 <div class="col-lg-12">
@@ -154,7 +199,7 @@
                                     <h6 class="text-info mb-1 font-weight-semibold">Informations Importantes</h6>
                                     <p class="text-muted mb-0">
                                         • L'utilisateur sera créé avec le <strong>statut actif</strong> par défaut<br>
-                                        • Un <strong>mot de passe temporaire sécurisé</strong> sera généré automatiquement<br>
+                                        • Un <strong>mot de passe temporaire simple</strong> sera généré automatiquement (format : cvc123)<br>
                                         • L'utilisateur pourra <strong>modifier son mot de passe</strong> lors de sa première connexion<br>
                                         • Vous serez enregistré comme <strong>créateur</strong> de cet utilisateur
                                     </p>
@@ -239,7 +284,7 @@
                                                 <div class="col-md-4">
                                                     <div class="d-flex align-items-center">
                                                         <i data-feather="key" class="icon-xs text-warning mr-2"></i>
-                                                        <span class="text-muted">Mot de passe: <strong class="text-warning">Généré</strong></span>
+                                                        <span class="text-muted">Mot de passe: <strong class="text-warning">Format simple</strong></span>
                                                     </div>
                                                 </div>
                                                 <div class="col-md-4">
@@ -283,33 +328,6 @@
 </div>
 <!-- end page-wrapper -->
 
-<!-- Modal de prévisualisation -->
-<div class="modal fade" id="previewModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i data-feather="eye" class="icon-xs mr-2"></i>Prévisualisation de l'Utilisateur
-                </h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
-            </div>
-            <div class="modal-body" id="previewContent">
-                <!-- Contenu généré dynamiquement -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary waves-effect" data-dismiss="modal">
-                    <i data-feather="x" class="icon-xs mr-1"></i>Fermer
-                </button>
-                <button type="button" class="btn btn-primary waves-effect waves-light" onclick="submitFormFromPreview()">
-                    <i data-feather="user-plus" class="icon-xs mr-1"></i>Confirmer la Création
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Modal d'aide -->
 <div class="modal fade" id="helpModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
@@ -326,16 +344,16 @@
                 <h6>📋 Processus de Création</h6>
                 <ol class="pl-3">
                     <li>Saisissez les informations obligatoires</li>
-                    <li>Un mot de passe sécurisé sera généré automatiquement</li>
-                    <li>L'utilisateur recevra ses identifiants</li>
-                    <li>Il pourra modifier son mot de passe à la première connexion</li>
+                    <li>Un mot de passe simple sera généré automatiquement (format : consonne-voyelle-consonne + 3 chiffres)</li>
+                    <li>Les identifiants s'afficheront après la création</li>
+                    <li>L'utilisateur pourra modifier son mot de passe à la première connexion</li>
                 </ol>
                 
-                <h6 class="mt-3">🔐 Sécurité</h6>
+                <h6 class="mt-3">🔐 Format du mot de passe</h6>
                 <ul class="pl-3">
-                    <li>Le mot de passe temporaire est unique et sécurisé</li>
-                    <li>Vous ne verrez jamais le mot de passe final</li>
-                    <li>La traçabilité est assurée</li>
+                    <li>Format simple : <strong>cvc123</strong> (consonne-voyelle-consonne + 3 chiffres)</li>
+                    <li>Exemple : <code>bad457</code>, <code>kot892</code></li>
+                    <li>Facile à retenir et à communiquer</li>
                 </ul>
             </div>
             <div class="modal-footer">
@@ -352,31 +370,9 @@
     <div id="toastContainer"></div>
 </div>
 
-<!-- CSS personnalisé identique au style login -->
+<!-- CSS personnalisé -->
 <style>
 @import url('https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css');
-
-.password-toggle {
-    position: relative;
-}
-.password-toggle-btn {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    border: none;
-    background: none;
-    color: #6c757d;
-    cursor: pointer;
-    padding: 0;
-    z-index: 10;
-}
-.password-toggle-btn:hover {
-    color: #495057;
-}
-.password-toggle-btn:focus {
-    outline: none;
-}
 
 .card {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -447,6 +443,11 @@
 .text-info {
     color: #17a2b8 !important;
 }
+
+/* Style pour le mot de passe */
+code {
+    color: #e83e8c !important;
+}
 </style>
 
 <!-- JavaScript -->
@@ -459,53 +460,52 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Prévisualiser l'utilisateur
-function previewUser() {
-    const username = document.getElementById('register_username').value;
-    const email = document.getElementById('useremail').value;
-    const mobile = document.getElementById('mo_number').value;
-    
-    if (!username || !email || !mobile) {
-        showToast('Attention', 'Veuillez remplir tous les champs obligatoires', 'warning');
-        return;
-    }
-    
-    const previewContent = `
-        <div class="row">
-            <div class="col-md-4 text-center mb-3">
-                <img src="{{ asset('frontend/assets/images/users/user-5.jpg') }}" class="rounded-circle" style="width: 100px; height: 100px;">
-                <h6 class="mt-2">${username}</h6>
-                <span class="badge badge-success">Utilisateur Normal</span>
-            </div>
-            <div class="col-md-8">
-                <table class="table table-borderless">
-                    <tr><td><strong>Nom d'utilisateur:</strong></td><td>${username}</td></tr>
-                    <tr><td><strong>Email:</strong></td><td>${email}</td></tr>
-                    <tr><td><strong>Téléphone:</strong></td><td>${mobile}</td></tr>
-                    <tr><td><strong>Type:</strong></td><td><span class="badge badge-info">Utilisateur Normal</span></td></tr>
-                    <tr><td><strong>Statut:</strong></td><td><span class="badge badge-success">Actif</span></td></tr>
-                    <tr><td><strong>Créé par:</strong></td><td>{{ Auth::user()->username }}</td></tr>
-                    <tr><td><strong>Mot de passe:</strong></td><td><span class="text-warning">Généré automatiquement</span></td></tr>
-                </table>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('previewContent').innerHTML = previewContent;
-    $('#previewModal').modal('show');
-}
-
-// Soumettre depuis la prévisualisation
-function submitFormFromPreview() {
-    $('#previewModal').modal('hide');
-    setTimeout(() => {
-        document.getElementById('createUserForm').submit();
-    }, 300);
-}
-
 // Afficher l'aide
 function showHelp() {
     $('#helpModal').modal('show');
+}
+
+// Copier le mot de passe uniquement
+function copyPassword() {
+    const password = "{{ isset($temporaryPassword) ? $temporaryPassword : '' }}";
+    if (password) {
+        navigator.clipboard.writeText(password).then(() => {
+            showToast('Succès', 'Mot de passe copié dans le presse-papier !', 'success');
+        }).catch(() => {
+            // Fallback pour les navigateurs plus anciens
+            const tempInput = document.createElement('input');
+            tempInput.value = password;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast('Succès', 'Mot de passe copié !', 'success');
+        });
+    }
+}
+
+// Copier tous les identifiants
+function copyAllCredentials() {
+    const email = "{{ isset($newUser) ? $newUser->email : '' }}";
+    const password = "{{ isset($temporaryPassword) ? $temporaryPassword : '' }}";
+    const username = "{{ isset($newUser) ? $newUser->username : '' }}";
+    
+    if (email && password) {
+        const credentials = `Identifiants de connexion pour ${username}:
+
+📧 Email: ${email}
+🔐 Mot de passe temporaire: ${password}
+
+⚠️ Important: L'utilisateur doit changer ce mot de passe lors de sa première connexion.
+
+Créé le {{ isset($newUser) ? $newUser->created_at->format('d/m/Y à H:i') : '' }} par {{ Auth::user()->username }}`;
+        
+        navigator.clipboard.writeText(credentials).then(() => {
+            showToast('Succès', 'Tous les identifiants copiés !', 'success');
+        }).catch(() => {
+            showToast('Erreur', 'Impossible de copier automatiquement', 'error');
+        });
+    }
 }
 
 // Fonction toast

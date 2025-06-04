@@ -1,6 +1,4 @@
 <?php
-// app/Http/Controllers/Auth/LoginController.php
-
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -48,13 +46,13 @@ class LoginController extends Controller
             // Régénérer la session pour la sécurité
             $request->session()->regenerate();
 
-            // NOUVELLE LOGIQUE DE REDIRECTION
+            //  LOGIQUE DE REDIRECTION
             if ($user->isAdmin()) {
-                // Les admins vont sur le dashboard admin (layouts/app)
+                // Les admins  sur le dashboard admin (layouts/app)
                 return redirect()->route('layouts.app')
                     ->with('success', 'Bienvenue ' . $user->username . ' ! Vous êtes connecté en tant qu\'administrateur.');
             } else {
-                // Les utilisateurs normaux vont sur app-users
+                // Les utilisateurs normaux  sur app-users
                 return redirect()->route('layouts.app-users')
                     ->with('success', 'Bienvenue ' . $user->username . ' !');
             }

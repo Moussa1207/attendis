@@ -6,12 +6,14 @@ use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    public function run()
+    
+    public function run(): void
     {
-        // Ordre important: d'abord les types et statuts, puis les utilisateurs
+       
         $this->call([
-            StatusSeeder::class,
-            UserTypeSeeder::class,
+            UserTypeSeeder::class,  // 1. D'abord les types (Admin, User)
+            StatusSeeder::class,    // 2. Puis les statuts (Inactif, Actif, Suspendu)
+            
         ]);
     }
 }
