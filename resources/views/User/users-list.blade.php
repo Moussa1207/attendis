@@ -55,7 +55,7 @@
                         <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                             <i data-feather="power" class="align-self-center icon-xs icon-dual mr-1"></i> Logout
                         </a>
-                        <form id="logout-form" action=" " method="POST" style="display: none;">
+                        <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
                             @csrf
                         </form>
                     </div>
@@ -114,7 +114,7 @@
                 </div><!--end col-->
             </div><!--end row-->
             
-            <!-- Statistiques rapides - RECTANGLES UNIFORMISÉS -->
+            <!-- Statistiques rapides -->
             <div class="row justify-content-center" id="statsCards">
                 <div class="col-md-6 col-lg-3">
                     <div class="card report-card">
@@ -232,7 +232,7 @@
                                                 <i data-feather="search" class="icon-xs mr-1"></i>Recherche Intelligente
                                             </label>
                                             <input type="text" name="search" id="search" class="form-control" 
-                                                   placeholder="Nom, email, téléphone..." 
+                                                   placeholder="Nom, email, téléphone, entreprise..." 
                                                    value="{{ request('search') }}"
                                                    onkeyup="liveSearch()" autocomplete="off">
                                             <div id="searchSuggestions" class="search-suggestions"></div>
@@ -280,7 +280,7 @@
                 </div>
             </div><!--end row-->
 
-            <!-- Actions rapides - BOUTONS UNIFORMISÉS SANS EFFETS -->
+            <!-- Actions rapides -->
             <div class="row">
                 <div class="col-lg-12">
                     <div class="card">
@@ -370,6 +370,7 @@
                                                     Utilisateur
                                                 </th>
                                                 <th class="border-top-0">Contact</th>
+                                                <th class="border-top-0">Entreprise</th>
                                                 <th class="border-top-0">Type</th>
                                                 <th class="border-top-0">Statut</th>
                                                 <th class="border-top-0">Inscription</th>
@@ -392,6 +393,9 @@
                                                 <td>
                                                     <p class="mb-0 font-14">{{ $user->email }}</p>
                                                     <small class="text-muted">📱 {{ $user->mobile_number }}</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge badge-light-info">{{ $user->company ?? 'Non renseigné' }}</span>
                                                 </td>
                                                 <td>
                                                     @if($user->isAdmin())
@@ -437,7 +441,6 @@
                                                                 <i data-feather="user-x" class="icon-xs"></i>
                                                             </button>
                                                         @elseif($user->isSuspended())
-                                                            <!-- BOUTON RÉACTIVATION AJOUTÉ -->
                                                             <button class="btn btn-soft-success waves-effect" title="Réactiver" 
                                                                     onclick="reactivateUser({{ $user->id }}, '{{ $user->username }}')">
                                                                 <i data-feather="user-check" class="icon-xs"></i>
@@ -449,7 +452,6 @@
                                                             <i data-feather="eye" class="icon-xs"></i>
                                                         </button>
                                                         
-                                                        <!-- BOUTON SUPPRESSION AJOUTÉ -->
                                                         @if(!$user->isAdmin() || (\App\Models\User::where('user_type_id', 1)->where('status_id', 2)->count() > 1))
                                                         <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
                                                                 onclick="deleteUser({{ $user->id }}, '{{ $user->username }}')">
@@ -523,7 +525,6 @@
                 </button>
             </div>
             <div class="modal-body" id="userDetailsContent">
-                <!-- Contenu chargé dynamiquement -->
                 <div class="text-center py-4">
                     <div class="spinner-border text-primary" role="status">
                         <span class="sr-only">Chargement...</span>
@@ -544,22 +545,22 @@
     <div id="toastContainer"></div>
 </div>
 
-
 <style>
+/* CSS existant + améliorations temps réel */
 .card {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
 .report-card {
-    transition: none; /* SUPPRESSION DES EFFETS */
+    transition: none;
     cursor: default;
 }
-
-
 
 .counter {
     font-size: 2rem;
     font-weight: bold;
+    transition: all 0.3s ease;
 }
 
 .user-row {
@@ -601,30 +602,213 @@
 .toast {
     min-width: 300px;
 }
-</style>
 
+/* NOUVELLES ANIMATIONS TEMPS RÉEL */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.highlight-change {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    transition: background-color 0.3s ease;
+}
+
+.status-changing {
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+}
+
+.status-updated {
+    background-color: rgba(40, 167, 69, 0.1);
+    transition: background-color 0.3s ease;
+}
+
+.badge {
+    transition: all 0.3s ease;
+}
+
+.updating {
+    opacity: 0.8;
+    transform: scale(0.98);
+}
+</style>
 
 <script>
 // Variables globales
 let searchTimeout;
+let realTimeInterval;
+let lastUpdateTimestamp = Date.now();
 
-// Initialisation
+// Initialisation complète
 document.addEventListener('DOMContentLoaded', function() {
     // Initialiser Feather icons
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
     
-    // Auto-refresh toutes les 30 secondes
-    setInterval(refreshStats, 30000);
+    // NOUVEAU : Démarrer les mises à jour temps réel
+    startRealTimeUpdates();
+    
+    // NOUVEAU : Gestion visibilité page
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopRealTimeUpdates();
+        } else {
+            startRealTimeUpdates();
+        }
+    });
 });
 
-// Réactiver un utilisateur suspendu
+// =====================================================
+// NOUVELLES FONCTIONS TEMPS RÉEL
+// =====================================================
+
+function startRealTimeUpdates() {
+    if (realTimeInterval) {
+        clearInterval(realTimeInterval);
+    }
+    
+    realTimeInterval = setInterval(function() {
+        updateRealTimeStats();
+    }, 15000); // Toutes les 15 secondes
+    
+    console.log('⚡ Mises à jour temps réel démarrées');
+}
+
+function stopRealTimeUpdates() {
+    if (realTimeInterval) {
+        clearInterval(realTimeInterval);
+        realTimeInterval = null;
+    }
+    console.log('⏸️ Mises à jour temps réel arrêtées');
+}
+
+function updateRealTimeStats() {
+    fetch('/admin/api/stats', {
+        method: 'GET',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'Accept': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateStatsCards(data.stats);
+            updateNotificationsBadges(data.stats);
+            showUpdateIndicator();
+        }
+    })
+    .catch(error => {
+        console.warn('⚠️ Erreur mise à jour temps réel:', error);
+    });
+}
+
+function updateStatsCards(stats) {
+    const statsMapping = {
+        'totalUsers': stats.total_users,
+        'activeBadge': stats.active_users,
+        'pendingBadge': stats.inactive_users,
+        'adminBadge': stats.admin_users,
+        'pendingCount': stats.inactive_users,
+        'pendingCount2': stats.inactive_users,
+        'resultCount': `${stats.total_users} résultat(s)`
+    };
+    
+    Object.entries(statsMapping).forEach(([elementId, newValue]) => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            const currentValue = element.textContent.trim();
+            const newValueStr = String(newValue);
+            
+            if (currentValue !== newValueStr) {
+                animateValueChange(element, newValueStr);
+                highlightChange(element);
+            }
+        }
+    });
+}
+
+function updateNotificationsBadges(stats) {
+    const pendingCount = stats.inactive_users;
+    
+    ['pendingCount', 'pendingCount2'].forEach(badgeId => {
+        const badge = document.getElementById(badgeId);
+        if (badge) {
+            const oldValue = parseInt(badge.textContent) || 0;
+            
+            badge.textContent = pendingCount;
+            
+            if (pendingCount === 0) {
+                badge.style.display = 'none';
+            } else {
+                badge.style.display = 'inline-block';
+                
+                if (oldValue < pendingCount) {
+                    badge.style.animation = 'pulse 1s ease-in-out';
+                    setTimeout(() => {
+                        badge.style.animation = '';
+                    }, 1000);
+                }
+            }
+        }
+    });
+}
+
+function animateValueChange(element, newValue) {
+    element.style.transition = 'all 0.3s ease';
+    element.style.transform = 'scale(1.1)';
+    element.style.color = '#007bff';
+    
+    setTimeout(() => {
+        element.textContent = newValue;
+        element.style.transform = 'scale(1)';
+        element.style.color = '';
+    }, 150);
+}
+
+function highlightChange(element) {
+    const parentCard = element.closest('.card');
+    if (parentCard) {
+        parentCard.style.backgroundColor = 'rgba(0, 123, 255, 0.05)';
+        parentCard.style.transition = 'background-color 0.3s ease';
+        
+        setTimeout(() => {
+            parentCard.style.backgroundColor = '';
+        }, 2000);
+    }
+}
+
+function showUpdateIndicator() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        const icon = refreshBtn.querySelector('i[data-feather="refresh-cw"]');
+        if (icon) {
+            icon.style.animation = 'spin 0.5s linear';
+            setTimeout(() => {
+                icon.style.animation = '';
+            }, 500);
+        }
+    }
+    
+    console.log('🔄 Stats mises à jour -', new Date().toLocaleTimeString());
+}
+
+// =====================================================
+// FONCTIONS EXISTANTES AMÉLIORÉES
+// =====================================================
+
 function reactivateUser(userId, username) {
     if (confirm(`Êtes-vous sûr de vouloir réactiver ${username} ?`)) {
         showLoading();
         
-        // Appel AJAX pour réactiver
         fetch(`/admin/users/${userId}/activate`, {
             method: 'PATCH',
             headers: {
@@ -639,7 +823,8 @@ function reactivateUser(userId, username) {
             if (data.success) {
                 showToast('Succès', `${username} a été réactivé avec succès !`, 'success');
                 updateUserRow(userId, 'active');
-                updateStats();
+                // NOUVEAU : Mise à jour immédiate des stats
+                setTimeout(() => updateRealTimeStats(), 1000);
             } else {
                 showToast('Erreur', data.message, 'error');
             }
@@ -651,13 +836,11 @@ function reactivateUser(userId, username) {
     }
 }
 
-//  Supprimer un utilisateur
 function deleteUser(userId, username) {
     if (confirm(`⚠️ ATTENTION ⚠️\n\nÊtes-vous sûr de vouloir SUPPRIMER définitivement ${username} ?\n\nCette action est IRRÉVERSIBLE !`)) {
         if (confirm(`Dernière confirmation :\n\nVoulez-vous vraiment supprimer ${username} ?\n\nToutes ses données seront perdues.`)) {
             showLoading();
             
-            // Appel  pour supprimer
             fetch(`/admin/users/${userId}`, {
                 method: 'DELETE',
                 headers: {
@@ -671,12 +854,12 @@ function deleteUser(userId, username) {
                 hideLoading();
                 if (data.success) {
                     showToast('Succès', `${username} a été supprimé définitivement.`, 'success');
-                    // Supprimer la ligne du tableau
                     const row = document.querySelector(`[data-user-id="${userId}"]`);
                     if (row) {
                         row.remove();
                     }
-                    updateStats();
+                    // NOUVEAU : Mise à jour immédiate des stats
+                    setTimeout(() => updateRealTimeStats(), 1000);
                 } else {
                     showToast('Erreur', data.message, 'error');
                 }
@@ -689,7 +872,66 @@ function deleteUser(userId, username) {
     }
 }
 
-// Suppression en masse des utilisateurs sélectionnés
+function activateUser(userId, username) {
+    if (confirm(`Êtes-vous sûr de vouloir activer ${username} ?`)) {
+        showLoading();
+        
+        fetch(`/admin/users/${userId}/activate`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showToast('Succès', `${username} a été activé avec succès !`, 'success');
+                updateUserRow(userId, 'active');
+                // NOUVEAU : Mise à jour immédiate des stats
+                setTimeout(() => updateRealTimeStats(), 1000);
+            } else {
+                showToast('Erreur', data.message, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Erreur', 'Erreur lors de l\'activation', 'error');
+        });
+    }
+}
+
+function suspendUser(userId, username) {
+    if (confirm(`Êtes-vous sûr de vouloir suspendre ${username} ?`)) {
+        showLoading();
+        
+        fetch(`/admin/users/${userId}/suspend`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showToast('Succès', `${username} a été suspendu.`, 'warning');
+                updateUserRow(userId, 'suspended');
+                // NOUVEAU : Mise à jour immédiate des stats
+                setTimeout(() => updateRealTimeStats(), 1000);
+            } else {
+                showToast('Erreur', data.message, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Erreur', 'Erreur lors de la suspension', 'error');
+        });
+    }
+}
+
 function bulkDeleteSelected() {
     const selectedUsers = document.querySelectorAll('.user-checkbox:checked');
     
@@ -704,7 +946,6 @@ function bulkDeleteSelected() {
             
             const userIds = Array.from(selectedUsers).map(checkbox => checkbox.value);
             
-            // Appel  pour suppression en masse
             fetch('/admin/users/bulk-delete', {
                 method: 'POST',
                 headers: {
@@ -719,8 +960,9 @@ function bulkDeleteSelected() {
                 hideLoading();
                 if (data.success) {
                     showToast('Succès', `${data.deleted_count} utilisateur(s) supprimé(s) avec succès !`, 'success');
-                    // Recharger la page
+                    // NOUVEAU : Mise à jour immédiate des stats
                     setTimeout(() => {
+                        updateRealTimeStats();
                         window.location.reload();
                     }, 2000);
                 } else {
@@ -740,43 +982,7 @@ function showCreateUserModal() {
     window.location.href = "{{ route('admin.users.create') }}";
 }
 
-// Fonction pour activer un utilisateur (existante, conservée)
-function activateUser(userId, username) {
-    if (confirm(`Êtes-vous sûr de vouloir activer ${username} ?`)) {
-        showLoading();
-        
-        setTimeout(() => {
-            hideLoading();
-            showToast('Succès', `${username} a été activé avec succès !`, 'success');
-            updateUserRow(userId, 'active');
-            updateStats();
-        }, 1000);
-    }
-}
-
-// Fonction pour suspendre un utilisateur (existante, conservée)
-function suspendUser(userId, username) {
-    if (confirm(`Êtes-vous sûr de vouloir suspendre ${username} ?`)) {
-        showLoading();
-        
-        setTimeout(() => {
-            hideLoading();
-            showToast('Succès', `${username} a été suspendu.`, 'warning');
-            updateUserRow(userId, 'suspended');
-            updateStats();
-        }, 1000);
-    }
-}
-
-// les autres fonctions 
-function refreshStats() {
-    console.log('Statistiques actualisées');
-}
-
-function updateStats() {
-    console.log('Statistiques mises à jour');
-}
-
+// Fonctions utilitaires
 function updateUserRow(userId, newStatus) {
     console.log(`Mise à jour utilisateur ${userId} vers ${newStatus}`);
 }
@@ -826,7 +1032,11 @@ function showToast(title, message, type = 'info') {
     }
 }
 
-// Fonctions de filtrage et autres fonctions existantes conservées...
+// Autres fonctions existantes conservées
+function refreshStats() {
+    updateRealTimeStats();
+}
+
 function applyFilters() {
     console.log('Filtres appliqués');
 }
@@ -877,7 +1087,7 @@ function clearQuickSearch() {
 }
 
 function exportUsers() {
-    console.log('Export des utilisateurs');
+    window.location.href = "{{ route('admin.users.export') }}";
 }
 </script>
 @endsection

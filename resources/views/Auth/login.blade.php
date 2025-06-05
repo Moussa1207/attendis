@@ -66,6 +66,18 @@
                                     {{ session('error') }}
                                 </div>
                                 @endif
+
+                                @if(session('success'))
+                                <div class="alert alert-success">
+                                    {{ session('success') }}
+                                </div>
+                                @endif
+
+                                @if(session('info'))
+                                <div class="alert alert-info">
+                                    {{ session('info') }}
+                                </div>
+                                @endif
                                 
                                 <ul class="nav-border nav nav-pills" role="tablist">
                                     <li class="nav-item">
@@ -127,7 +139,7 @@
                                             </div>
                                         </form>
                                         <div class="m-3 text-center text-muted">
-                                                <p class="">Vous n'avez pas encore de compte ?  <a href="auth-register.html" class="text-primary ml-2">S'inscrire</a></p>
+                                                <p class="">Vous n'avez pas encore de compte ?  <a href="#" onclick="switchToRegister()" class="text-primary ml-2">S'inscrire</a></p>
                                         </div>
                                     </div>
                                     <div class="tab-pane px-3 pt-3" id="Register_Tab" role="tabpanel">
@@ -147,7 +159,7 @@
                                             </div>
 
                                             <div class="form-group">
-                                                <label for="register_username">Nom </label>
+                                                <label for="register_username">Nom</label>
                                                 <div class="input-group mb-3">
                                                     <input type="text" class="form-control @error('username') is-invalid @enderror" name="username" id="register_username" value="{{ old('username') }}" placeholder="ex: Awa Konan" required>
                                                     @error('username')
@@ -157,12 +169,25 @@
                                                     @enderror
                                                 </div>
                                             </div>
-
+                                            
                                             <div class="form-group">
                                                 <label for="mo_number">Téléphone</label>
                                                 <div class="input-group mb-3">
                                                     <input type="text" class="form-control @error('mobile_number') is-invalid @enderror" name="mobile_number" id="mo_number" value="{{ old('mobile_number') }}" placeholder="ex: 0707000000" required>
                                                     @error('mobile_number')
+                                                    <span class="invalid-feedback" role="alert">
+                                                        <strong>{{ $message }}</strong>
+                                                    </span>
+                                                    @enderror
+                                                </div>
+                                            </div>
+
+                                            <!-- NOUVEAU CHAMP ENTREPRISE -->
+                                            <div class="form-group">
+                                                <label for="company">Entreprise</label>
+                                                <div class="input-group mb-3">
+                                                    <input type="text" class="form-control @error('company') is-invalid @enderror" name="company" id="company" value="{{ old('company') }}" placeholder="ex: Attendis Corp" required>
+                                                    @error('company')
                                                     <span class="invalid-feedback" role="alert">
                                                         <strong>{{ $message }}</strong>
                                                     </span>
@@ -210,8 +235,7 @@
                                                 </div>
                                             </div>
                                         </form>
-                                            <p class="mb-0 text-muted">Vous avez déjà un compte ?<a href="{{ asset(url('/login')) }}" class="text-primary ml-2">Se connecter</a></p>                                                    
-
+                                        <p class="mb-0 text-muted">Vous avez déjà un compte ?<a href="#" onclick="switchToLogin()" class="text-primary ml-2">Se connecter</a></p>                                                    
                                     </div>
                                 </div>
                             </div>
@@ -250,14 +274,21 @@
             }
         }
 
+        // Fonctions pour changer d'onglet
+        function switchToRegister() {
+            $('#Register_Tab').tab('show');
+        }
+
+        function switchToLogin() {
+            $('#LogIn_Tab').tab('show');
+        }
+
         // Code pour activer l'onglet approprié si des erreurs de validation sont présentes
         $(document).ready(function() {
-            @if ($errors->has('username') || $errors->has('password'))
-                $('#LogIn_Tab').tab('show');
-            @endif
-            
-            @if ($errors->has('email') || $errors->has('mobile_number'))
+            @if ($errors->has('username') || $errors->has('company') || $errors->has('mobile_number'))
                 $('#Register_Tab').tab('show');
+            @else
+                $('#LogIn_Tab').tab('show');
             @endif
         });
     </script>

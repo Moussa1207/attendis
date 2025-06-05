@@ -11,7 +11,7 @@ class User extends Authenticatable
     use Notifiable;
 
     protected $fillable = [
-        'username', 'email', 'password', 'mobile_number', 'user_type_id', 'status_id',
+        'username', 'email', 'password', 'mobile_number', 'company', 'user_type_id', 'status_id',
     ];
 
     protected $hidden = [
@@ -125,6 +125,33 @@ class User extends Authenticatable
     }
 
     // ===============================================
+    // NOUVELLES MÉTHODES POUR LE CHANGEMENT DE MOT DE PASSE OBLIGATOIRE
+    // ===============================================
+
+    /**
+     * Vérifier si l'utilisateur doit changer son mot de passe
+     */
+    public function mustChangePassword(): bool
+    {
+        // Si l'utilisateur a été créé par un admin et n'a pas encore changé son mot de passe
+        $adminRelation = $this->createdBy;
+        return $adminRelation && $adminRelation->password_reset_required;
+    }
+
+    /**
+     * Marquer que l'utilisateur a changé son mot de passe
+     */
+    public function markPasswordChanged(): bool
+    {
+        $adminRelation = $this->createdBy;
+        if ($adminRelation) {
+            $adminRelation->markPasswordChanged();
+            return true;
+        }
+        return false;
+    }
+
+    // ===============================================
     // MÉTHODES POUR OBTENIR LES NOMS
     // ===============================================
 
@@ -181,7 +208,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Obtenir les informations de création
+     * Obtenir les informations de création (AMÉLIORÉ avec company)
      */
     public function getCreationInfo(): ?array
     {
@@ -190,6 +217,7 @@ class User extends Authenticatable
             'created_by' => $creator->username,
             'created_by_id' => $creator->id,
             'created_by_email' => $creator->email,
+            'created_by_company' => $creator->company, // NOUVEAU
             'created_at' => $this->created_at,
             'created_at_formatted' => $this->created_at->format('d/m/Y à H:i'),
             'created_at_human' => $this->created_at->diffForHumans(),
@@ -336,14 +364,15 @@ class User extends Authenticatable
     }
 
     /**
-     * Scope pour recherche par terme
+     * Scope pour recherche par terme (AMÉLIORÉ avec company)
      */
     public function scopeSearch($query, $term)
     {
         return $query->where(function($q) use ($term) {
             $q->where('username', 'like', "%{$term}%")
               ->orWhere('email', 'like', "%{$term}%")
-              ->orWhere('mobile_number', 'like', "%{$term}%");
+              ->orWhere('mobile_number', 'like', "%{$term}%")
+              ->orWhere('company', 'like', "%{$term}%"); // NOUVEAU - recherche par entreprise
         });
     }
 }

@@ -34,7 +34,8 @@ class UserManagementController extends Controller
 
     /**
      * Créer un nouvel utilisateur avec gestion sécurisée des mots de passe
-     *  L'admin voit TOUJOURS le mot de passe temporaire
+     * L'admin voit TOUJOURS le mot de passe temporaire
+     * AMÉLIORÉ avec le champ company
      */
     public function store(Request $request)
     {
@@ -42,7 +43,7 @@ class UserManagementController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'username' => 'required|string|max:255|unique:users',
             'mobile_number' => 'required|string|max:20',
-            'user_type_id' => 'sometimes|in:1,2', // Optionnel, par défaut utilisateur normal
+            'company' => 'required|string|max:255', // NOUVEAU CHAMP
             'creation_notes' => 'nullable|string|max:500',
             'send_credentials' => 'boolean'
         ], [
@@ -50,6 +51,8 @@ class UserManagementController extends Controller
             'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
             'email.email' => 'Veuillez saisir une adresse email valide.',
             'mobile_number.required' => 'Le numéro de téléphone est obligatoire.',
+            'company.required' => 'Le nom de l\'entreprise est obligatoire.', // NOUVEAU
+            'company.max' => 'Le nom de l\'entreprise ne peut pas dépasser 255 caractères.', // NOUVEAU
             'creation_notes.max' => 'Les notes ne peuvent pas dépasser 500 caractères.'
         ]);
 
@@ -57,12 +60,14 @@ class UserManagementController extends Controller
             DB::beginTransaction();
 
             // Générer un mot de passe temporaire sécurisé
-              $temporaryPassword = $this->generateSecurePassword();
+            $temporaryPassword = $this->generateSecurePassword();
+            
             // Créer l'utilisateur - TOUJOURS utilisateur normal par défaut 
             $user = User::create([
                 'email' => $request->email,
                 'username' => $request->username,
                 'mobile_number' => $request->mobile_number,
+                'company' => $request->company, // NOUVEAU CHAMP
                 'password' => Hash::make($temporaryPassword),
                 'user_type_id' => 2, // TOUJOURS utilisateur normal 
                 'status_id' => 2, // TOUJOURS actif par défaut 
@@ -82,6 +87,7 @@ class UserManagementController extends Controller
             $userCredentials = [
                 'email' => $user->email,
                 'username' => $user->username,
+                'company' => $user->company, // NOUVEAU
                 'password' => $temporaryPassword,
                 'login_url' => route('login'),
                 'admin_creator' => Auth::user()->username
@@ -93,6 +99,8 @@ class UserManagementController extends Controller
             // Envoyer les identifiants si demandé (optionnel)
             if ($request->boolean('send_credentials', false)) {
                 try {
+                    // Ici vous pouvez ajouter l'envoi d'email si nécessaire
+                    // Mail::to($user->email)->send(new UserCredentialsMail($userCredentials));
                     
                     $adminUserRecord->markPasswordResetSent();
                     $credentialsSent = true;
@@ -108,10 +116,11 @@ class UserManagementController extends Controller
             \Log::info("Utilisateur {$user->username} créé par " . Auth::user()->username, [
                 'user_id' => $user->id,
                 'admin_id' => Auth::id(),
+                'company' => $user->company, // NOUVEAU
                 'credentials_sent' => $credentialsSent
             ]);
 
-            // NOUVEAU : Message avec mot de passe TOUJOURS visible pour l'admin
+            // Message avec mot de passe TOUJOURS visible pour l'admin
             $message = "L'utilisateur {$user->username} a été créé avec succès.";
             if ($credentialsSent) {
                 $message .= " Les identifiants ont été envoyés par email ET sont affichés ci-dessous.";
@@ -128,6 +137,7 @@ class UserManagementController extends Controller
                         'id' => $user->id,
                         'username' => $user->username,
                         'email' => $user->email,
+                        'company' => $user->company, // NOUVEAU
                         'type' => $user->getTypeName(),
                         'status' => 'Actif',
                         'credentials_sent' => $credentialsSent,
@@ -145,12 +155,18 @@ class UserManagementController extends Controller
                'adminStats' => $adminStats,
                'newUser' => $user,
                'temporaryPassword' => $temporaryPassword
-            ])->with('success', " Utilisateur '{$user->username}' créé avec succès ! ✅");
+            ])->with('success', "Utilisateur '{$user->username}' créé avec succès ! ✅");
        
-            } catch (\Exception $e) {
+        } catch (\Exception $e) {
             DB::rollBack();
             
-            \Log::error("Erreur création utilisateur: " . $e->getMessage());
+            \Log::error("Erreur création utilisateur: " . $e->getMessage(), [
+                'email' => $request->email,
+                'username' => $request->username,
+                'company' => $request->company, // NOUVEAU
+                'admin_id' => Auth::id()
+            ]);
+            
             $errorMessage = 'Erreur lors de la création de l\'utilisateur. Veuillez réessayer.';
             
             if ($request->expectsJson()) {
@@ -187,6 +203,7 @@ class UserManagementController extends Controller
                             'username' => $user->username,
                             'email' => $user->email,
                             'mobile_number' => $user->mobile_number,
+                            'company' => $user->company, // NOUVEAU
                             'type' => $user->getTypeName(),
                             'status' => $user->getStatusName(),
                             'status_badge_class' => $user->getStatusBadgeColor(),
@@ -240,6 +257,7 @@ class UserManagementController extends Controller
                 ->map(function($record) {
                     return [
                         'user' => $record->user ? $record->user->username : 'Utilisateur supprimé',
+                        'company' => $record->user ? $record->user->company : 'N/A', // NOUVEAU
                         'created_at' => $record->created_at->diffForHumans(),
                         'status' => $record->user ? $record->user->getStatusName() : 'N/A'
                     ];
@@ -302,6 +320,7 @@ class UserManagementController extends Controller
             $userCredentials = [
                 'email' => $user->email,
                 'username' => $user->username,
+                'company' => $user->company, // NOUVEAU
                 'password' => $newPassword,
                 'login_url' => route('login'),
                 'admin_creator' => Auth::user()->username
@@ -311,7 +330,9 @@ class UserManagementController extends Controller
                 $adminUserRecord->markPasswordResetSent();
             }
 
-            \Log::info("Nouveaux identifiants générés pour {$user->username} par " . Auth::user()->username);
+            \Log::info("Nouveaux identifiants générés pour {$user->username} par " . Auth::user()->username, [
+                'user_company' => $user->company // NOUVEAU
+            ]);
 
             //RETOURNER LE NOUVEAU MOT DE PASSE À L'ADMIN
             return response()->json([
@@ -331,18 +352,21 @@ class UserManagementController extends Controller
         }
     }
 
+    /**
+     * Générer un mot de passe temporaire simple (format amélioré)
+     */
     private function generateSecurePassword($length = 6): string 
-{
-    $voyelles = 'aeiou';
-    $consonnes = 'bcdfghjklmnpqrstvwxz';
-    $password = '';
-    
-    // Consonne-Voyelle-Consonne + 3 chiffres
-    $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
-    $password .= $voyelles[rand(0, strlen($voyelles) - 1)];
-    $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
-    $password .= rand(100, 999);
-    
-    return $password;
-}
+    {
+        $voyelles = 'aeiou';
+        $consonnes = 'bcdfghjklmnpqrstvwxz';
+        $password = '';
+        
+        // Consonne-Voyelle-Consonne + 3 chiffres
+        $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
+        $password .= $voyelles[rand(0, strlen($voyelles) - 1)];
+        $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
+        $password .= rand(100, 999);
+        
+        return $password;
+    }
 }

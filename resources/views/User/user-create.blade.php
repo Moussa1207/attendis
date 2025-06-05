@@ -16,8 +16,10 @@
                     <div class="dropdown-menu dropdown-menu-right dropdown-lg p-0">
                         <!-- Top Search Bar -->
                         <div class="app-search-topbar">
-                            <input type="search" class="from-control top-search mb-0" placeholder="Recherche rapide...">
-                            <button type="button"><i class="ti-close"></i></button>
+                            <form action="#" method="get">
+                                <input type="search" name="search" class="from-control top-search mb-0" placeholder="Rechercher dans mes données...">
+                                <button type="submit"><i class="ti-search"></i></button>
+                            </form>
                         </div>
                     </div>
                 </li>                      
@@ -153,6 +155,7 @@
                                 @if(isset($newUser))
                                     <p class="mb-2"><strong>👤 Utilisateur :</strong> {{ $newUser->username }}</p>
                                     <p class="mb-2"><strong>📧 Email :</strong> {{ $newUser->email }}</p>
+                                    <p class="mb-2"><strong>🏢 Entreprise :</strong> {{ $newUser->company }}</p>
                                 @else
                                     <p class="mb-2"><strong>👤 Utilisateur :</strong> Utilisateur créé</p>
                                     <p class="mb-2"><strong>📧 Email :</strong> Voir dans la liste</p>
@@ -201,7 +204,8 @@
                                         • L'utilisateur sera créé avec le <strong>statut actif</strong> par défaut<br>
                                         • Un <strong>mot de passe temporaire simple</strong> sera généré automatiquement (format : cvc123)<br>
                                         • L'utilisateur pourra <strong>modifier son mot de passe</strong> lors de sa première connexion<br>
-                                        • Vous serez enregistré comme <strong>créateur</strong> de cet utilisateur
+                                        • Vous serez enregistré comme <strong>créateur</strong> de cet utilisateur<br>
+                                        • Le champ <strong>entreprise</strong> est obligatoire pour identifier l'organisation
                                     </p>
                                 </div>
                             </div>
@@ -263,6 +267,19 @@
                                         <div class="input-group mb-3">
                                             <input type="text" class="form-control @error('mobile_number') is-invalid @enderror" name="mobile_number" id="mo_number" value="{{ old('mobile_number') }}" placeholder="ex: 0707000000" required>
                                             @error('mobile_number')
+                                            <span class="invalid-feedback" role="alert">
+                                                <strong>{{ $message }}</strong>
+                                            </span>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <!-- NOUVEAU CHAMP ENTREPRISE -->
+                                    <div class="form-group">
+                                        <label for="company">Entreprise</label>
+                                        <div class="input-group mb-3">
+                                            <input type="text" class="form-control @error('company') is-invalid @enderror" name="company" id="company" value="{{ old('company') }}" placeholder="ex: Attendis Corp" required>
+                                            @error('company')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>
                                             </span>
@@ -343,7 +360,7 @@
             <div class="modal-body">
                 <h6>📋 Processus de Création</h6>
                 <ol class="pl-3">
-                    <li>Saisissez les informations obligatoires</li>
+                    <li>Saisissez les informations obligatoires (email, nom, téléphone, entreprise)</li>
                     <li>Un mot de passe simple sera généré automatiquement (format : consonne-voyelle-consonne + 3 chiffres)</li>
                     <li>Les identifiants s'afficheront après la création</li>
                     <li>L'utilisateur pourra modifier son mot de passe à la première connexion</li>
@@ -354,6 +371,13 @@
                     <li>Format simple : <strong>cvc123</strong> (consonne-voyelle-consonne + 3 chiffres)</li>
                     <li>Exemple : <code>bad457</code>, <code>kot892</code></li>
                     <li>Facile à retenir et à communiquer</li>
+                </ul>
+
+                <h6 class="mt-3">🏢 Champ Entreprise</h6>
+                <ul class="pl-3">
+                    <li>Obligatoire pour identifier l'organisation de l'utilisateur</li>
+                    <li>Sera affiché dans la liste des utilisateurs</li>
+                    <li>Permet de filtrer et rechercher par entreprise</li>
                 </ul>
             </div>
             <div class="modal-footer">
@@ -489,11 +513,14 @@ function copyAllCredentials() {
     const email = "{{ isset($newUser) ? $newUser->email : '' }}";
     const password = "{{ isset($temporaryPassword) ? $temporaryPassword : '' }}";
     const username = "{{ isset($newUser) ? $newUser->username : '' }}";
+    const company = "{{ isset($newUser) ? $newUser->company : '' }}";
     
     if (email && password) {
         const credentials = `Identifiants de connexion pour ${username}:
 
+👤 Nom: ${username}
 📧 Email: ${email}
+🏢 Entreprise: ${company}
 🔐 Mot de passe temporaire: ${password}
 
 ⚠️ Important: L'utilisateur doit changer ce mot de passe lors de sa première connexion.

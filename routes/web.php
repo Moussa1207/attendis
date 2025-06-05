@@ -214,3 +214,18 @@ if (app()->environment('local')) {
         ]);
     })->middleware('admin');
 }
+
+/*|--------------------------------------------------------------------------
+| ROUTES CHANGEMENT MOT DE PASSE OBLIGATOIRE
+|--------------------------------------------------------------------------
+*/
+
+// Affichage formulaire changement obligatoire (utilisateur temporairement connecté)
+Route::get('/password/mandatory-change', [LoginController::class, 'showMandatoryPasswordChange'])
+    ->name('password.mandatory-change')
+    ->middleware('web');
+
+// Traitement changement obligatoire
+Route::post('/password/mandatory-update', [LoginController::class, 'updateMandatoryPassword'])
+    ->name('password.mandatory-update')
+    ->middleware('web');
