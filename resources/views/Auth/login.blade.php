@@ -128,7 +128,10 @@
                                                     </div>
                                                 </div>
                                                 <div class="col-sm-6 text-right">
-                                                    <a href="{{ asset('') }}" class="text-muted font-13"><i class="dripicons-lock"></i> Mot de passe oublié?</a>
+                                                    <!-- AMÉLIORATION 4 : LIEN FONCTIONNEL vers forgot-password -->
+                                                    <a href="{{ route('password.forgot') }}" class="text-muted font-13">
+                                                        <i class="dripicons-lock"></i> Mot de passe oublié?
+                                                    </a>
                                                 </div>
                                             </div>
 
@@ -182,7 +185,7 @@
                                                 </div>
                                             </div>
 
-                                            <!-- NOUVEAU CHAMP ENTREPRISE -->
+                                            <!-- CHAMP ENTREPRISE (conservé pour inscription admin) -->
                                             <div class="form-group">
                                                 <label for="company">Entreprise</label>
                                                 <div class="input-group mb-3">

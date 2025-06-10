@@ -35,26 +35,24 @@ class UserManagementController extends Controller
     /**
      * Créer un nouvel utilisateur avec gestion sécurisée des mots de passe
      * L'admin voit TOUJOURS le mot de passe temporaire
-     * AMÉLIORÉ avec le champ company
+     * AMÉLIORATION 3 : SUPPRESSION du champ company
      */
     public function store(Request $request)
     {
         $request->validate([
-            'email' => 'required|string|email|max:255|unique:users',
-            'username' => 'required|string|max:255|unique:users',
-            'mobile_number' => 'required|string|max:20',
-            'company' => 'required|string|max:255', // NOUVEAU CHAMP
-            'creation_notes' => 'nullable|string|max:500',
-            'send_credentials' => 'boolean'
-        ], [
-            'email.unique' => 'Cette adresse email est déjà utilisée.',
-            'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
-            'email.email' => 'Veuillez saisir une adresse email valide.',
-            'mobile_number.required' => 'Le numéro de téléphone est obligatoire.',
-            'company.required' => 'Le nom de l\'entreprise est obligatoire.', // NOUVEAU
-            'company.max' => 'Le nom de l\'entreprise ne peut pas dépasser 255 caractères.', // NOUVEAU
-            'creation_notes.max' => 'Les notes ne peuvent pas dépasser 500 caractères.'
-        ]);
+    'email' => 'required|string|email|max:255|unique:users',
+    'username' => 'required|string|max:255|unique:users',
+    'mobile_number' => 'required|string|max:20',
+    'user_role' => 'required|string|in:ecran,conseiller,accueil', // NOUVEAU
+    'send_credentials' => 'boolean'
+], [
+    'email.unique' => 'Cette adresse email est déjà utilisée.',
+    'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
+    'email.email' => 'Veuillez saisir une adresse email valide.',
+    'mobile_number.required' => 'Le numéro de téléphone est obligatoire.',
+    'user_role.required' => 'Le poste de l\'utilisateur est obligatoire.',
+    'user_role.in' => 'Le poste sélectionné n\'est pas valide.',
+]);
 
         try {
             DB::beginTransaction();
@@ -62,12 +60,12 @@ class UserManagementController extends Controller
             // Générer un mot de passe temporaire sécurisé
             $temporaryPassword = $this->generateSecurePassword();
             
-            // Créer l'utilisateur - TOUJOURS utilisateur normal par défaut 
+            // Créer l'utilisateur - TOUJOURS utilisateur normal par défaut (SANS champ company)
             $user = User::create([
                 'email' => $request->email,
                 'username' => $request->username,
                 'mobile_number' => $request->mobile_number,
-                'company' => $request->company, // NOUVEAU CHAMP
+                // AMÉLIORATION 3 : SUPPRESSION 'company' => $request->company,
                 'password' => Hash::make($temporaryPassword),
                 'user_type_id' => 2, // TOUJOURS utilisateur normal 
                 'status_id' => 2, // TOUJOURS actif par défaut 
@@ -75,19 +73,19 @@ class UserManagementController extends Controller
 
             // Enregistrer la relation administrator_user avec informations détaillées
             $adminUserRecord = AdministratorUser::create([
-                'administrator_id' => Auth::id(),
-                'user_id' => $user->id,
-                'creation_method' => 'manual',
-                'creation_notes' => $request->creation_notes,
-                'password_reset_required' => true,
-                'password_reset_sent_at' => null
-            ]);
+    'administrator_id' => Auth::id(),
+    'user_id' => $user->id,
+    'creation_method' => 'manual',
+    'creation_notes' => $this->formatUserRoleNote($request->user_role), // NOUVEAU
+    'password_reset_required' => true,
+    'password_reset_sent_at' => null
+]);
 
-            // Préparer les informations de connexion
+            // Préparer les informations de connexion (SANS company)
             $userCredentials = [
                 'email' => $user->email,
                 'username' => $user->username,
-                'company' => $user->company, // NOUVEAU
+                // AMÉLIORATION 3 : SUPPRESSION 'company' => $user->company,
                 'password' => $temporaryPassword,
                 'login_url' => route('login'),
                 'admin_creator' => Auth::user()->username
@@ -112,11 +110,11 @@ class UserManagementController extends Controller
 
             DB::commit();
 
-            // Log de l'action
+            // Log de l'action (SANS company)
             \Log::info("Utilisateur {$user->username} créé par " . Auth::user()->username, [
                 'user_id' => $user->id,
                 'admin_id' => Auth::id(),
-                'company' => $user->company, // NOUVEAU
+                // AMÉLIORATION 3 : SUPPRESSION 'company' => $user->company,
                 'credentials_sent' => $credentialsSent
             ]);
 
@@ -128,7 +126,7 @@ class UserManagementController extends Controller
                 $message .= " Voici les identifiants à communiquer à l'utilisateur :";
             }
 
-            // Réponse AJAX
+            // Réponse AJAX (SANS company)
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
@@ -137,7 +135,7 @@ class UserManagementController extends Controller
                         'id' => $user->id,
                         'username' => $user->username,
                         'email' => $user->email,
-                        'company' => $user->company, // NOUVEAU
+                        // AMÉLIORATION 3 : SUPPRESSION 'company' => $user->company,
                         'type' => $user->getTypeName(),
                         'status' => 'Actif',
                         'credentials_sent' => $credentialsSent,
@@ -163,7 +161,7 @@ class UserManagementController extends Controller
             \Log::error("Erreur création utilisateur: " . $e->getMessage(), [
                 'email' => $request->email,
                 'username' => $request->username,
-                'company' => $request->company, // NOUVEAU
+                // AMÉLIORATION 3 : SUPPRESSION 'company' => $request->company,
                 'admin_id' => Auth::id()
             ]);
             
@@ -203,7 +201,6 @@ class UserManagementController extends Controller
                             'username' => $user->username,
                             'email' => $user->email,
                             'mobile_number' => $user->mobile_number,
-                            'company' => $user->company, // NOUVEAU
                             'type' => $user->getTypeName(),
                             'status' => $user->getStatusName(),
                             'status_badge_class' => $user->getStatusBadgeColor(),
@@ -257,7 +254,7 @@ class UserManagementController extends Controller
                 ->map(function($record) {
                     return [
                         'user' => $record->user ? $record->user->username : 'Utilisateur supprimé',
-                        'company' => $record->user ? $record->user->company : 'N/A', // NOUVEAU
+                        // AMÉLIORATION 3 : SUPPRESSION 'company' => $record->user ? $record->user->company : 'N/A',
                         'created_at' => $record->created_at->diffForHumans(),
                         'status' => $record->user ? $record->user->getStatusName() : 'N/A'
                     ];
@@ -316,11 +313,11 @@ class UserManagementController extends Controller
                 $adminUserRecord->update(['password_reset_required' => true]);
             }
 
-            // Préparer les nouvelles informations
+            // Préparer les nouvelles informations (SANS company)
             $userCredentials = [
                 'email' => $user->email,
                 'username' => $user->username,
-                'company' => $user->company, // NOUVEAU
+                // AMÉLIORATION 3 : SUPPRESSION 'company' => $user->company,
                 'password' => $newPassword,
                 'login_url' => route('login'),
                 'admin_creator' => Auth::user()->username
@@ -330,9 +327,7 @@ class UserManagementController extends Controller
                 $adminUserRecord->markPasswordResetSent();
             }
 
-            \Log::info("Nouveaux identifiants générés pour {$user->username} par " . Auth::user()->username, [
-                'user_company' => $user->company // NOUVEAU
-            ]);
+            \Log::info("Nouveaux identifiants générés pour {$user->username} par " . Auth::user()->username);
 
             //RETOURNER LE NOUVEAU MOT DE PASSE À L'ADMIN
             return response()->json([
@@ -369,4 +364,17 @@ class UserManagementController extends Controller
         
         return $password;
     }
+
+    //MÉTHODE pour formater la note à partir du rôle
+private function formatUserRoleNote($role): string
+{
+    $roleLabels = [
+        'ecran' => 'Poste Ecran - Interface utilisateur',
+        'conseiller' => 'Poste Conseiller - Support client',
+        'accueil' => 'Poste Accueil - Réception et orientation'
+    ];
+    
+    return $roleLabels[$role] ?? "Poste : {$role}";
+}
+
 }

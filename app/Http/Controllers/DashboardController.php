@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -50,7 +51,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * Dashboard admin (layouts/app.blade.php) - GARDE LE CONTENU ANALYTICS GÉNÉRIQUE
+     * Dashboard admin avec statistiques ISOLÉES
+     * AMÉLIORATION 2 : Chaque admin ne voit que SES statistiques d'utilisateurs créés
      */
     public function adminDashboard()
     {
@@ -61,52 +63,58 @@ class DashboardController extends Controller
         }
 
         try {
-            // Statistiques de base pour les variables optionnelles dans le template
+            $currentAdminId = Auth::id();
+            
+            // AMÉLIORATION 2 : ISOLATION - Récupérer UNIQUEMENT les utilisateurs créés par cet admin
+            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
+            
+            // Statistiques ISOLÉES pour cet admin uniquement
             $stats = [
-                'total_users' => User::count(),
-                'active_users' => User::active()->count(),
-                'inactive_users' => User::inactive()->count(),
-                'suspended_users' => User::suspended()->count(),
-                'admin_users' => User::admins()->count(),
-                'normal_users' => User::users()->count(),
-                'recent_users' => User::where('created_at', '>=', now()->subDays(7))->count(),
-                'users_created_today' => User::whereDate('created_at', today())->count(),
-                'users_created_this_week' => User::where('created_at', '>=', now()->startOfWeek())->count(),
-                'users_created_this_month' => User::where('created_at', '>=', now()->startOfMonth())->count(),
+                'total_users' => count($myUserIds), // Ses utilisateurs + lui-même
+                'active_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count(),
+                'inactive_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
+                'suspended_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
+                'admin_users' => 1, // Seulement lui-même (isolé des autres admins)
+                'normal_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                'recent_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
+                'users_created_today' => User::whereIn('id', $myUserIds)->whereDate('created_at', today())->count(),
+                'users_created_this_week' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfWeek())->count(),
+                'users_created_this_month' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfMonth())->count(),
             ];
 
-            // Statistiques personnelles pour l'admin connecté
-            $currentAdmin = Auth::user();
+            // Statistiques personnelles pour l'admin connecté (SES créations)
             $personalStats = [
-                'users_created_by_me' => $currentAdmin->createdUsers()->count(),
-                'active_users_created_by_me' => $currentAdmin->createdUsers()
+                'users_created_by_me' => Auth::user()->createdUsers()->count(),
+                'active_users_created_by_me' => Auth::user()->createdUsers()
                     ->whereHas('user', function($query) {
                         $query->where('status_id', 2);
                     })->count(),
-                'users_created_by_me_today' => $currentAdmin->createdUsers()
+                'users_created_by_me_today' => Auth::user()->createdUsers()
                     ->whereHas('user', function($query) {
                         $query->whereDate('created_at', today());
                     })->count(),
-                'users_created_by_me_this_week' => $currentAdmin->createdUsers()
+                'users_created_by_me_this_week' => Auth::user()->createdUsers()
                     ->whereHas('user', function($query) {
                         $query->where('created_at', '>=', now()->startOfWeek());
                     })->count(),
             ];
 
-            // Activité récente (derniers utilisateurs créés)
+            // Activité récente ISOLÉE (SES utilisateurs seulement)
             $recentActivity = User::with(['userType', 'status', 'createdBy.administrator'])
+                ->whereIn('id', $myUserIds)
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get();
 
-            // Utilisateurs en attente d'activation
-            $pendingUsers = User::inactive()
+            // Utilisateurs en attente d'activation ISOLÉS (SES utilisateurs seulement)
+            $pendingUsers = User::whereIn('id', $myUserIds)
+                ->where('status_id', 1)
                 ->with(['userType', 'createdBy.administrator'])
                 ->orderBy('created_at', 'desc')
                 ->limit(15)
                 ->get();
 
-            // GARDE LE TEMPLATE ANALYTICS GÉNÉRIQUE - Passe juste les stats optionnelles
             return view('layouts.app', compact(
                 'stats', 
                 'personalStats', 
@@ -167,8 +175,8 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * Liste complète des utilisateurs avec filtres (ADMINS UNIQUEMENT)
-     * COHÉRENT avec users-list.blade.php
+     * Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
+     * AMÉLIORATION 2 : ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
      */
     public function usersList(Request $request)
     {
@@ -177,15 +185,25 @@ class DashboardController extends Controller
         }
 
         try {
-            $query = User::with(['userType', 'status', 'createdBy.administrator']);
+            $currentAdminId = Auth::id();
+            
+            // AMÉLIORATION 2 : ISOLATION - Récupérer UNIQUEMENT les utilisateurs créés par cet admin
+            $createdByMe = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            
+            // Ajouter l'admin lui-même à la liste (pour qu'il se voie)
+            $createdByMe[] = $currentAdminId;
+            
+            // Query de base LIMITÉE aux utilisateurs de cet admin
+            $query = User::with(['userType', 'status', 'createdBy.administrator'])
+                         ->whereIn('id', $createdByMe);
 
-            // Filtrage par recherche
+            // Filtrage par recherche (dans SES utilisateurs seulement)
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->search($search);
             }
 
-            // Filtrage par statut
+            // Filtrage par statut (dans SES utilisateurs seulement)
             if ($request->filled('status')) {
                 $statusMap = [
                     'active' => 2,
@@ -197,28 +215,21 @@ class DashboardController extends Controller
                 }
             }
 
-            // Filtrage par type
+            // Filtrage par type (dans SES utilisateurs seulement) 
+            // IMPORTANT : Exclure les autres admins du type "admin"
             if ($request->filled('type')) {
-                $typeMap = [
-                    'admin' => 1,
-                    'user' => 2
-                ];
-                if (isset($typeMap[$request->type])) {
-                    $query->where('user_type_id', $typeMap[$request->type]);
-                }
-            }
-
-            // Filtrage par créateur
-            if ($request->filled('creator')) {
-                if ($request->creator === 'me') {
-                    $createdByMe = Auth::user()->createdUsers()->pluck('user_id');
-                    $query->whereIn('id', $createdByMe);
+                if ($request->type === 'admin') {
+                    // Montrer seulement lui-même
+                    $query->where('id', $currentAdminId);
+                } elseif ($request->type === 'user') {
+                    // Montrer seulement ses utilisateurs normaux créés
+                    $query->where('user_type_id', 2);
                 }
             }
 
             $users = $query->orderBy('created_at', 'desc')->paginate(15);
 
-            //  informations de traçabilité
+            // Informations de traçabilité
             $users->getCollection()->transform(function ($user) {
                 $user->creation_info = $user->getCreationInfo();
                 $user->can_be_deleted = $user->canBeDeleted();
@@ -682,12 +693,17 @@ class DashboardController extends Controller
         }
 
         try {
-            $inactiveUsers = User::inactive()->get();
+            // AMÉLIORATION 2 : Activation en masse ISOLÉE - seulement SES utilisateurs inactifs
+            $currentAdminId = Auth::id();
+            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds[] = $currentAdminId;
+            
+            $inactiveUsers = User::whereIn('id', $myUserIds)->inactive()->get();
             
             if ($inactiveUsers->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucun utilisateur inactif à activer'
+                    'message' => 'Aucun de vos utilisateurs inactifs à activer'
                 ]);
             }
 
@@ -718,7 +734,7 @@ class DashboardController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "{$activatedCount} utilisateur(s) ont été activés avec succès",
+                'message' => "{$activatedCount} de vos utilisateur(s) ont été activés avec succès",
                 'activated_count' => $activatedCount
             ]);
             
@@ -737,7 +753,8 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * Obtenir les statistiques en temps réel (AJAX - ADMINS)
+     * Obtenir les statistiques en temps réel ISOLÉES (AJAX - ADMINS)
+     * AMÉLIORATION 2 : Statistiques isolées pour SES utilisateurs uniquement
      */
     public function getStats(Request $request)
     {
@@ -749,20 +766,24 @@ class DashboardController extends Controller
         }
 
         try {
-            $currentAdmin = Auth::user();
+            $currentAdminId = Auth::id();
+            
+            // AMÉLIORATION 2 : ISOLATION - Statistiques pour SES utilisateurs uniquement
+            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
             
             $stats = [
-                'total_users' => User::count(),
-                'active_users' => User::active()->count(),
-                'inactive_users' => User::inactive()->count(),
-                'suspended_users' => User::suspended()->count(),
-                'admin_users' => User::admins()->count(),
-                'normal_users' => User::users()->count(),
-                'users_created_by_me' => $currentAdmin->createdUsers()->count(),
-                'recent_users' => User::where('created_at', '>=', now()->subDays(7))->count(),
-                'users_created_today' => User::whereDate('created_at', today())->count(),
-                'users_created_this_week' => User::where('created_at', '>=', now()->startOfWeek())->count(),
-                'users_created_this_month' => User::where('created_at', '>=', now()->startOfMonth())->count(),
+                'total_users' => count($myUserIds),
+                'active_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count(),
+                'inactive_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
+                'suspended_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
+                'admin_users' => 1, // Seulement lui-même
+                'normal_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                'users_created_by_me' => Auth::user()->createdUsers()->count(),
+                'recent_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
+                'users_created_today' => User::whereIn('id', $myUserIds)->whereDate('created_at', today())->count(),
+                'users_created_this_week' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfWeek())->count(),
+                'users_created_this_month' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfMonth())->count(),
             ];
 
             return response()->json([
@@ -781,6 +802,7 @@ class DashboardController extends Controller
 
     /**
      * Recherche d'utilisateurs en temps réel (AJAX - ADMINS)
+     * AMÉLIORATION 2 : Recherche ISOLÉE dans SES utilisateurs uniquement
      */
     public function searchUsers(Request $request)
     {
@@ -801,7 +823,13 @@ class DashboardController extends Controller
         }
 
         try {
-            $users = User::search($search)
+            // AMÉLIORATION 2 : ISOLATION - Recherche dans SES utilisateurs uniquement
+            $currentAdminId = Auth::id();
+            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds[] = $currentAdminId;
+            
+            $users = User::whereIn('id', $myUserIds)
+                        ->search($search)
                         ->with(['userType', 'status'])
                         ->limit(5)
                         ->get();
@@ -885,6 +913,7 @@ class DashboardController extends Controller
 
     /**
      * Export des utilisateurs (CSV/Excel) - ADMINS UNIQUEMENT
+     * AMÉLIORATION 2 : Export ISOLÉ - seulement SES utilisateurs
      */
     public function exportUsers(Request $request)
     {
@@ -893,9 +922,16 @@ class DashboardController extends Controller
         }
 
         try {
-            $users = User::with(['userType', 'status', 'createdBy.administrator'])->get();
+            // AMÉLIORATION 2 : ISOLATION - Export de SES utilisateurs uniquement
+            $currentAdminId = Auth::id();
+            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds[] = $currentAdminId;
             
-            $filename = 'utilisateurs_' . date('Y-m-d_H-i-s') . '.csv';
+            $users = User::whereIn('id', $myUserIds)
+                        ->with(['userType', 'status', 'createdBy.administrator'])
+                        ->get();
+            
+            $filename = 'mes_utilisateurs_' . date('Y-m-d_H-i-s') . '.csv';
             
             $headers = [
                 'Content-Type' => 'text/csv; charset=utf-8',
@@ -955,6 +991,7 @@ class DashboardController extends Controller
 
     /**
      * Statistiques avancées pour les admins (AJAX)
+     * AMÉLIORATION 2 : Statistiques avancées ISOLÉES
      */
     public function getAdvancedStats(Request $request)
     {
@@ -966,32 +1003,35 @@ class DashboardController extends Controller
         }
 
         try {
-            $currentAdmin = Auth::user();
+            // AMÉLIORATION 2 : ISOLATION - Statistiques avancées pour SES utilisateurs uniquement
+            $currentAdminId = Auth::id();
+            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds[] = $currentAdminId;
             
-            // Statistiques temporelles
+            // Statistiques temporelles ISOLÉES
             $stats = [
-                'users_created_today' => User::whereDate('created_at', today())->count(),
-                'users_created_yesterday' => User::whereDate('created_at', yesterday())->count(),
-                'users_created_this_week' => User::where('created_at', '>=', now()->startOfWeek())->count(),
-                'users_created_last_week' => User::whereBetween('created_at', [
+                'users_created_today' => User::whereIn('id', $myUserIds)->whereDate('created_at', today())->count(),
+                'users_created_yesterday' => User::whereIn('id', $myUserIds)->whereDate('created_at', yesterday())->count(),
+                'users_created_this_week' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfWeek())->count(),
+                'users_created_last_week' => User::whereIn('id', $myUserIds)->whereBetween('created_at', [
                     now()->subWeek()->startOfWeek(),
                     now()->subWeek()->endOfWeek()
                 ])->count(),
-                'users_created_this_month' => User::where('created_at', '>=', now()->startOfMonth())->count(),
-                'users_created_last_month' => User::whereBetween('created_at', [
+                'users_created_this_month' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfMonth())->count(),
+                'users_created_last_month' => User::whereIn('id', $myUserIds)->whereBetween('created_at', [
                     now()->subMonth()->startOfMonth(),
                     now()->subMonth()->endOfMonth()
                 ])->count(),
             ];
             
-            // Ratios et tendances
-            $totalUsers = User::count();
+            // Ratios et tendances ISOLÉS
+            $totalUsers = count($myUserIds);
             $stats['activation_rate'] = $totalUsers > 0 ? 
-                round((User::active()->count() / $totalUsers) * 100, 2) : 0;
+                round((User::whereIn('id', $myUserIds)->active()->count() / $totalUsers) * 100, 2) : 0;
             $stats['admin_ratio'] = $totalUsers > 0 ? 
-                round((User::admins()->count() / $totalUsers) * 100, 2) : 0;
+                round((1 / $totalUsers) * 100, 2) : 0; // Seulement lui-même
             
-            // Croissance
+            // Croissance ISOLÉE
             $stats['weekly_growth'] = $stats['users_created_last_week'] > 0 ? 
                 round((($stats['users_created_this_week'] - $stats['users_created_last_week']) / $stats['users_created_last_week']) * 100, 2) : 0;
             $stats['monthly_growth'] = $stats['users_created_last_month'] > 0 ? 

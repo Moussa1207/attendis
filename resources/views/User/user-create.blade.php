@@ -155,7 +155,8 @@
                                 @if(isset($newUser))
                                     <p class="mb-2"><strong>👤 Utilisateur :</strong> {{ $newUser->username }}</p>
                                     <p class="mb-2"><strong>📧 Email :</strong> {{ $newUser->email }}</p>
-                                    <p class="mb-2"><strong>🏢 Entreprise :</strong> {{ $newUser->company }}</p>
+                                    <p class="mb-2"><strong>📱 Téléphone :</strong> {{ $newUser->mobile_number }}</p>
+                                    <!-- AMÉLIORATION 3 : SUPPRESSION affichage entreprise -->
                                 @else
                                     <p class="mb-2"><strong>👤 Utilisateur :</strong> Utilisateur créé</p>
                                     <p class="mb-2"><strong>📧 Email :</strong> Voir dans la liste</p>
@@ -205,7 +206,8 @@
                                         • Un <strong>mot de passe temporaire simple</strong> sera généré automatiquement (format : cvc123)<br>
                                         • L'utilisateur pourra <strong>modifier son mot de passe</strong> lors de sa première connexion<br>
                                         • Vous serez enregistré comme <strong>créateur</strong> de cet utilisateur<br>
-                                        • Le champ <strong>entreprise</strong> est obligatoire pour identifier l'organisation
+                                        <!-- AMÉLIORATION 3 : SUPPRESSION mention entreprise -->
+                                        • Les <strong>notes de création</strong> vous aideront à identifier cet utilisateur
                                     </p>
                                 </div>
                             </div>
@@ -274,18 +276,43 @@
                                         </div>
                                     </div>
 
-                                    <!-- NOUVEAU CHAMP ENTREPRISE -->
+                                    <!-- AMÉLIORATION 3 : SUPPRESSION DU CHAMP ENTREPRISE -->
+
                                     <div class="form-group">
-                                        <label for="company">Entreprise</label>
-                                        <div class="input-group mb-3">
-                                            <input type="text" class="form-control @error('company') is-invalid @enderror" name="company" id="company" value="{{ old('company') }}" placeholder="ex: Attendis Corp" required>
-                                            @error('company')
-                                            <span class="invalid-feedback" role="alert">
-                                                <strong>{{ $message }}</strong>
-                                            </span>
-                                            @enderror
-                                        </div>
-                                    </div>
+                                       <label for="user_role">Type d'utilisateur <span class="text-danger">*</span></label>
+                                      <div class="input-group mb-3">
+                                             <div class="input-group-prepend">
+                                               <span class="input-group-text bg-light">
+                                                <i data-feather="briefcase" class="icon-xs"></i>
+                                               </span>
+                                            </div>
+                                <select class="form-control @error('user_role') is-invalid @enderror" 
+                                name="user_role" 
+                                id="user_role" 
+                                required>
+            <option value="">-- Sélectionnez le type --</option>
+            <option value="ecran" {{ old('user_role') == 'ecran' ? 'selected' : '' }}>
+                🖥️ Ecran
+            </option>
+            <option value="accueil" {{ old('user_role') == 'accueil' ? 'selected' : '' }}>
+                🏢 Accueil
+            </option>
+            <option value="conseiller" {{ old('user_role') == 'conseiller' ? 'selected' : '' }}>
+                👥 Conseiller
+            </option>
+            
+        </select>
+        @error('user_role')
+        <span class="invalid-feedback" role="alert">
+            <strong>{{ $message }}</strong>
+        </span>
+                     @enderror
+                   </div>
+                      <small class="text-muted">
+                          <i data-feather="info" class="icon-xs mr-1"></i>
+                           Sélectionnez le poste de travail de cet utilisateur
+                      </small>
+                   </div>
 
                                     <!-- Informations automatiques -->
                                     <div class="form-group">
@@ -360,7 +387,8 @@
             <div class="modal-body">
                 <h6>📋 Processus de Création</h6>
                 <ol class="pl-3">
-                    <li>Saisissez les informations obligatoires (email, nom, téléphone, entreprise)</li>
+                    <li>Saisissez les informations obligatoires (email, nom, téléphone)</li>
+                    <li>Ajoutez des notes de création pour identifier l'utilisateur</li>
                     <li>Un mot de passe simple sera généré automatiquement (format : consonne-voyelle-consonne + 3 chiffres)</li>
                     <li>Les identifiants s'afficheront après la création</li>
                     <li>L'utilisateur pourra modifier son mot de passe à la première connexion</li>
@@ -373,11 +401,13 @@
                     <li>Facile à retenir et à communiquer</li>
                 </ul>
 
-                <h6 class="mt-3">🏢 Champ Entreprise</h6>
+                <!-- AMÉLIORATION 3 : SUPPRESSION section entreprise -->
+
+                <h6 class="mt-3">📝 Notes de création</h6>
                 <ul class="pl-3">
-                    <li>Obligatoire pour identifier l'organisation de l'utilisateur</li>
-                    <li>Sera affiché dans la liste des utilisateurs</li>
-                    <li>Permet de filtrer et rechercher par entreprise</li>
+                    <li>Optionnelles mais recommandées pour identifier l'utilisateur</li>
+                    <li>Exemples : "Service comptabilité", "Stagiaire été 2025", "Client VIP"</li>
+                    <li>Visibles dans la liste de vos utilisateurs créés</li>
                 </ul>
             </div>
             <div class="modal-footer">
@@ -508,19 +538,19 @@ function copyPassword() {
     }
 }
 
-// Copier tous les identifiants
+// Copier tous les identifiants (SANS company)
 function copyAllCredentials() {
     const email = "{{ isset($newUser) ? $newUser->email : '' }}";
     const password = "{{ isset($temporaryPassword) ? $temporaryPassword : '' }}";
     const username = "{{ isset($newUser) ? $newUser->username : '' }}";
-    const company = "{{ isset($newUser) ? $newUser->company : '' }}";
+    const phone = "{{ isset($newUser) ? $newUser->mobile_number : '' }}";
     
     if (email && password) {
         const credentials = `Identifiants de connexion pour ${username}:
 
 👤 Nom: ${username}
 📧 Email: ${email}
-🏢 Entreprise: ${company}
+📱 Téléphone: ${phone}
 🔐 Mot de passe temporaire: ${password}
 
 ⚠️ Important: L'utilisateur doit changer ce mot de passe lors de sa première connexion.

@@ -13,8 +13,117 @@ class PasswordManagementController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth')->except(['showResetForm', 'resetPassword']);
+        $this->middleware('auth')->except(['showResetForm', 'resetPassword', 'showForgotForm', 'sendResetEmail']);
     }
+
+    // ===============================================
+    // AMÉLIORATION 4 : NOUVELLES FONCTIONNALITÉS MOT DE PASSE OUBLIÉ
+    // ===============================================
+
+    /**
+     * Afficher le formulaire "Mot de passe oublié"
+     * AMÉLIORATION 4 : Nouvelle fonctionnalité
+     */
+    public function showForgotForm()
+    {
+        return view('auth.forgot-password');
+    }
+
+    /**
+     * Traiter la demande de récupération de mot de passe
+     * AMÉLIORATION 4 : Nouvelle fonctionnalité
+     */
+    public function sendResetEmail(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
+        ], [
+            'email.required' => 'L\'adresse email est obligatoire.',
+            'email.email' => 'Veuillez saisir une adresse email valide.',
+            'email.exists' => 'Cette adresse email n\'est pas associée à un compte.',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        try {
+            $user = User::where('email', $request->email)->first();
+            
+            // Vérifier que l'utilisateur est actif
+            if (!$user->isActive()) {
+                return redirect()->back()
+                    ->with('error', 'Ce compte n\'est pas actif. Contactez un administrateur.')
+                    ->withInput();
+            }
+
+            // Générer un token unique de récupération
+            $token = Str::random(64);
+            
+            // Stocker le token en cache avec expiration (1 heure)
+            \Cache::put("password_reset_{$user->id}", $token, now()->addHour());
+            
+            // Créer le lien de réinitialisation
+            $resetLink = route('password.reset', ['token' => $token, 'user' => $user->id]);
+            
+            // Log de l'action
+            \Log::info('Password reset requested', [
+                'user_id' => $user->id,
+                'username' => $user->username,
+                'email' => $user->email,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
+
+            // AMÉLIORATION 4 : Pour le développement, on peut stocker le lien en session pour le test
+            session(['reset_link_for_dev' => $resetLink]);
+
+            return redirect()->back()
+                ->with('success', 'Un lien de récupération a été généré pour votre compte. Contactez un administrateur pour l\'obtenir ou vérifiez vos emails.');
+
+        } catch (\Exception $e) {
+            \Log::error('Password reset request error', [
+                'email' => $request->email,
+                'error' => $e->getMessage(),
+                'ip' => $request->ip()
+            ]);
+            
+            return redirect()->back()
+                ->with('error', 'Erreur lors de la génération du lien de récupération. Veuillez réessayer.')
+                ->withInput();
+        }
+    }
+
+    /**
+     * Vérifier la validité d'un token de récupération
+     * AMÉLIORATION 4 : Nouvelle méthode utilitaire
+     */
+    public function checkResetToken($token, $userId)
+    {
+        $cachedToken = \Cache::get("password_reset_{$userId}");
+        
+        if (!$cachedToken || $cachedToken !== $token) {
+            return false;
+        }
+        
+        $user = User::find($userId);
+        return $user ? $user : false;
+    }
+
+    /**
+     * Invalider un token de récupération
+     * AMÉLIORATION 4 : Nouvelle méthode utilitaire
+     */
+    public function invalidateResetToken($userId)
+    {
+        \Cache::forget("password_reset_{$userId}");
+    }
+
+    // ===============================================
+    // FONCTIONNALITÉS EXISTANTES (conservées)
+    // ===============================================
 
     /**
      * Changer le mot de passe par l'utilisateur lui-même

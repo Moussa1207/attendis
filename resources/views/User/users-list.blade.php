@@ -187,7 +187,7 @@
                         <div class="card-body">
                             <div class="row d-flex justify-content-center">
                                 <div class="col">  
-                                    <p class="text-dark mb-1 font-weight-semibold">Administrateurs</p>                                         
+                                    <p class="text-dark mb-1 font-weight-semibold">Administrateur</p>                                         
                                     <h3 class="my-2 text-primary counter" data-target="{{ $users->where('user_type_id', 1)->count() }}">{{ $users->where('user_type_id', 1)->count() }}</h3>
                                     <p class="mb-0 text-truncate text-muted">
                                         <span class="text-primary"><i class="mdi mdi-shield-check"></i></span> 
@@ -288,7 +288,7 @@
                             <div class="row">
                                 <div class="col-md-2">
                                     <button class="btn btn-outline-info btn-block" onclick="filterByStatus('inactive')">
-                                        <i data-feather="clock" class="mr-2"></i>Demandes
+                                        <i data-feather="clock" class="mr-2"></i>En attente
                                         <span class="badge badge-warning ml-2" id="pendingBadge">{{ $users->where('status_id', 1)->count() }}</span>
                                     </button>
                                 </div>

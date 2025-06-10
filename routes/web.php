@@ -229,3 +229,26 @@ Route::get('/password/mandatory-change', [LoginController::class, 'showMandatory
 Route::post('/password/mandatory-update', [LoginController::class, 'updateMandatoryPassword'])
     ->name('password.mandatory-update')
     ->middleware('web');
+
+
+    /*
+|--------------------------------------------------------------------------
+| ROUTES MOT DE PASSE OUBLIÉ
+|--------------------------------------------------------------------------
+*/
+
+// Formulaire "mot de passe oublié"
+Route::get('/password/forgot', [PasswordManagementController::class, 'showForgotForm'])
+    ->name('password.forgot');
+
+// Traitement demande de récupération
+Route::post('/password/email', [PasswordManagementController::class, 'sendResetEmail'])
+    ->name('password.email');
+
+// Affichage formulaire de réinitialisation avec token (EXISTANT)
+Route::get('/password/reset/{token}/{user}', [PasswordManagementController::class, 'showResetForm'])
+    ->name('password.reset');
+
+// Traitement réinitialisation avec token (EXISTANT )
+Route::post('/password/update', [PasswordManagementController::class, 'resetPassword'])
+    ->name('password.update');
