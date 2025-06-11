@@ -113,7 +113,7 @@
                                 
                                 <div class="text-center mt-4">
                                     <p class="text-muted mb-0">
-                                        Vous vous souvenez de votre mot de passe ? 
+                                         Souvenez-vous de votre mot de passe ? 
                                         <a href="{{ route('login') }}" class="text-primary ml-2">
                                             <i data-feather="arrow-left" class="icon-xs mr-1"></i>Retour à la connexion
                                         </a>

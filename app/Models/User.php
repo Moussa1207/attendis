@@ -73,6 +73,38 @@ class User extends Authenticatable
     }
 
     /**
+     * NOUVEAU : Vérifier si l'utilisateur est Poste Ecran
+     */
+    public function isEcranUser(): bool
+    {
+        return $this->user_type_id === 2;
+    }
+
+    /**
+     * NOUVEAU : Vérifier si l'utilisateur est Poste Accueil
+     */
+    public function isAccueilUser(): bool
+    {
+        return $this->user_type_id === 3;
+    }
+
+    /**
+     * NOUVEAU : Vérifier si l'utilisateur est Poste Conseiller
+     */
+    public function isConseillerUser(): bool
+    {
+        return $this->user_type_id === 4;
+    }
+
+    /**
+     * NOUVEAU : Vérifier si l'utilisateur est un utilisateur normal (pas admin)
+     */
+    public function isNormalUser(): bool
+    {
+        return in_array($this->user_type_id, [2, 3, 4]);
+    }
+
+    /**
      * Vérifier si l'utilisateur est actif
      */
     public function isActive(): bool
@@ -120,9 +152,41 @@ class User extends Authenticatable
      * Suspendre l'utilisateur
      */
     public function suspend(): bool
-    {
-        return $this->update(['status_id' => 3]);
+{
+    try {
+        // ✅ MISE À JOUR FORCÉE EN BASE DE DONNÉES
+        $result = $this->update(['status_id' => 3]);
+        
+        if ($result) {
+            // ✅ RECHARGER DEPUIS LA BASE POUR VÉRIFICATION
+            $this->refresh();
+            
+            // ✅ LOG DE SUCCÈS
+            \Log::info('User suspended successfully', [
+                'user_id' => $this->id,
+                'username' => $this->username,
+                'old_status' => 'Before suspension',
+                'new_status_id' => $this->status_id,
+                'new_status_name' => $this->getStatusName(),
+                'is_suspended' => $this->isSuspended(),
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ]);
+            
+            return true;
+        }
+        
+        return false;
+        
+    } catch (\Exception $e) {
+        \Log::error('Error suspending user', [
+            'user_id' => $this->id,
+            'username' => $this->username,
+            'error' => $e->getMessage()
+        ]);
+        
+        return false;
     }
+}
 
     // ===============================================
     // NOUVELLES MÉTHODES POUR LE CHANGEMENT DE MOT DE PASSE OBLIGATOIRE
@@ -152,15 +216,91 @@ class User extends Authenticatable
     }
 
     // ===============================================
-    // MÉTHODES POUR OBTENIR LES NOMS
+    // MÉTHODES AMÉLIORÉES POUR OBTENIR LES NOMS ET INFORMATIONS
     // ===============================================
 
     /**
-     * Obtenir le nom du type d'utilisateur
+     * AMÉLIORÉ : Obtenir le nom du type d'utilisateur
      */
     public function getTypeName(): string
     {
-        return $this->userType->name ?? 'Non défini';
+        return match($this->user_type_id) {
+            1 => 'Administrateur',
+            2 => 'Poste Ecran',
+            3 => 'Poste Accueil',
+            4 => 'Poste Conseiller',
+            default => $this->userType->name ?? 'Non défini'
+        };
+    }
+
+    /**
+     * AMÉLIORÉ : Obtenir l'icône selon le type avec fallback
+     */
+    public function getTypeIcon(): string
+    {
+        return match($this->user_type_id) {
+            1 => 'shield',      // Administrateur
+            2 => 'monitor',     // Poste Ecran
+            3 => 'home',        // Poste Accueil
+            4 => 'users',       // Poste Conseiller
+            default => 'user'
+        };
+    }
+
+    /**
+     * NOUVEAU : Obtenir la couleur du badge selon le type
+     */
+    public function getTypeBadgeColor(): string
+    {
+        return match($this->user_type_id) {
+            1 => 'primary',     // Administrateur (bleu)
+            2 => 'info',        // Poste Ecran (cyan)
+            3 => 'success',     // Poste Accueil (vert)
+            4 => 'warning',     // Poste Conseiller (orange)
+            default => 'secondary'
+        };
+    }
+
+    /**
+     * NOUVEAU : Obtenir le rôle du formulaire depuis le type
+     */
+    public function getUserRole(): string
+    {
+        return match($this->user_type_id) {
+            1 => 'admin',
+            2 => 'ecran',
+            3 => 'accueil', 
+            4 => 'conseiller',
+            default => 'unknown'
+        };
+    }
+
+    /**
+     * NOUVEAU : Obtenir la description courte du type
+     */
+    public function getTypeShortDescription(): string
+    {
+        return match($this->user_type_id) {
+            1 => 'Admin système',
+            2 => 'Interface écran',
+            3 => 'Réception',
+            4 => 'Support client',
+            default => 'Utilisateur'
+        };
+    }
+
+    /**
+     * NOUVEAU : Obtenir l'emoji du type
+     */
+    public function getTypeEmoji(): string
+    {
+        return match($this->user_type_id) {
+            1 => '🛡️',  // Administrateur
+            2 => '🖥️',  // Poste Ecran
+            3 => '🏢',  // Poste Accueil
+            4 => '👥',  // Poste Conseiller
+            default => '👤'
+        };
     }
 
     /**
@@ -168,7 +308,58 @@ class User extends Authenticatable
      */
     public function getStatusName(): string
     {
-        return $this->status->name ?? 'Non défini';
+        return match($this->status_id) {
+            1 => 'Inactif',
+            2 => 'Actif',
+            3 => 'Suspendu',
+            default => $this->status->name ?? 'Non défini'
+        };
+    }
+
+    /**
+     * AMÉLIORÉ : Obtenir la couleur du badge selon le statut
+     */
+    public function getStatusBadgeColor(): string
+    {
+        return match($this->status_id) {
+            1 => 'warning',   // Inactif (orange)
+            2 => 'success',   // Actif (vert)
+            3 => 'danger',    // Suspendu (rouge)
+            default => 'secondary'
+        };
+    }
+
+    /**
+     * NOUVEAU : Obtenir les informations complètes du type
+     */
+    public function getTypeInfo(): array
+    {
+        return [
+            'id' => $this->user_type_id,
+            'name' => $this->getTypeName(),
+            'short_description' => $this->getTypeShortDescription(),
+            'role' => $this->getUserRole(),
+            'icon' => $this->getTypeIcon(),
+            'badge_color' => $this->getTypeBadgeColor(),
+            'emoji' => $this->getTypeEmoji(),
+            'is_admin' => $this->isAdmin(),
+            'is_normal_user' => $this->isNormalUser(),
+        ];
+    }
+
+    /**
+     * NOUVEAU : Obtenir les informations complètes du statut
+     */
+    public function getStatusInfo(): array
+    {
+        return [
+            'id' => $this->status_id,
+            'name' => $this->getStatusName(),
+            'badge_color' => $this->getStatusBadgeColor(),
+            'is_active' => $this->isActive(),
+            'is_inactive' => $this->isInactive(),
+            'is_suspended' => $this->isSuspended(),
+        ];
     }
 
     // ===============================================
@@ -208,7 +399,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Obtenir les informations de création (AMÉLIORÉ avec company)
+     * AMÉLIORÉ : Obtenir les informations de création
      */
     public function getCreationInfo(): ?array
     {
@@ -217,10 +408,13 @@ class User extends Authenticatable
             'created_by' => $creator->username,
             'created_by_id' => $creator->id,
             'created_by_email' => $creator->email,
-            'created_by_company' => $creator->company, // NOUVEAU
+            'created_by_company' => $creator->company,
+            'created_by_type' => $creator->getTypeName(),
             'created_at' => $this->created_at,
             'created_at_formatted' => $this->created_at->format('d/m/Y à H:i'),
             'created_at_human' => $this->created_at->diffForHumans(),
+            'creation_method' => $this->createdBy->creation_method ?? 'manual',
+            'creation_notes' => $this->createdBy->creation_notes ?? null,
         ] : null;
     }
 
@@ -257,24 +451,17 @@ class User extends Authenticatable
     }
 
     /**
-     * Obtenir la couleur du badge selon le statut
+     * NOUVEAU : Vérifier si l'utilisateur peut changer de type
      */
-    public function getStatusBadgeColor(): string
+    public function canChangeType(): bool
     {
-        switch ($this->status_id) {
-            case 1: return 'warning'; // Inactif
-            case 2: return 'success'; // Actif
-            case 3: return 'danger';  // Suspendu
-            default: return 'secondary';
+        // Un admin ne peut pas perdre ses privilèges s'il est le dernier admin actif
+        if ($this->isAdmin()) {
+            $activeAdmins = self::where('user_type_id', 1)->where('status_id', 2)->count();
+            return $activeAdmins > 1;
         }
-    }
-
-    /**
-     * Obtenir l'icône selon le type
-     */
-    public function getTypeIcon(): string
-    {
-        return $this->isAdmin() ? 'shield' : 'user';
+        
+        return true;
     }
 
     // ===============================================
@@ -356,15 +543,92 @@ class User extends Authenticatable
     }
 
     /**
-     * Scope pour les utilisateurs normaux
+     * NOUVEAU : Scope pour les postes écran
      */
-    public function scopeUsers($query)
+    public function scopeEcranUsers($query)
     {
         return $query->where('user_type_id', 2);
     }
 
     /**
-     * Scope pour recherche par terme (AMÉLIORÉ avec company)
+     * NOUVEAU : Scope pour les postes accueil
+     */
+    public function scopeAccueilUsers($query)
+    {
+        return $query->where('user_type_id', 3);
+    }
+
+    /**
+     * NOUVEAU : Scope pour les postes conseillers
+     */
+    public function scopeConseillerUsers($query)
+    {
+        return $query->where('user_type_id', 4);
+    }
+
+    /**
+     * AMÉLIORÉ : Scope pour les utilisateurs normaux (tous sauf admin)
+     */
+    public function scopeNormalUsers($query)
+    {
+        return $query->whereIn('user_type_id', [2, 3, 4]);
+    }
+
+    /**
+     * Legacy - Garde la compatibilité avec l'ancien code
+     */
+    public function scopeUsers($query)
+    {
+        return $query->normalUsers();
+    }
+
+    /**
+     * NOUVEAU : Scope pour filtrer par type de rôle
+     */
+    public function scopeByRole($query, string $role)
+    {
+        $roleMapping = [
+            'admin' => 1,
+            'ecran' => 2,
+            'accueil' => 3,
+            'conseiller' => 4,
+        ];
+        
+        if (isset($roleMapping[$role])) {
+            return $query->where('user_type_id', $roleMapping[$role]);
+        }
+        
+        return $query;
+    }
+
+    /**
+     * NOUVEAU : Scope pour filtrer par multiple rôles
+     */
+    public function scopeByRoles($query, array $roles)
+    {
+        $roleMapping = [
+            'admin' => 1,
+            'ecran' => 2,
+            'accueil' => 3,
+            'conseiller' => 4,
+        ];
+        
+        $typeIds = [];
+        foreach ($roles as $role) {
+            if (isset($roleMapping[$role])) {
+                $typeIds[] = $roleMapping[$role];
+            }
+        }
+        
+        if (!empty($typeIds)) {
+            return $query->whereIn('user_type_id', $typeIds);
+        }
+        
+        return $query;
+    }
+
+    /**
+     * AMÉLIORÉ : Scope pour recherche par terme (avec company et type)
      */
     public function scopeSearch($query, $term)
     {
@@ -372,7 +636,132 @@ class User extends Authenticatable
             $q->where('username', 'like', "%{$term}%")
               ->orWhere('email', 'like', "%{$term}%")
               ->orWhere('mobile_number', 'like', "%{$term}%")
-              ->orWhere('company', 'like', "%{$term}%"); // NOUVEAU - recherche par entreprise
+              ->orWhere('company', 'like', "%{$term}%")
+              ->orWhereHas('userType', function($subQuery) use ($term) {
+                  $subQuery->where('name', 'like', "%{$term}%");
+              })
+              ->orWhereHas('status', function($subQuery) use ($term) {
+                  $subQuery->where('name', 'like', "%{$term}%");
+              });
         });
+    }
+
+    /**
+     * NOUVEAU : Scope pour les utilisateurs créés récemment
+     */
+    public function scopeRecentlyCreated($query, int $days = 7)
+    {
+        return $query->where('created_at', '>=', now()->subDays($days));
+    }
+
+    /**
+     * NOUVEAU : Scope pour les utilisateurs nécessitant un reset password
+     */
+    public function scopeNeedingPasswordReset($query)
+    {
+        return $query->whereHas('createdBy', function($q) {
+            $q->where('password_reset_required', true);
+        });
+    }
+
+    // ===============================================
+    // MÉTHODES STATIQUES UTILITAIRES
+    // ===============================================
+
+    /**
+     * NOUVEAU : Obtenir les statistiques générales des utilisateurs
+     */
+    public static function getGlobalStats(): array
+    {
+        return [
+            'total_users' => self::count(),
+            'active_users' => self::active()->count(),
+            'inactive_users' => self::inactive()->count(),
+            'suspended_users' => self::suspended()->count(),
+            'admin_users' => self::admins()->count(),
+            'ecran_users' => self::ecranUsers()->count(),
+            'accueil_users' => self::accueilUsers()->count(),
+            'conseiller_users' => self::conseillerUsers()->count(),
+            'recent_users' => self::recentlyCreated()->count(),
+            'users_needing_password_reset' => self::needingPasswordReset()->count(),
+        ];
+    }
+
+    /**
+     * NOUVEAU : Obtenir les utilisateurs par type avec statistiques
+     */
+    public static function getStatsByType(): array
+    {
+        $types = [
+            1 => 'admin',
+            2 => 'ecran', 
+            3 => 'accueil',
+            4 => 'conseiller'
+        ];
+
+        $stats = [];
+        foreach ($types as $typeId => $roleName) {
+            $stats[$roleName] = [
+                'total' => self::where('user_type_id', $typeId)->count(),
+                'active' => self::where('user_type_id', $typeId)->active()->count(),
+                'inactive' => self::where('user_type_id', $typeId)->inactive()->count(),
+                'suspended' => self::where('user_type_id', $typeId)->suspended()->count(),
+            ];
+        }
+
+        return $stats;
+    }
+
+    /**
+     * NOUVEAU : Rechercher des utilisateurs avec filtres avancés
+     */
+    public static function advancedSearch(array $filters = []): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = self::with(['userType', 'status', 'createdBy']);
+
+        // Filtrer par terme de recherche
+        if (!empty($filters['search'])) {
+            $query->search($filters['search']);
+        }
+
+        // Filtrer par rôle
+        if (!empty($filters['role'])) {
+            $query->byRole($filters['role']);
+        }
+
+        // Filtrer par rôles multiples
+        if (!empty($filters['roles']) && is_array($filters['roles'])) {
+            $query->byRoles($filters['roles']);
+        }
+
+        // Filtrer par statut
+        if (!empty($filters['status'])) {
+            $statusMap = [
+                'active' => 2,
+                'inactive' => 1,
+                'suspended' => 3
+            ];
+            if (isset($statusMap[$filters['status']])) {
+                $query->where('status_id', $statusMap[$filters['status']]);
+            }
+        }
+
+        // Filtrer par créateur
+        if (!empty($filters['created_by'])) {
+            $query->whereHas('createdBy', function($q) use ($filters) {
+                $q->where('administrator_id', $filters['created_by']);
+            });
+        }
+
+        // Filtrer par période de création
+        if (!empty($filters['created_after'])) {
+            $query->where('created_at', '>=', $filters['created_after']);
+        }
+
+        if (!empty($filters['created_before'])) {
+            $query->where('created_at', '<=', $filters['created_before']);
+        }
+
+        return $query;
     }
 }

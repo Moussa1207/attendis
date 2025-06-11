@@ -77,7 +77,7 @@
             <hr class="hr-dashed hr-menu">
             <li class="menu-label my-2">Administration</li>
 
-            <!-- Gestion des Utilisateurs -->
+            <!-- Gestion des Utilisateurs - AMÉLIORÉ: Ordre inversé -->
             <li>
                 <a href="javascript: void(0);">
                     <i data-feather="users" class="align-self-center menu-icon"></i>
@@ -85,15 +85,17 @@
                     <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li>
-                        <a href="{{ route('user.users-list') }}">
-                            <i class="ti-control-record"></i>Liste & Gestion
-                        </a>                           
-                    </li>
+                    <!-- AMÉLIORÉ: Nouveau en premier -->
                     <li>
                         <a href="{{ route('admin.users.create') }}">
-                            <i class="ti-control-record"></i>Créer Utilisateur
+                            <i class="ti-control-record"></i>Nouveau
                         </a>
+                    </li>
+                    <!-- AMÉLIORÉ: Liste en second -->
+                    <li>
+                        <a href="{{ route('user.users-list') }}">
+                            <i class="ti-control-record"></i>Liste
+                        </a>                           
                     </li>
                 </ul>                        
             </li>

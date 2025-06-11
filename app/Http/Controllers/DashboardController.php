@@ -218,14 +218,29 @@ class DashboardController extends Controller
             // Filtrage par type (dans SES utilisateurs seulement) 
             // IMPORTANT : Exclure les autres admins du type "admin"
             if ($request->filled('type')) {
-                if ($request->type === 'admin') {
-                    // Montrer seulement lui-même
-                    $query->where('id', $currentAdminId);
-                } elseif ($request->type === 'user') {
-                    // Montrer seulement ses utilisateurs normaux créés
-                    $query->where('user_type_id', 2);
-                }
-            }
+    $typeMapping = [
+        'admin' => 1,       // Administrateur
+        'ecran' => 2,       // Poste Ecran  
+        'accueil' => 3,     // Poste Accueil
+        'conseiller' => 4,  // Poste Conseiller
+        'user' => [2, 3, 4] // Tous les utilisateurs normaux
+    ];
+    
+    $requestedType = $request->type;
+    
+    if ($requestedType === 'admin') {
+        // Montrer seulement lui-même s'il est admin
+        $query->where('id', $currentAdminId)->where('user_type_id', 1);
+    } elseif ($requestedType === 'user') {
+        // Montrer tous ses utilisateurs normaux créés (écran, accueil, conseiller)
+        $query->whereIn('user_type_id', [2, 3, 4]);
+    } elseif (isset($typeMapping[$requestedType])) {
+        // Filtrer par type spécifique
+        $typeId = $typeMapping[$requestedType];
+        $query->where('user_type_id', $typeId);
+    }
+   }
+
 
             $users = $query->orderBy('created_at', 'desc')->paginate(15);
 
@@ -988,6 +1003,65 @@ class DashboardController extends Controller
             return redirect()->back()->with('error', 'Erreur lors de l\'export : ' . $e->getMessage());
         }
     }
+
+
+public function getStatsByType(Request $request)
+{
+    if (!Auth::user()->isAdmin()) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Accès non autorisé'
+        ], 403);
+    }
+
+    try {
+        $currentAdminId = Auth::id();
+        
+        // ISOLATION - Statistiques pour SES utilisateurs uniquement
+        $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+        $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
+        
+        // Statistiques détaillées par type
+        $statsByType = [
+            'admin' => [
+                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
+                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 2)->count(),
+                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 1)->count(),
+                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 3)->count(),
+            ],
+            'ecran' => [
+                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 2)->count(),
+                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 1)->count(),
+                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 3)->count(),
+            ],
+            'accueil' => [
+                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
+                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 2)->count(),
+                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 1)->count(),
+                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 3)->count(),
+            ],
+            'conseiller' => [
+                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
+                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 2)->count(),
+                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 1)->count(),
+                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 3)->count(),
+            ]
+        ];
+
+        return response()->json([
+            'success' => true, 
+            'stats_by_type' => $statsByType,
+            'timestamp' => now()->format('d/m/Y H:i:s')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Erreur lors de la récupération des statistiques par type'
+        ], 500);
+    }
+}
 
     /**
      * Statistiques avancées pour les admins (AJAX)
