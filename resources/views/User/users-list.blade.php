@@ -306,10 +306,10 @@
                                         <button class="btn btn-sm btn-success waves-effect" onclick="showCreateUserModal()" title="Créer utilisateur">
                                             <i data-feather="user-plus" class="icon-xs mr-1"></i>Créer
                                         </button>
-                                        <button class="btn btn-sm btn-warning waves-effect" onclick="bulkActivateAll()" title="Activer tous les inactifs">
+                                        <button class="btn btn-sm btn-warning waves-effect" onclick="showBulkActivateModal()" title="Activer tous les inactifs">
                                             <i data-feather="zap" class="icon-xs mr-1"></i>Activer
                                         </button>
-                                        <button class="btn btn-sm btn-danger waves-effect" onclick="bulkDeleteSelected()" title="Supprimer sélectionnés">
+                                        <button class="btn btn-sm btn-danger waves-effect" onclick="showBulkDeleteModal()" title="Supprimer sélectionnés">
                                             <i data-feather="trash-2" class="icon-xs mr-1"></i>Supprimer
                                         </button>
                                     </div>
@@ -374,23 +374,23 @@
                                                 </td>
                                                 <td>
                                                     @if($user->user_type_id == 1 || $user->isAdmin())
-                                                        <span class="badge badge-primary badge-pill">
+                                                        <span class="badge badge-custom-type badge-pill">
                                                             <i data-feather="shield" class="icon-xs mr-1"></i>Administrateur
                                                         </span>
                                                     @elseif($user->user_type_id == 2)
-                                                        <span class="badge badge-info badge-pill">
-                                                            <i data-feather="monitor" class="icon-xs mr-1"></i>Poste Ecran
+                                                        <span class="badge badge-custom-type badge-pill">
+                                                            <i data-feather="monitor" class="icon-xs mr-1"></i> Ecran
                                                         </span>
                                                     @elseif($user->user_type_id == 3)
-                                                        <span class="badge badge-success badge-pill">
-                                                            <i data-feather="home" class="icon-xs mr-1"></i>Poste Accueil
+                                                        <span class="badge badge-custom-type badge-pill">
+                                                            <i data-feather="home" class="icon-xs mr-1"></i> Accueil
                                                         </span>
                                                     @elseif($user->user_type_id == 4)
-                                                        <span class="badge badge-warning badge-pill">
-                                                            <i data-feather="users" class="icon-xs mr-1"></i>Poste Conseiller
+                                                        <span class="badge badge-custom-type badge-pill">
+                                                            <i data-feather="users" class="icon-xs mr-1"></i> Conseiller
                                                         </span>
                                                     @else
-                                                        <span class="badge badge-secondary badge-pill">
+                                                        <span class="badge badge-custom-type badge-pill">
                                                             <i data-feather="user" class="icon-xs mr-1"></i>Utilisateur
                                                         </span>
                                                     @endif
@@ -419,17 +419,17 @@
                                                         <!-- ACTIONS SELON LE STATUT -->
                                                         @if($user->isInactive())
                                                             <button class="btn btn-soft-success waves-effect" title="Activer" 
-                                                                    onclick="activateUser({{ $user->id }}, '{{ $user->username }}')">
+                                                                    onclick="showActivateUserModal({{ $user->id }}, '{{ $user->username }}')">
                                                                 <i data-feather="user-check" class="icon-xs"></i>
                                                             </button>
                                                         @elseif($user->isActive() && !$user->isAdmin())
                                                             <button class="btn btn-soft-warning waves-effect" title="Suspendre" 
-                                                                    onclick="suspendUser({{ $user->id }}, '{{ $user->username }}')">
+                                                                    onclick="showSuspendUserModal({{ $user->id }}, '{{ $user->username }}')">
                                                                 <i data-feather="user-x" class="icon-xs"></i>
                                                             </button>
                                                         @elseif($user->isSuspended())
                                                             <button class="btn btn-soft-success waves-effect" title="Réactiver" 
-                                                                    onclick="reactivateUser({{ $user->id }}, '{{ $user->username }}')">
+                                                                    onclick="showReactivateUserModal({{ $user->id }}, '{{ $user->username }}')">
                                                                 <i data-feather="user-check" class="icon-xs"></i>
                                                             </button>
                                                         @endif
@@ -441,7 +441,7 @@
                                                         
                                                         @if(!$user->isAdmin() || (\App\Models\User::where('user_type_id', 1)->where('status_id', 2)->count() > 1))
                                                         <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
-                                                                onclick="deleteUser({{ $user->id }}, '{{ $user->username }}')">
+                                                                onclick="showDeleteUserModal({{ $user->id }}, '{{ $user->username }}')">
                                                             <i data-feather="trash-2" class="icon-xs"></i>
                                                         </button>
                                                         @endif
@@ -499,7 +499,48 @@
 </div>
 <!-- end page-wrapper -->
 
-<!-- Modal détails utilisateur -->
+<!-- ==================================================================================== -->
+<!-- MODALES PROFESSIONNELLES -->
+<!-- ==================================================================================== -->
+
+<!-- Modal Confirmation Universelle -->
+<div class="modal fade" id="confirmationModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <div class="w-100 text-center">
+                    <div id="modalIcon" class="modal-icon mb-3">
+                        <!-- Icône dynamique selon le type -->
+                    </div>
+                    <h4 class="modal-title font-weight-bold" id="modalTitle">Titre</h4>
+                </div>
+                <button type="button" class="close position-absolute" data-dismiss="modal" style="top: 15px; right: 20px;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body text-center">
+                <p id="modalMessage" class="text-muted mb-0">Message</p>
+                <div id="modalDetails" class="mt-3 p-3 bg-light rounded" style="display: none;">
+                    <!-- Détails supplémentaires si nécessaire -->
+                </div>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-secondary btn-rounded mr-2" data-dismiss="modal" id="cancelBtn">
+                    <i data-feather="x" class="icon-xs mr-1"></i>Annuler
+                </button>
+                <button type="button" class="btn btn-rounded" id="confirmBtn">
+                    <i class="icon-xs mr-1"></i>
+                    <span id="confirmText">Confirmer</span>
+                    <div class="spinner-border spinner-border-sm ml-2" role="status" style="display: none;" id="confirmSpinner">
+                        <span class="sr-only">Chargement...</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal détails utilisateur (conservée) -->
 <div class="modal fade" id="userDetailsModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
@@ -567,6 +608,156 @@
     border: 2px solid #2196f3;
     transform: translateY(-3px);
     box-shadow: 0 6px 20px rgba(33, 150, 243, 0.3);
+}
+
+/* NOUVEAU : Style uniforme pour les badges de type utilisateur */
+.badge-custom-type {
+    background-color: #12a4ed !important;
+    color: white !important;
+    border: 1px solid #0e8bc4;
+    transition: all 0.3s ease;
+}
+
+.badge-custom-type:hover {
+    background-color: #0e8bc4 !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(18, 164, 237, 0.3);
+}
+
+/* ==================================================================================== */
+/* STYLES POUR MODALES PROFESSIONNELLES */
+/* ==================================================================================== */
+
+.modal-content {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    animation: iconPulse 2s infinite ease-in-out;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Icônes selon le type d'action */
+.modal-icon.danger {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    color: white;
+    box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+}
+
+.modal-icon.warning {
+    background: linear-gradient(#ffa500);
+    color: white;
+    box-shadow: 0 8px 25px rgba(254, 202, 87, 0.3);
+}
+
+.modal-icon.success {
+    background: linear-gradient(135deg, #48cab2, #2ecc71);
+    color: white;
+    box-shadow: 0 8px 25px rgba(72, 202, 178, 0.3);
+}
+
+.modal-icon.info {
+    background: linear-gradient(135deg, #3867d6, #4834d4);
+    color: white;
+    box-shadow: 0 8px 25px rgba(56, 103, 214, 0.3);
+}
+
+/* Boutons arrondis avec animations */
+.btn-rounded {
+    border-radius: 25px;
+    padding: 10px 25px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-rounded:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.btn-rounded:active {
+    transform: translateY(0);
+}
+
+/* États des boutons */
+.btn-danger.btn-rounded {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    border: none;
+}
+
+.btn-warning.btn-rounded {
+    background: linear-gradient(#ffa500);
+    border: none;
+    color: white;
+}
+
+.btn-success.btn-rounded {
+    background: linear-gradient(135deg, #48cab2, #2ecc71);
+    border: none;
+}
+
+.btn-info.btn-rounded {
+    background: linear-gradient(135deg, #3867d6, #4834d4);
+    border: none;
+}
+
+/* Animation de chargement sur le bouton */
+.btn-loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+/* Détails pliables */
+.modal-details {
+    transition: all 0.3s ease;
+}
+
+/* Overlay pour backdrop personnalisé */
+.modal-backdrop.show {
+    opacity: 0.7;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.3));
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .modal-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 1.8rem;
+    }
+    
+    .btn-rounded {
+        padding: 8px 20px;
+        font-size: 14px;
+    }
 }
 
 .counter {
@@ -668,6 +859,7 @@ let searchTimeout;
 let realTimeInterval;
 let lastUpdateTimestamp = Date.now();
 let isSelectAllActive = false;
+let currentAction = null; // Pour stocker l'action en cours
 
 // Initialisation complète
 document.addEventListener('DOMContentLoaded', function() {
@@ -694,6 +886,544 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// ==================================================================================== 
+// SYSTÈME DE MODALES PROFESSIONNELLES
+// ==================================================================================== 
+
+/**
+ * Afficher une modale de confirmation personnalisée
+ */
+function showConfirmationModal(config) {
+    const modal = document.getElementById('confirmationModal');
+    const modalIcon = document.getElementById('modalIcon');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const modalDetails = document.getElementById('modalDetails');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const confirmText = document.getElementById('confirmText');
+    const confirmSpinner = document.getElementById('confirmSpinner');
+    
+    // Configuration par défaut
+    const defaultConfig = {
+        type: 'danger', // danger, warning, success, info
+        icon: 'alert-triangle',
+        title: 'Confirmation requise',
+        message: 'Êtes-vous sûr de vouloir effectuer cette action ?',
+        details: null,
+        confirmText: 'Confirmer',
+        confirmClass: 'btn-danger',
+        onConfirm: null,
+        showSpinner: true
+    };
+    
+    // Fusionner avec la configuration fournie
+    const finalConfig = { ...defaultConfig, ...config };
+    
+    // Configurer l'icône
+    modalIcon.className = `modal-icon ${finalConfig.type}`;
+    modalIcon.innerHTML = `<i data-feather="${finalConfig.icon}"></i>`;
+    
+    // Configurer le titre et le message
+    modalTitle.textContent = finalConfig.title;
+    modalMessage.textContent = finalConfig.message;
+    
+    // Configurer les détails (optionnel)
+    if (finalConfig.details) {
+        modalDetails.innerHTML = finalConfig.details;
+        modalDetails.style.display = 'block';
+    } else {
+        modalDetails.style.display = 'none';
+    }
+    
+    // Configurer le bouton de confirmation
+    confirmBtn.className = `btn btn-rounded ${finalConfig.confirmClass}`;
+    confirmText.textContent = finalConfig.confirmText;
+    confirmSpinner.style.display = 'none';
+    
+    // Stocker l'action pour l'exécuter plus tard
+    currentAction = finalConfig.onConfirm;
+    
+    // Régénérer les icônes Feather
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    // Afficher la modale
+    $('#confirmationModal').modal('show');
+}
+
+/**
+ * Gestionnaire du bouton de confirmation
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmBtn = document.getElementById('confirmBtn');
+    const confirmText = document.getElementById('confirmText');
+    const confirmSpinner = document.getElementById('confirmSpinner');
+    
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+            if (currentAction && typeof currentAction === 'function') {
+                // Afficher le spinner
+                confirmSpinner.style.display = 'inline-block';
+                confirmBtn.classList.add('btn-loading');
+                confirmText.textContent = 'Traitement...';
+                
+                // Exécuter l'action
+                currentAction();
+            }
+        });
+    }
+});
+
+// ==================================================================================== 
+// MODALES SPÉCIFIQUES POUR CHAQUE ACTION
+// ==================================================================================== 
+
+/**
+ * Modal de suppression d'utilisateur
+ */
+function showDeleteUserModal(userId, username) {
+    showConfirmationModal({
+        type: 'danger',
+        icon: 'trash-2',
+        title: '⚠️ Suppression définitive',
+        message: `Êtes-vous absolument certain de vouloir supprimer ${username} ?`,
+        details: `
+            <div class="text-danger">
+                <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
+                <strong>Cette action est irréversible !</strong><br>
+                <small>• Toutes les données de l'utilisateur seront perdues<br>
+                • L'historique des actions sera supprimé<br>
+                • Les permissions associées seront révoquées</small>
+            </div>
+        `,
+        confirmText: 'Supprimer définitivement',
+        confirmClass: 'btn-danger',
+        onConfirm: () => executeDeleteUser(userId, username)
+    });
+}
+
+/**
+ * Modal de suspension d'utilisateur
+ */
+function showSuspendUserModal(userId, username) {
+    showConfirmationModal({
+        type: 'warning',
+        icon: 'user-x',
+        title: '⚠️ Suspension d\'utilisateur',
+        message: `Confirmer la suspension de ${username} ?`,
+        details: `
+            <div class="text-warning">
+                <i data-feather="info" class="icon-xs mr-1"></i>
+                <strong>Conséquences de la suspension :</strong><br>
+                <small>• L'utilisateur ne pourra plus se connecter<br>
+                • Les sessions actives seront terminées<br>
+                • Les accès seront révoqués temporairement</small>
+            </div>
+        `,
+        confirmText: 'Suspendre l\'utilisateur',
+        confirmClass: 'btn-warning',
+        onConfirm: () => executeSuspendUser(userId, username)
+    });
+}
+
+/**
+ * Modal d'activation d'utilisateur
+ */
+function showActivateUserModal(userId, username) {
+    showConfirmationModal({
+        type: 'success',
+        icon: 'user-check',
+        title: '✅ Activation d\'utilisateur',
+        message: `Confirmer l'activation de ${username} ?`,
+        details: `
+            <div class="text-success">
+                <i data-feather="check-circle" class="icon-xs mr-1"></i>
+                <strong>Après activation :</strong><br>
+                <small>• L'utilisateur pourra se connecter<br>
+                • Les permissions par défaut seront appliquées<br>
+                • Un email de notification sera envoyé</small>
+            </div>
+        `,
+        confirmText: 'Activer l\'utilisateur',
+        confirmClass: 'btn-success',
+        onConfirm: () => executeActivateUser(userId, username)
+    });
+}
+
+/**
+ * Modal de réactivation d'utilisateur
+ */
+function showReactivateUserModal(userId, username) {
+    showConfirmationModal({
+        type: 'success',
+        icon: 'user-check',
+        title: '🔄 Réactivation d\'utilisateur',
+        message: `Confirmer la réactivation de ${username} ?`,
+        details: `
+            <div class="text-success">
+                <i data-feather="refresh-cw" class="icon-xs mr-1"></i>
+                <strong>Après réactivation :</strong><br>
+                <small>• L'utilisateur retrouvera tous ses accès<br>
+                • Les permissions seront restaurées<br>
+                • L'historique sera conservé</small>
+            </div>
+        `,
+        confirmText: 'Réactiver l\'utilisateur',
+        confirmClass: 'btn-success',
+        onConfirm: () => executeReactivateUser(userId, username)
+    });
+}
+
+/**
+ * Modal de suppression en masse
+ */
+function showBulkDeleteModal() {
+    const selectedUsers = document.querySelectorAll('.user-checkbox:checked');
+    
+    if (selectedUsers.length === 0) {
+        showToast('Attention', 'Veuillez sélectionner au moins un utilisateur à supprimer.', 'warning');
+        return;
+    }
+    
+    showConfirmationModal({
+        type: 'danger',
+        icon: 'trash-2',
+        title: '🗑️ Suppression en masse',
+        message: `Supprimer ${selectedUsers.length} utilisateur(s) sélectionné(s) ?`,
+        details: `
+            <div class="text-danger">
+                <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
+                <strong>ATTENTION : Action irréversible !</strong><br>
+                <small>• ${selectedUsers.length} utilisateur(s) seront supprimé(s) définitivement<br>
+                • Toutes leurs données seront perdues<br>
+                • Cette action ne peut pas être annulée</small>
+            </div>
+        `,
+        confirmText: `Supprimer ${selectedUsers.length} utilisateur(s)`,
+        confirmClass: 'btn-danger',
+        onConfirm: () => executeBulkDelete(selectedUsers)
+    });
+}
+
+/**
+ * Modal d'activation en masse
+ */
+function showBulkActivateModal() {
+    const inactiveCount = document.querySelectorAll('.badge-warning').length;
+    
+    if (inactiveCount === 0) {
+        showToast('Information', 'Aucun utilisateur inactif à activer.', 'info');
+        return;
+    }
+    
+    showConfirmationModal({
+        type: 'success',
+        icon: 'zap',
+        title: '⚡ Activation en masse',
+        message: `Activer tous les ${inactiveCount} utilisateur(s) en attente ?`,
+        details: `
+            <div class="text-success">
+                <i data-feather="users" class="icon-xs mr-1"></i>
+                <strong>Résultat de l'activation :</strong><br>
+                <small>• ${inactiveCount} utilisateur(s) seront activé(s)<br>
+                • Ils pourront se connecter immédiatement<br>
+                • Des emails de notification seront envoyés</small>
+            </div>
+        `,
+        confirmText: `Activer ${inactiveCount} utilisateur(s)`,
+        confirmClass: 'btn-success',
+        onConfirm: () => executeBulkActivate(inactiveCount)
+    });
+}
+
+// ==================================================================================== 
+// FONCTIONS D'EXÉCUTION DES ACTIONS
+// ==================================================================================== 
+
+/**
+ * Exécuter la suppression d'un utilisateur
+ */
+function executeDeleteUser(userId, username) {
+    setTimeout(() => {
+        $('#confirmationModal').modal('hide');
+        showLoading();
+        
+        // 🆕 VRAI APPEL AJAX vers l'endpoint de suppression
+        fetch(`/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success) {
+                showToast('Succès', data.message || `${username} a été supprimé définitivement.`, 'success');
+                
+                // Retirer la ligne de l'utilisateur du tableau
+                const userRow = document.querySelector(`tr[data-user-id="${userId}"]`);
+                if (userRow) {
+                    userRow.remove();
+                }
+                
+                // Mettre à jour les compteurs
+                updateCountersAfterDelete();
+                
+                // Recharger la page après 1.5 secondes pour mettre à jour tous les compteurs
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showToast('Erreur', data.message || 'Erreur lors de la suppression', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Delete error:', error);
+            showToast('Erreur', 'Erreur lors de la suppression', 'error');
+        });
+    }, 1500);
+}
+/**
+ * Exécuter la suspension d'un utilisateur
+ */
+function executeSuspendUser(userId, username) {
+    setTimeout(() => {
+        $('#confirmationModal').modal('hide');
+        showLoading();
+        
+        // VRAI APPEL AJAX
+        fetch(`/admin/users/${userId}/suspend`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success) {
+                showToast('Succès', data.message, 'success');
+                location.reload();
+            } else {
+                showToast('Erreur', data.message || 'Erreur lors de la suspension', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Suspension error:', error);
+            showToast('Erreur', 'Erreur lors de la suspension', 'error');
+        });
+    }, 1500);
+}
+
+/**
+ * Exécuter l'activation d'un utilisateur
+ */
+function executeActivateUser(userId, username) {
+    setTimeout(() => {
+        $('#confirmationModal').modal('hide');
+        showLoading();
+        
+        // 🆕 VRAI APPEL AJAX vers l'endpoint d'activation
+        fetch(`/admin/users/${userId}/activate`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success) {
+                showToast('Succès', data.message || `${username} a été activé avec succès.`, 'success');
+                
+                // Mettre à jour le statut dans le tableau
+                updateUserStatusInTable(userId, 'active');
+                
+                // Recharger la page après 1.5 secondes
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showToast('Erreur', data.message || 'Erreur lors de l\'activation', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Activation error:', error);
+            showToast('Erreur', 'Erreur lors de l\'activation', 'error');
+        });
+    }, 1500);
+}
+/**
+ * Exécuter la réactivation d'un utilisateur
+ */
+function executeReactivateUser(userId, username) {
+    setTimeout(() => {
+        $('#confirmationModal').modal('hide');
+        showLoading();
+        
+        // VRAI APPEL AJAX
+        fetch(`/admin/users/${userId}/reactivate`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success) {
+                showToast('Succès', data.message, 'success');
+                location.reload();
+            } else {
+                showToast('Erreur', data.message || 'Erreur lors de la réactivation', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Reactivation error:', error);
+            showToast('Erreur', 'Erreur lors de la réactivation', 'error');
+        });
+    }, 1500);
+}
+
+/**
+ * Exécuter la suppression en masse
+ */
+function executeBulkDelete(selectedUsers) {
+    setTimeout(() => {
+        $('#confirmationModal').modal('hide');
+        showLoading();
+        
+        // Récupérer les IDs des utilisateurs sélectionnés
+        const userIds = Array.from(selectedUsers).map(checkbox => parseInt(checkbox.value));
+        
+        // 🆕 VRAI APPEL AJAX vers l'endpoint de suppression en masse
+        fetch('/admin/users/bulk-delete', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_ids: userIds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success) {
+                showToast('Succès', data.message || `${userIds.length} utilisateur(s) supprimé(s) !`, 'success');
+                
+                // Retirer toutes les lignes supprimées du tableau
+                userIds.forEach(userId => {
+                    const userRow = document.querySelector(`tr[data-user-id="${userId}"]`);
+                    if (userRow) {
+                        userRow.remove();
+                    }
+                });
+                
+                // Décocher toutes les cases
+                document.querySelectorAll('.user-checkbox:checked').forEach(cb => cb.checked = false);
+                const selectAllCheckbox = document.getElementById('selectAll');
+                if (selectAllCheckbox) selectAllCheckbox.checked = false;
+                
+                // Mettre à jour le bouton de sélection
+                const selectAllBtn = document.getElementById('selectAllBtn');
+                if (selectAllBtn) {
+                    selectAllBtn.classList.remove('btn-primary', 'btn-warning');
+                    selectAllBtn.classList.add('btn-outline-secondary');
+                    selectAllBtn.innerHTML = '<i data-feather="square" class="icon-xs"></i>';
+                    if (typeof feather !== 'undefined') {
+                        feather.replace();
+                    }
+                }
+                
+                // Recharger après 2 secondes pour tout mettre à jour
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                showToast('Erreur', data.message || 'Erreur lors de la suppression en masse', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Bulk delete error:', error);
+            showToast('Erreur', 'Erreur lors de la suppression en masse', 'error');
+        });
+    }, 1500);
+}
+/**
+ * Exécuter l'activation en masse
+ */
+function executeBulkActivate(inactiveCount) {
+    setTimeout(() => {
+        $('#confirmationModal').modal('hide');
+        showLoading();
+        
+        // 🆕 VRAI APPEL AJAX vers l'endpoint d'activation en masse
+        fetch('/admin/users/bulk-activate', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success) {
+                showToast('Succès', data.message || `${inactiveCount} utilisateur(s) activé(s) !`, 'success');
+                
+                // Mettre à jour visuellement les statuts des utilisateurs inactifs
+                document.querySelectorAll('.badge-warning').forEach(badge => {
+                    if (badge.textContent.includes('En attente')) {
+                        badge.className = 'badge badge-success badge-pill';
+                        badge.innerHTML = '<i data-feather="check-circle" class="icon-xs mr-1"></i>Actif';
+                    }
+                });
+                
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                }
+                
+                // Recharger après 2 secondes
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                showToast('Erreur', data.message || 'Erreur lors de l\'activation en masse', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Bulk activation error:', error);
+            showToast('Erreur', 'Erreur lors de l\'activation en masse', 'error');
+        });
+    }, 1500);
+}
 
 /**
  * Initialiser les gestionnaires de sélection
@@ -1080,34 +1810,7 @@ function selectSearchSuggestion(suggestion) {
 }
 
 // =====================================================
-// AUTRES FONCTIONS AMÉLIORÉES
-// =====================================================
-
-/**
- * Activation en masse améliorée
- */
-function bulkActivateAll() {
-    const inactiveCount = document.querySelectorAll('.badge-warning').length;
-    
-    if (inactiveCount === 0) {
-        showToast('Information', 'Aucun utilisateur inactif à activer.', 'info');
-        return;
-    }
-    
-    if (confirm(`Voulez-vous activer tous les ${inactiveCount} utilisateur(s) en attente ?`)) {
-        showLoading();
-        
-        // Simuler l'activation (remplacer par appel AJAX réel)
-        setTimeout(() => {
-            hideLoading();
-            showToast('Succès', `${inactiveCount} utilisateur(s) activé(s) !`, 'success');
-            setTimeout(() => updateRealTimeStats(), 1000);
-        }, 2000);
-    }
-}
-
-// =====================================================
-// FONCTIONS TEMPS RÉEL (CONSERVÉES)
+// FONCTIONS TEMPS RÉEL 
 // =====================================================
 
 function startRealTimeUpdates() {
@@ -1150,93 +1853,8 @@ function showUpdateIndicator() {
 }
 
 // =====================================================
-// FONCTIONS EXISTANTES CONSERVÉES
+// AUTRES FONCTIONS 
 // =====================================================
-
-function reactivateUser(userId, username) {
-    if (confirm(`Êtes-vous sûr de vouloir réactiver ${username} ?`)) {
-        showLoading();
-        showToast('Succès', `${username} réactivé !`, 'success');
-        setTimeout(() => hideLoading(), 1000);
-    }
-}
-
-function deleteUser(userId, username) {
-    if (confirm(`⚠️ ATTENTION ⚠️\n\nÊtes-vous sûr de vouloir SUPPRIMER définitivement ${username} ?`)) {
-        if (confirm(`Dernière confirmation pour ${username} ?`)) {
-            showLoading();
-            showToast('Succès', `${username} supprimé définitivement.`, 'success');
-            setTimeout(() => hideLoading(), 1000);
-        }
-    }
-}
-
-function activateUser(userId, username) {
-    if (confirm(`Êtes-vous sûr de vouloir activer ${username} ?`)) {
-        showLoading();
-        showToast('Succès', `${username} activé !`, 'success');
-        setTimeout(() => hideLoading(), 1000);
-    }
-}
-
-function suspendUser(userId, username) {
-    if (confirm(`⚠️ SUSPENSION\n\nÊtes-vous sûr de vouloir suspendre ${username} ?`)) {
-        
-        showLoading();
-        
-        // ✅ CETTE URL DOIT CORRESPONDRE À VOTRE ROUTE EXISTANTE
-        fetch(`/admin/users/${userId}/suspend`, {  // 👈 URL CORRECTE selon vos routes
-            method: 'PATCH',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => {
-            console.log('Response status:', response.status); // Debug
-            return response.json();
-        })
-        .then(data => {
-            hideLoading();
-            console.log('Suspension response:', data); // Debug
-            
-            if (data.success) {
-                showToast('Succès', data.message, 'success');
-                
-                // Mettre à jour l'affichage (optionnel)
-                const userRow = document.querySelector(`[data-user-id="${userId}"]`);
-                if (userRow) {
-                    // Recharger la page ou mettre à jour l'affichage
-                    location.reload(); // Solution simple
-                }
-                
-            } else {
-                showToast('Erreur', data.message || 'Erreur lors de la suspension', 'error');
-            }
-        })
-        .catch(error => {
-            hideLoading();
-            console.error('Suspension error:', error);
-            showToast('Erreur', 'Erreur lors de la suspension', 'error');
-        });
-    }
-}
-
-function bulkDeleteSelected() {
-    const selectedUsers = document.querySelectorAll('.user-checkbox:checked');
-    
-    if (selectedUsers.length === 0) {
-        showToast('Attention', 'Veuillez sélectionner au moins un utilisateur à supprimer.', 'warning');
-        return;
-    }
-    
-    if (confirm(`⚠️ SUPPRESSION EN MASSE ⚠️\n\nVoulez-vous supprimer ${selectedUsers.length} utilisateur(s) ?`)) {
-        showLoading();
-        showToast('Succès', `${selectedUsers.length} utilisateur(s) supprimé(s) !`, 'success');
-        setTimeout(() => hideLoading(), 2000);
-    }
-}
 
 function showCreateUserModal() {
     window.location.href = "{{ route('admin.users.create') }}";

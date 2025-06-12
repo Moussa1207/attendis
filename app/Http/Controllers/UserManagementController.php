@@ -76,15 +76,19 @@ class UserManagementController extends Controller
             // Générer un mot de passe temporaire sécurisé
             $temporaryPassword = $this->generateSecurePassword();
             
-            // ✅ CORRECTION : Créer l'utilisateur avec le BON type
-            $user = User::create([
-                'email' => $request->email,
-                'username' => $request->username,
-                'mobile_number' => $request->mobile_number,
-                'password' => Hash::make($temporaryPassword),
-                'user_type_id' => $userTypeMapping[$request->user_role], // ✅ MAPPING CORRECT
-                'status_id' => 2, // TOUJOURS actif par défaut 
-            ]);
+            // ✅  Créer l'utilisateur avec le bon type
+            $currentAdmin = Auth::user();
+$inheritedCompany = $currentAdmin->company; // HÉRITAGE AUTOMATIQUE
+
+$user = User::create([
+    'email' => $request->email,
+    'username' => $request->username,
+    'mobile_number' => $request->mobile_number,
+    'company' => $inheritedCompany, 
+    'password' => Hash::make($temporaryPassword),
+    'user_type_id' => $userTypeMapping[$request->user_role],
+    'status_id' => 2,
+]);
 
             // Enregistrer la relation administrator_user avec informations détaillées
             $adminUserRecord = AdministratorUser::create([
