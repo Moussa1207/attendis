@@ -540,29 +540,345 @@
     </div>
 </div>
 
-<!-- Modal détails utilisateur (conservée) -->
-<div class="modal fade" id="userDetailsModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
+<!-- ==================================================================================== -->
+<!-- NOUVEAU MODAL DÉTAILS UTILISATEUR PROFESSIONNEL -->
+<!-- ==================================================================================== -->
+<div class="modal fade" id="userDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i data-feather="user" class="icon-xs mr-2"></i>Détails Utilisateur
-                </h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
+            <!-- En-tête du modal -->
+            <div class="modal-header bg-gradient-primary text-white border-0">
+                <div class="d-flex align-items-center">
+                    <div class="user-avatar-modal mr-3">
+                        <img src="{{asset('frontend/assets/images/users/user-5.jpg')}}" alt="Avatar" class="rounded-circle" width="50" height="50">
+                        <div class="user-status-indicator" id="userStatusIndicator"></div>
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0" id="modalUserName">
+                            <i data-feather="user" class="icon-sm mr-2"></i>Chargement...
+                        </h5>
+                        <small class="text-white-50" id="modalUserRole">Informations utilisateur</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="mr-3" id="modalQuickActions">
+                        <!-- Actions rapides ajoutées dynamiquement -->
+                    </div>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fermer">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
             </div>
-            <div class="modal-body" id="userDetailsContent">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
+
+            <!-- Corps du modal -->
+            <div class="modal-body p-0" id="userDetailsContent">
+                <!-- État de chargement -->
+                <div class="loading-state text-center py-5" id="loadingState">
+                    <div class="spinner-grow text-primary mb-3" role="status">
                         <span class="sr-only">Chargement...</span>
+                    </div>
+                    <h6 class="text-muted">Chargement des informations...</h6>
+                    <p class="text-muted">Veuillez patienter</p>
+                </div>
+
+                <!-- Contenu principal (masqué pendant le chargement) -->
+                <div class="user-details-content" id="userDetailsContentMain" style="display: none;">
+                    <!-- Section d'en-tête utilisateur -->
+                    <div class="user-header-section bg-light border-bottom">
+                        <div class="container-fluid p-4">
+                            <div class="row align-items-center">
+                                <div class="col-lg-8">
+                                    <div class="d-flex align-items-center">
+                                        <div class="user-avatar-large mr-4">
+                                            <img src="{{asset('frontend/assets/images/users/user-5.jpg')}}" alt="Avatar" class="rounded-circle shadow" width="80" height="80">
+                                            <div class="status-badge" id="userStatusBadge"></div>
+                                        </div>
+                                        <div>
+                                            <h4 class="mb-1 font-weight-bold" id="userFullName">Nom Utilisateur</h4>
+                                            <p class="text-muted mb-2" id="userEmail">email@example.com</p>
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge mr-2" id="userTypeBadge">Type</span>
+                                                <span class="badge" id="userStatusBadgeText">Statut</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 text-lg-right">
+                                    <div class="user-stats">
+                                        <div class="stat-item">
+                                            <h6 class="text-muted mb-0">Inscription</h6>
+                                            <p class="font-weight-bold mb-0" id="userRegistrationDate">--</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contenu en onglets -->
+                    <div class="container-fluid p-4">
+                        <!-- Navigation des onglets -->
+                        <ul class="nav nav-pills mb-4" id="userDetailsTabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="general-tab" data-toggle="pill" href="#general" role="tab">
+                                    <i data-feather="user" class="icon-xs mr-1"></i>Informations Générales
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="contact-tab" data-toggle="pill" href="#contact" role="tab">
+                                    <i data-feather="phone" class="icon-xs mr-1"></i>Contact
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="security-tab" data-toggle="pill" href="#security" role="tab">
+                                    <i data-feather="shield" class="icon-xs mr-1"></i>Sécurité
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="activity-tab" data-toggle="pill" href="#activity" role="tab">
+                                    <i data-feather="activity" class="icon-xs mr-1"></i>Activité
+                                </a>
+                            </li>
+                        </ul>
+
+                        <!-- Contenu des onglets -->
+                        <div class="tab-content" id="userDetailsTabsContent">
+                            <!-- Onglet Informations Générales -->
+                            <div class="tab-pane fade show active" id="general" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-lg-6">
+                                        <div class="info-card">
+                                            <h6 class="card-title text-primary">
+                                                <i data-feather="user" class="icon-sm mr-2"></i>Identité
+                                            </h6>
+                                            <div class="info-list">
+                                                <div class="info-item">
+                                                    <span class="info-label">Nom complet</span>
+                                                    <span class="info-value" id="detailUserName">--</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Identifiant unique</span>
+                                                    <span class="info-value" id="detailUserId">#--</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Type d'utilisateur</span>
+                                                    <span class="info-value" id="detailUserType">--</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Statut du compte</span>
+                                                    <span class="info-value" id="detailUserStatus">--</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <div class="info-card">
+                                            <h6 class="card-title text-success">
+                                                <i data-feather="calendar" class="icon-sm mr-2"></i>Informations Temporelles
+                                            </h6>
+                                            <div class="info-list">
+                                                <div class="info-item">
+                                                    <span class="info-label">Date de création</span>
+                                                    <span class="info-value" id="detailCreatedAt">--</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Dernière modification</span>
+                                                    <span class="info-value" id="detailUpdatedAt">--</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Temps d'existence</span>
+                                                    <span class="info-value" id="detailAccountAge">--</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Onglet Contact -->
+                            <div class="tab-pane fade" id="contact" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-lg-8">
+                                        <div class="info-card">
+                                            <h6 class="card-title text-info">
+                                                <i data-feather="mail" class="icon-sm mr-2"></i>Informations de Contact
+                                            </h6>
+                                            <div class="info-list">
+                                                <div class="info-item">
+                                                    <span class="info-label">Adresse email</span>
+                                                    <span class="info-value">
+                                                        <a href="#" id="detailEmailLink" class="text-decoration-none">
+                                                            <i data-feather="mail" class="icon-xs mr-1"></i>
+                                                            <span id="detailEmail">--</span>
+                                                        </a>
+                                                    </span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Numéro de téléphone</span>
+                                                    <span class="info-value">
+                                                        <a href="#" id="detailPhoneLink" class="text-decoration-none">
+                                                            <i data-feather="phone" class="icon-xs mr-1"></i>
+                                                            <span id="detailPhone">--</span>
+                                                        </a>
+                                                    </span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Entreprise / Organisation</span>
+                                                    <span class="info-value" id="detailCompany">--</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <div class="info-card bg-light">
+                                            <h6 class="card-title text-warning">
+                                                <i data-feather="message-circle" class="icon-sm mr-2"></i>Actions Rapides
+                                            </h6>
+                                            <div class="quick-actions">
+                                                <button class="btn btn-outline-primary btn-sm btn-block mb-2" onclick="copyUserEmail()">
+                                                    <i data-feather="copy" class="icon-xs mr-1"></i>Copier Email
+                                                </button>
+                                                <button class="btn btn-outline-success btn-sm btn-block mb-2" onclick="callUser()">
+                                                    <i data-feather="phone-call" class="icon-xs mr-1"></i>Appeler
+                                                </button>
+                                                <button class="btn btn-outline-info btn-sm btn-block" onclick="sendMessage()">
+                                                    <i data-feather="message-square" class="icon-xs mr-1"></i>Message
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Onglet Sécurité -->
+                            <div class="tab-pane fade" id="security" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-lg-6">
+                                        <div class="info-card">
+                                            <h6 class="card-title text-danger">
+                                                <i data-feather="shield" class="icon-sm mr-2"></i>Sécurité du Compte
+                                            </h6>
+                                            <div class="info-list">
+                                                <div class="info-item">
+                                                    <span class="info-label">Statut de sécurité</span>
+                                                    <span class="info-value">
+                                                        <span class="badge badge-success">
+                                                            <i data-feather="check" class="icon-xs mr-1"></i>Sécurisé
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Dernière connexion</span>
+                                                    <span class="info-value" id="detailLastLogin">Jamais connecté</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Mot de passe modifié</span>
+                                                    <span class="info-value" id="detailPasswordChanged">À la création</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Tentatives de connexion</span>
+                                                    <span class="info-value">
+                                                        <span class="badge badge-light">0 échecs récents</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <div class="info-card">
+                                            <h6 class="card-title text-warning">
+                                                <i data-feather="key" class="icon-sm mr-2"></i>Actions de Sécurité
+                                            </h6>
+                                            <div class="security-actions">
+                                                <button class="btn btn-outline-warning btn-sm btn-block mb-2" onclick="resetUserPassword()">
+                                                    <i data-feather="key" class="icon-xs mr-1"></i>Réinitialiser mot de passe
+                                                </button>
+                                                <button class="btn btn-outline-info btn-sm btn-block mb-2" onclick="sendPasswordEmail()">
+                                                    <i data-feather="mail" class="icon-xs mr-1"></i>Envoyer nouveau mot de passe
+                                                </button>
+                                                <div class="mt-3 p-3 bg-light rounded">
+                                                    <small class="text-muted">
+                                                        <i data-feather="info" class="icon-xs mr-1"></i>
+                                                        Dernière activité de sécurité : Aucune action récente
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Onglet Activité -->
+                            <div class="tab-pane fade" id="activity" role="tabpanel">
+                                <div class="info-card">
+                                    <h6 class="card-title text-primary">
+                                        <i data-feather="activity" class="icon-sm mr-2"></i>Historique d'Activité
+                                    </h6>
+                                    <div class="activity-timeline">
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker bg-success">
+                                                <i data-feather="user-plus" class="icon-xs text-white"></i>
+                                            </div>
+                                            <div class="timeline-content">
+                                                <h6 class="timeline-title">Compte créé</h6>
+                                                <p class="timeline-description text-muted">
+                                                    L'utilisateur a été créé dans le système
+                                                </p>
+                                                <small class="timeline-time text-muted" id="activityCreationDate">--</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="timeline-item" id="activityFirstLogin" style="display: none;">
+                                            <div class="timeline-marker bg-info">
+                                                <i data-feather="log-in" class="icon-xs text-white"></i>
+                                            </div>
+                                            <div class="timeline-content">
+                                                <h6 class="timeline-title">Première connexion</h6>
+                                                <p class="timeline-description text-muted">
+                                                    Première connexion au système
+                                                </p>
+                                                <small class="timeline-time text-muted">--</small>
+                                            </div>
+                                        </div>
+
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker bg-warning">
+                                                <i data-feather="clock" class="icon-xs text-white"></i>
+                                            </div>
+                                            <div class="timeline-content">
+                                                <h6 class="timeline-title">En attente d'activation</h6>
+                                                <p class="timeline-description text-muted">
+                                                    L'utilisateur n'a pas encore activé son compte
+                                                </p>
+                                                <small class="timeline-time text-muted">Statut actuel</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary waves-effect" data-dismiss="modal">
-                    <i data-feather="x" class="icon-xs mr-1"></i>Fermer
-                </button>
+
+            <!-- Pied du modal -->
+            <div class="modal-footer border-top">
+                <div class="d-flex justify-content-between w-100">
+                    <div>
+                        <small class="text-muted">
+                            <i data-feather="clock" class="icon-xs mr-1"></i>
+                            Dernière mise à jour : <span id="modalLastUpdate">Maintenant</span>
+                        </small>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary mr-2" onclick="refreshUserDetails()">
+                            <i data-feather="refresh-cw" class="icon-xs mr-1"></i>Actualiser
+                        </button>
+                        <button type="button" class="btn btn-primary" data-dismiss="modal">
+                            <i data-feather="x" class="icon-xs mr-1"></i>Fermer
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -746,17 +1062,289 @@
     background: linear-gradient(135deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.3));
 }
 
+/* ==================================================================================== */
+/* NOUVEAUX STYLES POUR LE MODAL DÉTAILS UTILISATEUR */
+/* ==================================================================================== */
+
+/* En-tête du modal avec dégradé */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+/* Avatar utilisateur avec indicateur de statut */
+.user-avatar-modal {
+    position: relative;
+}
+
+.user-status-indicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.user-status-indicator.active {
+    background-color: #28a745;
+}
+
+.user-status-indicator.inactive {
+    background-color: #ffc107;
+}
+
+.user-status-indicator.suspended {
+    background-color: #dc3545;
+}
+
+/* Avatar grande taille */
+.user-avatar-large {
+    position: relative;
+}
+
+.status-badge {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 3px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-badge.active {
+    background-color: #28a745;
+}
+
+.status-badge.inactive {
+    background-color: #ffc107;
+}
+
+.status-badge.suspended {
+    background-color: #dc3545;
+}
+
+/* Navigation des onglets personnalisée */
+.nav-pills .nav-link {
+    border-radius: 25px;
+    padding: 10px 20px;
+    margin-right: 10px;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.nav-pills .nav-link:hover {
+    background-color: rgba(102, 126, 234, 0.1);
+    border-color: #667eea;
+    transform: translateY(-2px);
+}
+
+.nav-pills .nav-link.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-color: #667eea;
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+/* Cartes d'information */
+.info-card {
+    background: white;
+    border-radius: 15px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    border: 1px solid #f1f3f4;
+}
+
+.info-card:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+}
+
+.info-card .card-title {
+    font-weight: 600;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+}
+
+/* Liste d'informations */
+.info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 500;
+    color: #6c757d;
+    font-size: 0.95rem;
+}
+
+.info-value {
+    font-weight: 600;
+    color: #495057;
+    text-align: right;
+}
+
+/* Actions rapides */
+.quick-actions .btn {
+    transition: all 0.3s ease;
+}
+
+.quick-actions .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Actions de sécurité */
+.security-actions .btn {
+    transition: all 0.3s ease;
+}
+
+.security-actions .btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Timeline d'activité */
+.activity-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.activity-timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #667eea, #764ba2);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -23px;
+    top: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border: 3px solid white;
+}
+
+.timeline-content {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    border: 1px solid #f1f3f4;
+}
+
+.timeline-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #495057;
+}
+
+.timeline-description {
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.timeline-time {
+    font-size: 0.85rem;
+}
+
+/* Statistiques utilisateur */
+.user-stats {
+    text-align: center;
+}
+
+.stat-item {
+    margin-bottom: 15px;
+}
+
 /* Responsive */
-@media (max-width: 576px) {
-    .modal-icon {
-        width: 60px;
-        height: 60px;
-        font-size: 1.8rem;
+@media (max-width: 768px) {
+    .modal-xl {
+        max-width: 95%;
+        margin: 10px auto;
     }
     
-    .btn-rounded {
-        padding: 8px 20px;
-        font-size: 14px;
+    .user-header-section .container-fluid {
+        padding: 20px 15px;
+    }
+    
+    .nav-pills .nav-link {
+        padding: 8px 15px;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .info-card {
+        padding: 20px 15px;
+    }
+    
+    .user-avatar-large {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+}
+
+/* Animation de chargement */
+.loading-state {
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.spinner-grow {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Effets de transition pour le contenu */
+.user-details-content {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
@@ -860,6 +1448,7 @@ let realTimeInterval;
 let lastUpdateTimestamp = Date.now();
 let isSelectAllActive = false;
 let currentAction = null; // Pour stocker l'action en cours
+let currentUserId = null; // Pour stocker l'ID de l'utilisateur affiché dans le modal
 
 // Initialisation complète
 document.addEventListener('DOMContentLoaded', function() {
@@ -975,6 +1564,353 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// ==================================================================================== 
+// NOUVEAU SYSTÈME DE MODAL DÉTAILS UTILISATEUR PROFESSIONNEL
+// ==================================================================================== 
+
+/**
+ * Afficher les détails d'un utilisateur dans un modal professionnel
+ */
+function showUserDetails(userId) {
+    currentUserId = userId;
+    
+    // Réinitialiser le modal
+    resetUserDetailsModal();
+    
+    // Afficher le modal avec l'état de chargement
+    $('#userDetailsModal').modal('show');
+    
+    // Charger les données utilisateur
+    loadUserDetails(userId);
+}
+
+/**
+ * Réinitialiser le modal à son état initial
+ */
+function resetUserDetailsModal() {
+    // Afficher l'état de chargement
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('userDetailsContentMain').style.display = 'none';
+    
+    // Réinitialiser l'en-tête
+    document.getElementById('modalUserName').innerHTML = '<i data-feather="user" class="icon-sm mr-2"></i>Chargement...';
+    document.getElementById('modalUserRole').textContent = 'Informations utilisateur';
+    document.getElementById('modalQuickActions').innerHTML = '';
+    document.getElementById('userStatusIndicator').className = 'user-status-indicator';
+    
+    // Réactiver le premier onglet
+    document.querySelector('#general-tab').click();
+}
+
+/**
+ * Charger les détails de l'utilisateur
+ */
+function loadUserDetails(userId) {
+    // Simuler un délai de chargement pour l'effet visuel
+    setTimeout(() => {
+        // Dans un vrai projet, remplacer par un appel AJAX
+        // fetch(`/admin/users/${userId}/details`)
+        
+        // Simulation avec les données du tableau
+        const userRow = document.querySelector(`tr[data-user-id="${userId}"]`);
+        if (userRow) {
+            populateUserDetailsFromRow(userRow, userId);
+        } else {
+            showUserDetailsError();
+        }
+    }, 1500);
+}
+
+/**
+ * Peupler le modal avec les données de l'utilisateur
+ */
+function populateUserDetailsFromRow(userRow, userId) {
+    // Extraire les données de la ligne du tableau
+    const userData = extractUserDataFromRow(userRow);
+    
+    // Masquer le chargement et afficher le contenu
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('userDetailsContentMain').style.display = 'block';
+    
+    // Remplir l'en-tête du modal
+    populateModalHeader(userData);
+    
+    // Remplir les onglets avec les données
+    populateGeneralTab(userData);
+    populateContactTab(userData);
+    populateSecurityTab(userData);
+    populateActivityTab(userData);
+    
+    // Mettre à jour le timestamp
+    document.getElementById('modalLastUpdate').textContent = new Date().toLocaleString('fr-FR');
+    
+    // Régénérer les icônes Feather
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    console.log('✅ Détails utilisateur chargés pour ID:', userId);
+}
+
+/**
+ * Extraire les données utilisateur de la ligne du tableau
+ */
+function extractUserDataFromRow(userRow) {
+    const nameElement = userRow.querySelector('.font-weight-semibold');
+    const emailElement = userRow.querySelector('td:nth-child(2) p');
+    const phoneElement = userRow.querySelector('td:nth-child(2) small');
+    const companyElement = userRow.querySelector('.badge-light-info');
+    const typeElement = userRow.querySelector('.badge-custom-type');
+    const statusElement = userRow.querySelector('.badge-pill');
+    const dateElement = userRow.querySelector('td:nth-child(6) p');
+    const timeElement = userRow.querySelector('td:nth-child(6) small');
+    const idElement = userRow.querySelector('.text-muted');
+    
+    return {
+        id: currentUserId,
+        name: nameElement ? nameElement.textContent.trim() : 'N/A',
+        email: emailElement ? emailElement.textContent.trim() : 'N/A',
+        phone: phoneElement ? phoneElement.textContent.replace('📱 ', '').trim() : 'N/A',
+        company: companyElement ? companyElement.textContent.trim() : 'Non renseigné',
+        type: typeElement ? typeElement.textContent.trim() : 'Utilisateur',
+        status: statusElement ? getStatusFromBadge(statusElement) : 'Inconnu',
+        createdDate: dateElement ? dateElement.textContent.trim() : 'N/A',
+        createdTime: timeElement ? timeElement.textContent.trim() : 'N/A',
+        fullId: idElement ? idElement.textContent.trim() : '#' + currentUserId
+    };
+}
+
+/**
+ * Déterminer le statut à partir du badge
+ */
+function getStatusFromBadge(badgeElement) {
+    if (badgeElement.classList.contains('badge-success')) {
+        return 'active';
+    } else if (badgeElement.classList.contains('badge-warning')) {
+        return 'inactive';
+    } else if (badgeElement.classList.contains('badge-danger')) {
+        return 'suspended';
+    }
+    return 'unknown';
+}
+
+/**
+ * Remplir l'en-tête du modal
+ */
+function populateModalHeader(userData) {
+    // Nom et rôle
+    document.getElementById('modalUserName').innerHTML = `<i data-feather="user" class="icon-sm mr-2"></i>${userData.name}`;
+    document.getElementById('modalUserRole').textContent = userData.type;
+    
+    // Indicateur de statut
+    const statusIndicator = document.getElementById('userStatusIndicator');
+    statusIndicator.className = `user-status-indicator ${userData.status}`;
+    
+    // Actions rapides dans l'en-tête
+    const quickActions = document.getElementById('modalQuickActions');
+    quickActions.innerHTML = `
+        <button class="btn btn-sm btn-outline-light mr-2" onclick="copyUserEmail()" title="Copier email">
+            <i data-feather="copy" class="icon-xs"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-light mr-2" onclick="callUser()" title="Appeler">
+            <i data-feather="phone" class="icon-xs"></i>
+        </button>
+    `;
+}
+
+/**
+ * Remplir l'onglet Informations Générales
+ */
+function populateGeneralTab(userData) {
+    // Informations d'identité
+    document.getElementById('detailUserName').textContent = userData.name;
+    document.getElementById('detailUserId').textContent = userData.fullId;
+    document.getElementById('detailUserType').innerHTML = `<span class="badge badge-primary">${userData.type}</span>`;
+    
+    // Statut avec badge coloré
+    const statusBadge = getStatusBadgeHTML(userData.status);
+    document.getElementById('detailUserStatus').innerHTML = statusBadge;
+    
+    // Informations temporelles
+    document.getElementById('detailCreatedAt').textContent = `${userData.createdDate} à ${userData.createdTime}`;
+    document.getElementById('detailUpdatedAt').textContent = 'Récemment';
+    
+    // Calculer l'âge du compte
+    const accountAge = calculateAccountAge(userData.createdDate);
+    document.getElementById('detailAccountAge').textContent = accountAge;
+    
+    // En-tête de section
+    document.getElementById('userFullName').textContent = userData.name;
+    document.getElementById('userEmail').textContent = userData.email;
+    document.getElementById('userRegistrationDate').textContent = userData.createdDate;
+    
+    // Badges dans l'en-tête
+    document.getElementById('userTypeBadge').className = 'badge badge-primary mr-2';
+    document.getElementById('userTypeBadge').textContent = userData.type;
+    document.getElementById('userStatusBadgeText').innerHTML = getStatusBadgeHTML(userData.status);
+    document.getElementById('userStatusBadge').className = `status-badge ${userData.status}`;
+}
+
+/**
+ * Remplir l'onglet Contact
+ */
+function populateContactTab(userData) {
+    document.getElementById('detailEmail').textContent = userData.email;
+    document.getElementById('detailEmailLink').href = `mailto:${userData.email}`;
+    
+    document.getElementById('detailPhone').textContent = userData.phone;
+    document.getElementById('detailPhoneLink').href = `tel:${userData.phone}`;
+    
+    document.getElementById('detailCompany').textContent = userData.company;
+}
+
+/**
+ * Remplir l'onglet Sécurité
+ */
+function populateSecurityTab(userData) {
+    // Ces informations seraient récupérées de l'API dans un vrai projet
+    document.getElementById('detailLastLogin').textContent = 'Jamais connecté';
+    document.getElementById('detailPasswordChanged').textContent = 'À la création du compte';
+}
+
+/**
+ * Remplir l'onglet Activité
+ */
+function populateActivityTab(userData) {
+    document.getElementById('activityCreationDate').textContent = `${userData.createdDate} à ${userData.createdTime}`;
+    
+    // Masquer ou afficher certains éléments selon le statut
+    if (userData.status === 'active') {
+        document.getElementById('activityFirstLogin').style.display = 'block';
+    }
+}
+
+/**
+ * Générer le HTML du badge de statut
+ */
+function getStatusBadgeHTML(status) {
+    const statusConfig = {
+        'active': { class: 'badge-success', icon: 'check-circle', text: 'Actif' },
+        'inactive': { class: 'badge-warning', icon: 'clock', text: 'En attente' },
+        'suspended': { class: 'badge-danger', icon: 'x-circle', text: 'Suspendu' }
+    };
+    
+    const config = statusConfig[status] || { class: 'badge-secondary', icon: 'help-circle', text: 'Inconnu' };
+    
+    return `<span class="badge ${config.class}">
+                <i data-feather="${config.icon}" class="icon-xs mr-1"></i>${config.text}
+            </span>`;
+}
+
+/**
+ * Calculer l'âge du compte
+ */
+function calculateAccountAge(createdDate) {
+    try {
+        const [day, month, year] = createdDate.split('/');
+        const created = new Date(year, month - 1, day);
+        const now = new Date();
+        const diffTime = Math.abs(now - created);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 7) {
+            return `${diffDays} jour(s)`;
+        } else if (diffDays < 30) {
+            return `${Math.floor(diffDays / 7)} semaine(s)`;
+        } else if (diffDays < 365) {
+            return `${Math.floor(diffDays / 30)} mois`;
+        } else {
+            return `${Math.floor(diffDays / 365)} an(s)`;
+        }
+    } catch (error) {
+        return 'Récent';
+    }
+}
+
+/**
+ * Afficher une erreur dans le modal
+ */
+function showUserDetailsError() {
+    document.getElementById('loadingState').innerHTML = `
+        <div class="text-center py-5">
+            <i data-feather="alert-circle" class="icon-lg text-danger mb-3"></i>
+            <h6 class="text-danger">Erreur de chargement</h6>
+            <p class="text-muted">Impossible de charger les détails de cet utilisateur.</p>
+            <button class="btn btn-outline-primary" onclick="loadUserDetails(${currentUserId})">
+                <i data-feather="refresh-cw" class="icon-xs mr-1"></i>Réessayer
+            </button>
+        </div>
+    `;
+    
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+/**
+ * Actualiser les détails de l'utilisateur
+ */
+function refreshUserDetails() {
+    if (currentUserId) {
+        resetUserDetailsModal();
+        loadUserDetails(currentUserId);
+        showToast('Actualisation', 'Données utilisateur mises à jour', 'success');
+    }
+}
+
+// ==================================================================================== 
+// FONCTIONS D'ACTIONS RAPIDES DANS LE MODAL
+// ==================================================================================== 
+
+/**
+ * Copier l'email de l'utilisateur
+ */
+function copyUserEmail() {
+    const email = document.getElementById('detailEmail').textContent;
+    if (email && email !== 'N/A') {
+        navigator.clipboard.writeText(email).then(() => {
+            showToast('Copié', `Email ${email} copié dans le presse-papier`, 'success');
+        }).catch(() => {
+            showToast('Erreur', 'Impossible de copier l\'email', 'error');
+        });
+    }
+}
+
+/**
+ * Initier un appel vers l'utilisateur
+ */
+function callUser() {
+    const phone = document.getElementById('detailPhone').textContent;
+    if (phone && phone !== 'N/A') {
+        const cleanPhone = phone.replace(/\s/g, '');
+        window.location.href = `tel:${cleanPhone}`;
+        showToast('Appel', `Initiation de l'appel vers ${phone}`, 'info');
+    } else {
+        showToast('Erreur', 'Numéro de téléphone non disponible', 'warning');
+    }
+}
+
+/**
+ * Envoyer un message à l'utilisateur
+ */
+function sendMessage() {
+    showToast('Message', 'Fonctionnalité de messagerie en développement', 'info');
+}
+
+/**
+ * Réinitialiser le mot de passe utilisateur
+ */
+function resetUserPassword() {
+    showToast('Sécurité', 'Fonctionnalité de réinitialisation en développement', 'info');
+}
+
+/**
+ * Envoyer un email avec le nouveau mot de passe
+ */
+function sendPasswordEmail() {
+    showToast('Email', 'Fonctionnalité d\'envoi d\'email en développement', 'info');
+}
 
 // ==================================================================================== 
 // MODALES SPÉCIFIQUES POUR CHAQUE ACTION
@@ -1190,6 +2126,7 @@ function executeDeleteUser(userId, username) {
         });
     }, 1500);
 }
+
 /**
  * Exécuter la suspension d'un utilisateur
  */
@@ -1268,6 +2205,7 @@ function executeActivateUser(userId, username) {
         });
     }, 1500);
 }
+
 /**
  * Exécuter la réactivation d'un utilisateur
  */
@@ -1373,6 +2311,7 @@ function executeBulkDelete(selectedUsers) {
         });
     }, 1500);
 }
+
 /**
  * Exécuter l'activation en masse
  */
@@ -1871,10 +2810,6 @@ function refreshUsersList() {
     }, 1000);
 }
 
-function showUserDetails(userId) {
-    $('#userDetailsModal').modal('show');
-}
-
 function quickSearchUsers() {
     const searchValue = document.getElementById('quickSearch').value;
     if (searchValue.trim()) {
@@ -1941,5 +2876,8 @@ function showToast(title, message, type = 'info') {
         feather.replace();
     }
 }
+
+
+
 </script>
 @endsection

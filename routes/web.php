@@ -70,6 +70,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         Route::get('/layouts/app', [DashboardController::class, 'adminDashboard'])
             ->name('layouts.app');
         
+            
         /*
         |--------------------------------------------------------------------------
         | GESTION DES UTILISATEURS
@@ -90,10 +91,11 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         Route::get('/admin/users/my-created', [UserManagementController::class, 'myCreatedUsers'])
             ->name('admin.users.my-created');
         
+            
         // Renvoyer identifiants
         Route::post('/admin/users/{user}/resend-credentials', [UserManagementController::class, 'resendCredentials'])
             ->name('admin.users.resend-credentials');
-        
+           
         /*
         |--------------------------------------------------------------------------
         | ACTIONS SUR LES UTILISATEURS (DashboardController)

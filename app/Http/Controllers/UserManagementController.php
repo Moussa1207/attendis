@@ -648,4 +648,8 @@ $user = User::create([
             'conseiller' => 4,  // Poste Conseiller
         ];
     }
+
+
+
 }
+
