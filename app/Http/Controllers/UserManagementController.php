@@ -649,7 +649,5 @@ $user = User::create([
         ];
     }
 
-
-
 }
 

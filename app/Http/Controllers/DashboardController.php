@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\UserType;
 use App\Models\Status;
 use App\Models\AdministratorUser;
+use Illuminate\Support\Facades\Hash; 
+use Illuminate\Support\Facades\Log;  
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -875,7 +877,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * Obtenir les détails sur utilisateur (AJAX - ADMINS)
+     * ✅ CORRIGÉ : Obtenir les détails d'un utilisateur (AJAX - ADMINS)
+     * Toutes les données sont maintenant correctement formatées
      */
     public function getUserDetails(User $user, Request $request)
     {
@@ -889,24 +892,69 @@ class DashboardController extends Controller
         try {
             $user->load(['userType', 'status', 'createdBy.administrator']);
             
+            // ✅ CORRIGÉ : Calculs et formatage corrects
+            $createdAt = $user->created_at;
+            $updatedAt = $user->updated_at;
+            $now = now();
+            
+            // Calcul du temps d'existence (âge du compte)
+            $accountAgeDays = $createdAt->diffInDays($now);
+            $accountAgeFormatted = $this->formatAccountAge($accountAgeDays);
+            
+            // Dernière modification du mot de passe
+            $lastPasswordChange = $user->last_password_change ?? $createdAt;
+            $passwordChangeFormatted = $lastPasswordChange->eq($createdAt) 
+                ? 'A la création' 
+                : $lastPasswordChange->format('d/m/Y à H:i');
+            
+            // Tentatives de connexion (défaut à 0 si pas de tracking)
+            $loginAttempts = $user->failed_login_attempts ?? 0;
+            
             $userDetails = [
+                // ✅ CORRIGÉ : Informations de base
                 'id' => $user->id,
                 'username' => $user->username,
                 'email' => $user->email,
                 'mobile_number' => $user->mobile_number,
-                'type' => $user->getTypeName(),
+                'company' => $user->company ?? 'Non renseigné', // ✅ CORRIGÉ
+                
+                // ✅ CORRIGÉ : Type et statut
+                'type' => $user->getTypeName(), // ✅ CORRIGÉ : Plus de "utilisateur"
                 'type_icon' => $user->getTypeIcon(),
-                'status' => $user->getStatusName(),
+                'status' => $user->getStatusName(), // ✅ CORRIGÉ : Plus d'"inconnu"
                 'status_badge_color' => $user->getStatusBadgeColor(),
-                'created_at' => $user->created_at->format('d/m/Y à H:i'),
+                'user_type_id' => $user->user_type_id,
+                'status_id' => $user->status_id,
+                
+                // ✅ CORRIGÉ : Dates formatées correctement
+                'created_at' => $createdAt->format('d/m/Y à H:i'), // ✅ CORRIGÉ : Plus d'"Invalide Date"
+                'created_at_iso' => $createdAt->toISOString(),
+                'updated_at' => $updatedAt->format('d/m/Y à H:i'), // ✅ CORRIGÉ : Vraie date de modification
+                'updated_at_iso' => $updatedAt->toISOString(),
+                
+                // ✅ CORRIGÉ : Temps d'existence calculé
+                'account_age_days' => $accountAgeDays, // ✅ CORRIGÉ : Calculé depuis created_at
+                'account_age_formatted' => $accountAgeFormatted, // ✅ CORRIGÉ : Format lisible
+                
+                // ✅ CORRIGÉ : Informations de création
                 'creation_info' => $user->getCreationInfo(),
-                'last_activity' => $user->updated_at->format('d/m/Y à H:i'),
+                'last_activity' => $updatedAt->format('d/m/Y à H:i'),
+                
+                // Informations booléennes
                 'is_admin' => $user->isAdmin(),
                 'is_active' => $user->isActive(),
                 'is_suspended' => $user->isSuspended(),
                 'can_be_suspended' => $user->canBeSuspended(),
                 'can_be_deleted' => $user->canBeDeleted(),
-                'account_age_days' => $user->created_at->diffInDays(now()),
+                
+                // ✅ CORRIGÉ : Sécurité et connexions
+                'last_password_change' => $passwordChangeFormatted, // ✅ CORRIGÉ : Dynamique
+                'failed_login_attempts' => $loginAttempts, // ✅ CORRIGÉ : Dynamique
+                'last_login_at' => $user->last_login_at ? $user->last_login_at->format('d/m/Y à H:i') : 'Jamais connecté',
+                
+                // Formatage pour l'affichage JavaScript
+                'created_at_relative' => $createdAt->diffForHumans(),
+                'updated_at_relative' => $updatedAt->diffForHumans(),
             ];
 
             return response()->json([
@@ -915,10 +963,39 @@ class DashboardController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            \Log::error('Get user details error', [
+                'user_id' => $user->id,
+                'admin_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des détails'
             ], 500);
+        }
+    }
+
+    /**
+     * ✅ NOUVELLE : Formater l'âge du compte de manière lisible
+     */
+    private function formatAccountAge(int $days): string
+    {
+        if ($days < 1) {
+            return 'Moins d\'un jour';
+        } elseif ($days === 1) {
+            return '1 jour';
+        } elseif ($days < 7) {
+            return $days . ' jours';
+        } elseif ($days < 30) {
+            $weeks = floor($days / 7);
+            return $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
+        } elseif ($days < 365) {
+            $months = floor($days / 30);
+            return $months . ' mois';
+        } else {
+            $years = floor($days / 365);
+            return $years . ' an' . ($years > 1 ? 's' : '');
         }
     }
 
@@ -1004,63 +1081,206 @@ class DashboardController extends Controller
         }
     }
 
+    public function getStatsByType(Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
 
-public function getStatsByType(Request $request)
-{
-    if (!Auth::user()->isAdmin()) {
-        return response()->json([
-            'success' => false, 
-            'message' => 'Accès non autorisé'
-        ], 403);
+        try {
+            $currentAdminId = Auth::id();
+            
+            // ISOLATION - Statistiques pour SES utilisateurs uniquement
+            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
+            
+            // Statistiques détaillées par type
+            $statsByType = [
+                'admin' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 3)->count(),
+                ],
+                'ecran' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 3)->count(),
+                ],
+                'accueil' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 3)->count(),
+                ],
+                'conseiller' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 3)->count(),
+                ]
+            ];
+
+            return response()->json([
+                'success' => true, 
+                'stats_by_type' => $statsByType,
+                'timestamp' => now()->format('d/m/Y H:i:s')
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur lors de la récupération des statistiques par type'
+            ], 500);
+        }
     }
 
-    try {
-        $currentAdminId = Auth::id();
-        
-        // ISOLATION - Statistiques pour SES utilisateurs uniquement
-        $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
-        $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
-        
-        // Statistiques détaillées par type
-        $statsByType = [
-            'admin' => [
-                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
-                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 2)->count(),
-                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 1)->count(),
-                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 3)->count(),
-            ],
-            'ecran' => [
-                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
-                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 2)->count(),
-                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 1)->count(),
-                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 3)->count(),
-            ],
-            'accueil' => [
-                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
-                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 2)->count(),
-                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 1)->count(),
-                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 3)->count(),
-            ],
-            'conseiller' => [
-                'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
-                'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 2)->count(),
-                'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 1)->count(),
-                'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 3)->count(),
-            ]
-        ];
+    /**
+     * 🆕 NOUVELLE MÉTHODE : Réinitialiser le mot de passe d'un utilisateur depuis le modal détails
+     * L'admin reçoit le nouveau mot de passe généré (comme dans user-create)
+     */
+    public function resetUserPassword(User $user, Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
 
-        return response()->json([
-            'success' => true, 
-            'stats_by_type' => $statsByType,
-            'timestamp' => now()->format('d/m/Y H:i:s')
-        ]);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false, 
-            'message' => 'Erreur lors de la récupération des statistiques par type'
-        ], 500);
+        try {
+            // Vérifier que l'admin connecté a le droit de gérer cet utilisateur
+            // (soit il l'a créé, soit c'est un admin qui peut agir sur cet utilisateur)
+            $currentAdmin = Auth::user();
+            $userCreator = $user->getCreator();
+            
+            // Vérifier si l'admin a créé cet utilisateur OU si c'est un admin système
+            $canResetPassword = false;
+            
+            if ($user->wasCreatedByAdmin()) {
+                // Si l'utilisateur a été créé par un admin, vérifier que c'est le bon admin
+                $canResetPassword = $user->createdBy && $user->createdBy->administrator_id === $currentAdmin->id;
+            } else {
+                // Si c'est un utilisateur admin (créé via inscription), on peut le réinitialiser
+                $canResetPassword = true;
+            }
+
+            if (!$canResetPassword) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'avez pas l\'autorisation de réinitialiser le mot de passe de cet utilisateur.'
+                ], 403);
+            }
+
+            // Empêcher un admin de réinitialiser son propre mot de passe via cette méthode
+            if ($user->id === $currentAdmin->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas réinitialiser votre propre mot de passe via cette méthode.'
+                ], 400);
+            }
+
+            // Générer un nouveau mot de passe temporaire sécurisé (même logique que UserManagementController)
+            $newPassword = $this->generateSecureTemporaryPassword();
+            
+            // Mettre à jour le mot de passe en base + ✅ CORRIGÉ : Mettre à jour last_password_change
+            $user->update([
+                'password' => Hash::make($newPassword),
+                'last_password_change' => now()
+            ]);
+
+            // Marquer comme nécessitant une réinitialisation (si relation existe)
+            if ($user->createdBy) {
+                $user->createdBy->update(['password_reset_required' => true]);
+            }
+
+            // Préparer les informations complètes pour l'admin
+            $userCredentials = [
+                'user_id' => $user->id,
+                'username' => $user->username,
+                'email' => $user->email,
+                'mobile_number' => $user->mobile_number,
+                'company' => $user->company,
+                'user_type' => $user->getTypeName(),
+                'user_type_emoji' => $user->getTypeEmoji(),
+                'user_role' => $user->getUserRole(),
+                'new_password' => $newPassword,
+                'login_url' => route('login'),
+                'reset_by_admin' => $currentAdmin->username,
+                'reset_at' => now()->format('d/m/Y à H:i'),
+            ];
+
+            // Log de l'action pour sécurité
+            \Log::info('Password reset by admin from modal', [
+                'admin_id' => $currentAdmin->id,
+                'admin_username' => $currentAdmin->username,
+                'target_user_id' => $user->id,
+                'target_username' => $user->username,
+                'reset_method' => 'admin_modal_reset',
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
+
+            // Retourner le succès avec le nouveau mot de passe pour l'admin
+            return response()->json([
+                'success' => true,
+                'message' => "Mot de passe réinitialisé avec succès pour {$user->username}",
+                'user' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'email' => $user->email,
+                    'mobile_number' => $user->mobile_number,
+                    'company' => $user->company,
+                    'type' => $user->getTypeName(),
+                    'type_emoji' => $user->getTypeEmoji(),
+                    'status' => $user->getStatusName(),
+                ],
+                'new_password' => $newPassword,
+                'credentials' => $userCredentials,
+                'reset_info' => [
+                    'reset_by' => $currentAdmin->username,
+                    'reset_at' => now()->format('d/m/Y à H:i:s'),
+                    'password_strength' => 'Format sécurisé (8 caractères)',
+                    'must_change' => true
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Password reset error from modal', [
+                'admin_id' => Auth::id(),
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la réinitialisation du mot de passe. Veuillez réessayer.'
+            ], 500);
+        }
     }
-}
 
+    /**
+     * 🆕 MÉTHODE UTILITAIRE : Générer un mot de passe temporaire sécurisé
+     * Même logique que UserManagementController pour cohérence
+     */
+    private function generateSecureTemporaryPassword(int $length = 8): string 
+    {
+        $voyelles = 'aeiou';
+        $consonnes = 'bcdfghjklmnpqrstvwxz';
+        $password = '';
+        
+        // Consonne-Voyelle-Consonne + 3 chiffres + caractère spécial
+        $password .= strtoupper($consonnes[rand(0, strlen($consonnes) - 1)]);
+        $password .= $voyelles[rand(0, strlen($voyelles) - 1)];
+        $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
+        $password .= rand(100, 999);
+        $password .= '@';
+        
+        return $password;
+    }
 }

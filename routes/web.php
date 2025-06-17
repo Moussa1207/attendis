@@ -114,6 +114,10 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         Route::delete('/admin/users/{user}', [DashboardController::class, 'deleteUser'])
             ->name('admin.users.delete');
         
+        // 🆕 NOUVELLE ROUTE : Réinitialisation mot de passe depuis modal détails
+        Route::post('/admin/users/{user}/reset-password', [DashboardController::class, 'resetUserPassword'])
+            ->name('admin.users.reset-password');
+        
         // Actions en masse
         Route::post('/admin/users/bulk-activate', [DashboardController::class, 'bulkActivate'])
             ->name('admin.users.bulk-activate');
@@ -254,3 +258,25 @@ Route::get('/password/reset/{token}/{user}', [PasswordManagementController::clas
 // Traitement réinitialisation avec token (EXISTANT )
 Route::post('/password/update', [PasswordManagementController::class, 'resetPassword'])
     ->name('password.update');
+
+
+
+    /*
+|--------------------------------------------------------------------------
+| ROUTES ADDITIONNELLES POUR LE JAVASCRIPT
+|--------------------------------------------------------------------------
+*/
+
+// Route pour les détails utilisateur (compatible avec le JS)
+Route::get('/admin/users/{user}/details', [DashboardController::class, 'getUserDetails'])
+    ->name('admin.users.details');
+
+// Routes POST alternatives pour le JavaScript (en plus des PATCH existantes)
+Route::post('/admin/users/{user}/activate', [DashboardController::class, 'activateUser'])
+    ->name('admin.users.activate.post');
+Route::post('/admin/users/{user}/suspend', [DashboardController::class, 'suspendUser'])
+    ->name('admin.users.suspend.post');
+
+// Alias pour la réactivation (même endpoint que activate)
+Route::post('/admin/users/{user}/reactivate', [DashboardController::class, 'activateUser'])
+    ->name('admin.users.reactivate.post');

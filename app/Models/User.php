@@ -12,6 +12,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'username', 'email', 'password', 'mobile_number', 'company', 'user_type_id', 'status_id',
+        'last_login_at', 'failed_login_attempts', 'last_password_change', // ✅ NOUVEAUX CHAMPS
     ];
 
     protected $hidden = [
@@ -22,6 +23,9 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'last_login_at' => 'datetime', // ✅ NOUVEAU
+        'last_password_change' => 'datetime', // ✅ NOUVEAU
+        'failed_login_attempts' => 'integer', // ✅ NOUVEAU
     ];
 
     // ===============================================
@@ -152,41 +156,91 @@ class User extends Authenticatable
      * Suspendre l'utilisateur
      */
     public function suspend(): bool
-{
-    try {
-        // ✅ MISE À JOUR FORCÉE EN BASE DE DONNÉES
-        $result = $this->update(['status_id' => 3]);
-        
-        if ($result) {
-            // ✅ RECHARGER DEPUIS LA BASE POUR VÉRIFICATION
-            $this->refresh();
+    {
+        try {
+            // ✅ MISE À JOUR FORCÉE EN BASE DE DONNÉES
+            $result = $this->update(['status_id' => 3]);
             
-            // ✅ LOG DE SUCCÈS
-            \Log::info('User suspended successfully', [
+            if ($result) {
+                // ✅ RECHARGER DEPUIS LA BASE POUR VÉRIFICATION
+                $this->refresh();
+                
+                // ✅ LOG DE SUCCÈS
+                \Log::info('User suspended successfully', [
+                    'user_id' => $this->id,
+                    'username' => $this->username,
+                    'old_status' => 'Before suspension',
+                    'new_status_id' => $this->status_id,
+                    'new_status_name' => $this->getStatusName(),
+                    'is_suspended' => $this->isSuspended(),
+                    'timestamp' => now()->format('Y-m-d H:i:s')
+                ]);
+                
+                return true;
+            }
+            
+            return false;
+            
+        } catch (\Exception $e) {
+            \Log::error('Error suspending user', [
                 'user_id' => $this->id,
                 'username' => $this->username,
-                'old_status' => 'Before suspension',
-                'new_status_id' => $this->status_id,
-                'new_status_name' => $this->getStatusName(),
-                'is_suspended' => $this->isSuspended(),
-                'timestamp' => now()->format('Y-m-d H:i:s')
+                'error' => $e->getMessage()
             ]);
             
-            return true;
+            return false;
         }
-        
-        return false;
-        
-    } catch (\Exception $e) {
-        \Log::error('Error suspending user', [
-            'user_id' => $this->id,
-            'username' => $this->username,
-            'error' => $e->getMessage()
-        ]);
-        
-        return false;
     }
-}
+
+    // ===============================================
+    // ✅ NOUVELLES MÉTHODES POUR LE TRACKING DES CONNEXIONS
+    // ===============================================
+
+    /**
+     * ✅ NOUVEAU : Enregistrer une connexion réussie
+     */
+    public function recordSuccessfulLogin(): void
+    {
+        $this->update([
+            'last_login_at' => now(),
+            'failed_login_attempts' => 0 // Remettre à zéro les échecs
+        ]);
+    }
+
+    /**
+     * ✅ NOUVEAU : Enregistrer une tentative de connexion échouée
+     */
+    public function recordFailedLogin(): void
+    {
+        $this->increment('failed_login_attempts');
+    }
+
+    /**
+     * ✅ NOUVEAU : Réinitialiser les tentatives de connexion échouées
+     */
+    public function resetFailedLoginAttempts(): void
+    {
+        $this->update(['failed_login_attempts' => 0]);
+    }
+
+    /**
+     * ✅ NOUVEAU : Vérifier si le compte est verrouillé par trop de tentatives
+     */
+    public function isLockedOut(int $maxAttempts = 5): bool
+    {
+        return $this->failed_login_attempts >= $maxAttempts;
+    }
+
+    /**
+     * ✅ NOUVEAU : Enregistrer un changement de mot de passe
+     */
+    public function recordPasswordChange(): void
+    {
+        $this->update([
+            'last_password_change' => now(),
+            'failed_login_attempts' => 0 // Réinitialiser lors du changement de mot de passe
+        ]);
+    }
 
     // ===============================================
     // NOUVELLES MÉTHODES POUR LE CHANGEMENT DE MOT DE PASSE OBLIGATOIRE
@@ -359,6 +413,64 @@ class User extends Authenticatable
             'is_active' => $this->isActive(),
             'is_inactive' => $this->isInactive(),
             'is_suspended' => $this->isSuspended(),
+        ];
+    }
+
+    // ===============================================
+    // ✅ NOUVELLES MÉTHODES POUR LES INFORMATIONS DE CONNEXION
+    // ===============================================
+
+    /**
+     * ✅ NOUVEAU : Obtenir le statut de la dernière connexion
+     */
+    public function getLastLoginInfo(): array
+    {
+        return [
+            'last_login_at' => $this->last_login_at,
+            'last_login_formatted' => $this->last_login_at 
+                ? $this->last_login_at->format('d/m/Y à H:i') 
+                : 'Jamais connecté',
+            'last_login_relative' => $this->last_login_at 
+                ? $this->last_login_at->diffForHumans() 
+                : 'Jamais',
+            'days_since_last_login' => $this->last_login_at 
+                ? $this->last_login_at->diffInDays(now()) 
+                : null,
+        ];
+    }
+
+    /**
+     * ✅ NOUVEAU : Obtenir les informations sur les tentatives de connexion
+     */
+    public function getLoginAttemptsInfo(): array
+    {
+        return [
+            'failed_attempts' => $this->failed_login_attempts ?? 0,
+            'is_locked_out' => $this->isLockedOut(),
+            'attempts_remaining' => max(0, 5 - ($this->failed_login_attempts ?? 0)),
+            'formatted_attempts' => ($this->failed_login_attempts ?? 0) . ' échec(s) récent(s)',
+        ];
+    }
+
+    /**
+     * ✅ NOUVEAU : Obtenir les informations sur le mot de passe
+     */
+    public function getPasswordInfo(): array
+    {
+        $lastChange = $this->last_password_change ?? $this->created_at;
+        $isInitialPassword = !$this->last_password_change || $this->last_password_change->eq($this->created_at);
+        
+        return [
+            'last_password_change' => $lastChange,
+            'last_password_change_formatted' => $isInitialPassword 
+                ? 'A la création' 
+                : $lastChange->format('d/m/Y à H:i'),
+            'last_password_change_relative' => $isInitialPassword 
+                ? 'Mot de passe initial' 
+                : $lastChange->diffForHumans(),
+            'days_since_password_change' => $lastChange->diffInDays(now()),
+            'is_initial_password' => $isInitialPassword,
+            'password_age_warning' => $lastChange->diffInDays(now()) > 90, // Alerte si > 90 jours
         ];
     }
 
@@ -664,6 +776,22 @@ class User extends Authenticatable
         });
     }
 
+    /**
+     * ✅ NOUVEAU : Scope pour les utilisateurs avec connexions récentes
+     */
+    public function scopeRecentlyLoggedIn($query, int $days = 30)
+    {
+        return $query->where('last_login_at', '>=', now()->subDays($days));
+    }
+
+    /**
+     * ✅ NOUVEAU : Scope pour les utilisateurs avec tentatives de connexion échouées
+     */
+    public function scopeWithFailedAttempts($query, int $minAttempts = 1)
+    {
+        return $query->where('failed_login_attempts', '>=', $minAttempts);
+    }
+
     // ===============================================
     // MÉTHODES STATIQUES UTILITAIRES
     // ===============================================
@@ -684,6 +812,8 @@ class User extends Authenticatable
             'conseiller_users' => self::conseillerUsers()->count(),
             'recent_users' => self::recentlyCreated()->count(),
             'users_needing_password_reset' => self::needingPasswordReset()->count(),
+            'recently_logged_in' => self::recentlyLoggedIn()->count(), // ✅ NOUVEAU
+            'with_failed_attempts' => self::withFailedAttempts()->count(), // ✅ NOUVEAU
         ];
     }
 
