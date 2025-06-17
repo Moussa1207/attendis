@@ -100,23 +100,23 @@
                 </ul>                        
             </li>
 
-
+            <!-- ✅ CORRIGÉ: Gestion des Agences avec les bonnes routes -->
             <li>
                 <a href="javascript: void(0);">
-                    <i data-feather="users" class="align-self-center menu-icon"></i>
+                    <i data-feather="home" class="align-self-center menu-icon"></i>
                     <span>Agence</span>
                     <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <!-- AMÉLIORÉ: Nouveau en premier -->
+                    <!-- ✅ CORRIGÉ: Route création agence -->
                     <li>
-                        <a href="{{ route('admin.users.create') }}">
+                        <a href="{{ route('agencies.create') }}">
                             <i class="ti-control-record"></i>Nouveau
                         </a>
                     </li>
-                    <!-- AMÉLIORÉ: Liste en second -->
+                    <!-- ✅ CORRIGÉ: Route liste agences -->
                     <li>
-                        <a href="{{ route('user.users-list') }}">
+                        <a href="{{ route('agencies.index') }}">
                             <i class="ti-control-record"></i>Liste
                         </a>                           
                     </li>

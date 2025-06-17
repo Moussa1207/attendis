@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\PasswordManagementController;
@@ -69,8 +70,35 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         // Dashboard admin principal (layouts/app)
         Route::get('/layouts/app', [DashboardController::class, 'adminDashboard'])
             ->name('layouts.app');
+
+            /*
+        |--------------------------------------------------------------------------
+        | GESTION DES AGENCES
+        |--------------------------------------------------------------------------
+        */
         
-            
+        // Routes pour la gestion des agences
+Route::prefix('admin')->middleware(['auth'])->group(function () {
+    
+    // Routes principales des agences
+    Route::get('/agencies', [AgencyController::class, 'index'])->name('agencies.index');
+    Route::get('/agencies/create', [AgencyController::class, 'create'])->name('agencies.create');
+    Route::post('/agencies', [AgencyController::class, 'store'])->name('agencies.store');
+    Route::get('/agencies/{agency}', [AgencyController::class, 'show'])->name('agencies.show');
+    Route::get('/agencies/{agency}/edit', [AgencyController::class, 'edit'])->name('agencies.edit');
+    Route::put('/agencies/{agency}', [AgencyController::class, 'update'])->name('agencies.update');
+    Route::delete('/agencies/{agency}', [AgencyController::class, 'destroy'])->name('agencies.destroy');
+    
+    // Routes pour les actions spécifiques des agences
+    Route::post('/agencies/{agency}/activate', [AgencyController::class, 'activate'])->name('agencies.activate');
+    Route::post('/agencies/{agency}/deactivate', [AgencyController::class, 'deactivate'])->name('agencies.deactivate');
+    Route::get('/agencies/{agency}/details', [AgencyController::class, 'details'])->name('agencies.details');
+    
+    // Routes pour les actions en masse
+    Route::post('/agencies/bulk-activate', [AgencyController::class, 'bulkActivate'])->name('agencies.bulk-activate');
+    Route::post('/agencies/bulk-delete', [AgencyController::class, 'bulkDelete'])->name('agencies.bulk-delete');
+    Route::get('/agencies/export', [AgencyController::class, 'export'])->name('agencies.export');
+});  
         /*
         |--------------------------------------------------------------------------
         | GESTION DES UTILISATEURS
