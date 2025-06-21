@@ -48,7 +48,7 @@
                                 </div>
                             </a>
                         </div>
-                        <a href="{{ route('agencies.index') }}" class="dropdown-item text-center text-primary">
+                        <a href="{{ route('agency.agence') }}" class="dropdown-item text-center text-primary">
                             Retour à la liste <i class="fi-arrow-right"></i>
                         </a>
                     </div>
@@ -83,7 +83,7 @@
                 </li> 
                 <li class="creat-btn">
                     <div class="nav-link">
-                        <a class="btn btn-sm btn-soft-primary waves-effect" href="{{ route('agencies.index') }}" role="button">
+                        <a class="btn btn-sm btn-soft-primary waves-effect" href="{{ route('agency.agence') }}" role="button">
                             <i class="fas fa-arrow-left mr-2"></i>Retour à la liste
                         </a>
                     </div>                                
@@ -108,7 +108,7 @@
                                 </h4>
                                 <ol class="breadcrumb">
                                     <li class="breadcrumb-item"><a href="{{ route('layouts.app') }}">Dashboard</a></li>
-                                    <li class="breadcrumb-item"><a href="{{ route('agencies.index') }}">Agences</a></li>
+                                    <li class="breadcrumb-item"><a href="{{ route('agency.agence') }}">Agences</a></li>
                                     <li class="breadcrumb-item active">Créer</li>
                                 </ol>
                             </div><!--end col-->

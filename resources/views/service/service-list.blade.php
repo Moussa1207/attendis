@@ -16,7 +16,7 @@
                     <div class="dropdown-menu dropdown-menu-right dropdown-lg p-0">
                         <!-- Top Search Bar -->
                         <div class="app-search-topbar">
-                            <input type="search" id="quickSearch" class="from-control top-search mb-0" placeholder="Recherche rapide..." onkeyup="quickSearchAgencies()">
+                            <input type="search" id="quickSearch" class="from-control top-search mb-0" placeholder="Recherche rapide..." onkeyup="quickSearchServices()">
                             <button type="button" onclick="clearQuickSearch()"><i class="ti-close"></i></button>
                         </div>
                     </div>
@@ -26,39 +26,38 @@
                     <a class="nav-link dropdown-toggle arrow-none waves-light waves-effect" data-toggle="dropdown" href="#" role="button"
                         aria-haspopup="false" aria-expanded="false">
                         <i data-feather="bell" class="align-self-center topbar-icon"></i>
-                        <span class="badge badge-danger badge-pill noti-icon-badge" id="inactiveCount">{{ $stats['inactive'] }}</span>
+                        <span class="badge badge-danger badge-pill noti-icon-badge" id="inactiveCount">{{ $services->where('statut', 'inactif')->count() }}</span>
                     </a>
                     <div class="dropdown-menu dropdown-menu-right dropdown-lg pt-0">
                         <h6 class="dropdown-item-text font-15 m-0 py-3 border-bottom d-flex justify-content-between align-items-center">
-                            Notifications <span class="badge badge-primary badge-pill" id="inactiveCount2">{{ $stats['inactive'] }}</span>
+                            Notifications <span class="badge badge-primary badge-pill" id="inactiveCount2">{{ $services->where('statut', 'inactif')->count() }}</span>
                         </h6> 
                         <div class="notification-menu" data-simplebar id="notificationsList">
-                            @if($stats['inactive'] > 0)
-                            <a href="#" class="dropdown-item py-3" onclick="filterByStatus('inactive')">
-                                <small class="float-right text-muted pl-2">Maintenant</small>
-                                <div class="media">
-                                    <div class="avatar-md bg-soft-warning">
-                                        <i data-feather="home" class="align-self-center icon-xs"></i>
+                            @if($services->where('statut', 'inactif')->count() > 0)
+                                <a href="#" class="dropdown-item py-3">
+                                    <small class="float-right text-muted pl-2">{{ $services->where('statut', 'inactif')->count() }} service(s)</small>
+                                    <div class="media">
+                                        <div class="avatar-md bg-soft-warning">
+                                            <i data-feather="pause-circle" class="align-self-center icon-xs"></i>
+                                        </div>
+                                        <div class="media-body align-self-center ml-2 text-truncate">
+                                            <h6 class="my-0 font-weight-normal text-dark">Services inactifs</h6>
+                                            <small class="text-muted mb-0">Des services nécessitent votre attention</small>
+                                        </div>
                                     </div>
-                                    <div class="media-body align-self-center ml-2 text-truncate">
-                                        <h6 class="my-0 font-weight-normal text-dark">Agences inactives</h6>
-                                        <small class="text-muted mb-0">{{ $stats['inactive'] }} agence(s) à activer</small>
-                                    </div>
-                                </div>
-                            </a>
+                                </a>
                             @else
-                            <a href="#" class="dropdown-item py-3">
-                                <small class="float-right text-muted pl-2">✅</small>
-                                <div class="media">
-                                    <div class="avatar-md bg-soft-success">
-                                        <i data-feather="check" class="align-self-center icon-xs"></i>
+                                <a href="#" class="dropdown-item py-3">
+                                    <div class="media">
+                                        <div class="avatar-md bg-soft-success">
+                                            <i data-feather="check-circle" class="align-self-center icon-xs"></i>
+                                        </div>
+                                        <div class="media-body align-self-center ml-2 text-truncate">
+                                            <h6 class="my-0 font-weight-normal text-dark">Tous les services sont actifs</h6>
+                                            <small class="text-muted mb-0">Système opérationnel</small>
+                                        </div>
                                     </div>
-                                    <div class="media-body align-self-center ml-2 text-truncate">
-                                        <h6 class="my-0 font-weight-normal text-dark">Tout est à jour</h6>
-                                        <small class="text-muted mb-0">Toutes les agences sont actives</small>
-                                    </div>
-                                </div>
-                            </a>
+                                </a>
                             @endif
                         </div>
                         <a href="{{ route('layouts.app') }}" class="dropdown-item text-center text-primary">
@@ -96,8 +95,8 @@
                 </li> 
                 <li class="creat-btn">
                     <div class="nav-link">
-                        <a class="btn btn-sm btn-soft-success waves-effect" href="{{ route('agency.agence-create') }}" role="button">
-                            <i class="fas fa-home mr-2"></i>Nouvelle agence
+                        <a class="btn btn-sm btn-soft-success waves-effect" href="{{ route('service.service-create') }}" role="button">
+                            <i class="fas fa-plus mr-2"></i>Nouveau service
                         </a>
                     </div>                                
                 </li>                           
@@ -117,21 +116,21 @@
                         <div class="row">
                             <div class="col">
                                 <h4 class="page-title animate__animated animate__fadeInDown">
-                                    <i data-feather="home" class="mr-2"></i>Gestion des agences
+                                    <i data-feather="settings" class="mr-2"></i>Gestion des services
                                 </h4>
                                 <ol class="breadcrumb">
                                     <li class="breadcrumb-item"><a href="{{ route('layouts.app') }}">Dashboard</a></li>
-                                    <li class="breadcrumb-item">Agences</li>
+                                    <li class="breadcrumb-item">Services</li>
                                     <li class="breadcrumb-item active">Liste</li>
                                 </ol>
                             </div><!--end col-->
                             <div class="col-auto align-self-center">
                                 <button class="btn btn-sm btn-outline-primary" onclick="refreshStats()" id="refreshBtn">
                                     <span class="ay-name">Total:</span>&nbsp;
-                                    <span id="totalAgencies">{{ $agencies->total() }}</span>
+                                    <span id="totalServices">{{ $services->total() }}</span>
                                     <i data-feather="refresh-cw" class="align-self-center icon-xs ml-1"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-success" onclick="exportAgencies()">
+                                <button class="btn btn-sm btn-outline-success" onclick="exportServices()">
                                     <i data-feather="download" class="align-self-center icon-xs"></i>
                                 </button>
                             </div><!--end col-->  
@@ -140,24 +139,24 @@
                 </div><!--end col-->
             </div><!--end row-->
             
-            <!-- Statistiques rapides CLIQUABLES -->
+            <!-- ✅ STATISTIQUES RAPIDES CORRIGÉES -->
             <div class="row justify-content-center" id="statsCards">
-                <!-- CARTE TOTAL -->
+                <!-- CARTE TOTAL SERVICES - CLIQUABLE -->
                 <div class="col-md-6 col-lg-3">
                     <div class="card report-card clickable-card" onclick="filterByStatus('all')" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row d-flex justify-content-center">
                                 <div class="col">
-                                    <p class="text-dark mb-1 font-weight-semibold">Total agences</p>
-                                    <h3 class="my-2 counter text-primary" data-target="{{ $stats['total'] }}">{{ $stats['total'] }}</h3>
+                                    <p class="text-dark mb-1 font-weight-semibold">Total Services</p>
+                                    <h3 class="my-2 counter text-primary" data-target="{{ $services->total() }}">{{ $services->total() }}</h3>
                                     <p class="mb-0 text-truncate text-muted">
-                                        <span class="text-primary"><i class="mdi mdi-home-group"></i></span> 
-                                        <span class="status-text">Toutes les agences</span>
+                                        <span class="text-primary"><i class="mdi mdi-cog"></i></span> 
+                                        <span class="status-text">Tous les services</span>
                                     </p>
                                 </div>
                                 <div class="col-auto align-self-center">
                                     <div class="report-main-icon bg-light-alt">
-                                        <i data-feather="home" class="align-self-center text-primary icon-md"></i>  
+                                        <i data-feather="settings" class="align-self-center text-primary icon-md"></i>  
                                     </div>
                                 </div>
                             </div>
@@ -165,17 +164,17 @@
                     </div><!--end card--> 
                 </div> <!--end col--> 
                 
-                <!-- CARTE ACTIVES -->
+                <!-- CARTE ACTIFS - CLIQUABLE -->
                 <div class="col-md-6 col-lg-3">
-                    <div class="card report-card clickable-card" onclick="filterByStatus('active')" style="cursor: pointer;">
+                    <div class="card report-card clickable-card" onclick="filterByStatus('actif')" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row d-flex justify-content-center">                                                
                                 <div class="col">
-                                    <p class="text-dark mb-1 font-weight-semibold">Actives</p>
-                                    <h3 class="my-2 text-success counter" data-target="{{ $stats['active'] }}">{{ $stats['active'] }}</h3>
+                                    <p class="text-dark mb-1 font-weight-semibold">Actifs</p>
+                                    <h3 class="my-2 text-success counter" data-target="{{ $services->where('statut', 'actif')->count() }}">{{ $services->where('statut', 'actif')->count() }}</h3>
                                     <p class="mb-0 text-truncate text-muted">
                                         <span class="text-success"><i class="mdi mdi-check-circle"></i></span> 
-                                        <span class="progress-text">Agences opérationnelles</span>
+                                        <span class="progress-text">Services opérationnels</span>
                                     </p>
                                 </div>
                                 <div class="col-auto align-self-center">
@@ -188,17 +187,17 @@
                     </div><!--end card--> 
                 </div> <!--end col--> 
                 
-                <!-- CARTE INACTIVES -->
+                <!-- CARTE INACTIFS - CLIQUABLE -->
                 <div class="col-md-6 col-lg-3">
-                    <div class="card report-card clickable-card" onclick="filterByStatus('inactive')" style="cursor: pointer;">
+                    <div class="card report-card clickable-card" onclick="filterByStatus('inactif')" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row d-flex justify-content-center">                                                
                                 <div class="col">
-                                    <p class="text-dark mb-1 font-weight-semibold">Inactives</p>
-                                    <h3 class="my-2 text-warning counter" data-target="{{ $stats['inactive'] }}">{{ $stats['inactive'] }}</h3>
+                                    <p class="text-dark mb-1 font-weight-semibold">Inactifs</p>
+                                    <h3 class="my-2 text-warning counter" data-target="{{ $services->where('statut', 'inactif')->count() }}">{{ $services->where('statut', 'inactif')->count() }}</h3>
                                     <p class="mb-0 text-truncate text-muted">
                                         <span class="text-warning"><i class="mdi mdi-pause-circle"></i></span> 
-                                        <span class="pending-text">À activer</span>
+                                        <span class="pending-text">Services arrêtés</span>
                                     </p>
                                 </div>
                                 <div class="col-auto align-self-center">
@@ -211,17 +210,17 @@
                     </div><!--end card--> 
                 </div> <!--end col--> 
                 
-                <!-- CARTE RÉCENTES -->
+                <!-- ✅ NOUVELLE CARTE : SERVICES RÉCENTS -->
                 <div class="col-md-6 col-lg-3">
                     <div class="card report-card clickable-card" onclick="filterByRecent()" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row d-flex justify-content-center">
                                 <div class="col">  
-                                    <p class="text-dark mb-1 font-weight-semibold">Récentes</p>                                         
-                                    <h3 class="my-2 text-info counter" data-target="{{ $stats['recent'] }}">{{ $stats['recent'] }}</h3>
+                                    <p class="text-dark mb-1 font-weight-semibold">Récents</p>                                         
+                                    <h3 class="my-2 text-info counter" data-target="{{ $services->where('created_at', '>=', now()->subDays(7))->count() }}">{{ $services->where('created_at', '>=', now()->subDays(7))->count() }}</h3>
                                     <p class="mb-0 text-truncate text-muted">
-                                        <span class="text-info"><i class="mdi mdi-clock-outline"></i></span> 
-                                        <span class="recent-text">7 derniers jours</span>
+                                        <span class="text-info"><i class="mdi mdi-clock-plus"></i></span> 
+                                        <span class="recent-text">Cette semaine</span>
                                     </p>
                                 </div>
                                 <div class="col-auto align-self-center">
@@ -235,7 +234,7 @@
                 </div> <!--end col-->                               
             </div><!--end row-->
 
-            <!-- Filtres -->
+            <!-- ✅ FILTRES CORRIGÉS - SANS CRÉATEUR -->
             <div class="row">
                 <div class="col-lg-12">
                     <div class="card">
@@ -256,58 +255,36 @@
                         <div class="card-body">
                             <form id="filterForm" action="{{ url()->current() }}" method="GET">
                                 <div class="row">
-                                    <div class="col-md-3">
+                                    <!-- ✅ RECHERCHE ÉLARGIE -->
+                                    <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="search">
                                                 <i data-feather="search" class="icon-xs mr-1"></i>Recherche Intelligente
                                             </label>
                                             <input type="text" name="search" id="search" class="form-control" 
-                                                   placeholder="Nom, téléphone, adresse, ville..." 
+                                                   placeholder="Nom, code, description..." 
                                                    value="{{ request('search') }}"
                                                    onkeyup="liveSearch()" autocomplete="off">
                                             <div id="searchSuggestions" class="search-suggestions"></div>
                                         </div>
                                     </div>
-                                    <div class="col-md-2">
-                                        <div class="form-group">
-                                            <label for="status">
-                                                <i data-feather="activity" class="icon-xs mr-1"></i>Statut
-                                            </label>
-                                            <select name="status" id="status" class="form-control" onchange="applyFilters()">
-                                                <option value="">Tous les statuts</option>
-                                                <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>✅ Active</option>
-                                                <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>⏸️ Inactive</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <div class="form-group">
-                                            <label for="country">
-                                                <i data-feather="globe" class="icon-xs mr-1"></i>Pays
-                                            </label>
-                                            <select name="country" id="country" class="form-control" onchange="applyFilters()">
-                                                <option value="">Tous les pays</option>
-                                                <option value="Côte d'Ivoire" {{ request('country') == "Côte d'Ivoire" ? 'selected' : '' }}> Côte d'Ivoire</option>
-                                                <option value="Burkina Faso" {{ request('country') == 'Burkina Faso' ? 'selected' : '' }}> Burkina Faso</option>
-                                                <option value="Mali" {{ request('country') == 'Mali' ? 'selected' : '' }}> Mali</option>
-                                                <option value="Sénégal" {{ request('country') == 'Sénégal' ? 'selected' : '' }}> Sénégal</option>
-                                                <option value="Ghana" {{ request('country') == 'Ghana' ? 'selected' : '' }}> Ghana</option>
-                                                <option value="France" {{ request('country') == 'France' ? 'selected' : '' }}> France</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                    
+                                    <!-- ✅ STATUT -->
                                     <div class="col-md-3">
                                         <div class="form-group">
-                                            <label for="city">
-                                                <i data-feather="map" class="icon-xs mr-1"></i>Ville
+                                            <label for="statut">
+                                                <i data-feather="activity" class="icon-xs mr-1"></i>Statut
                                             </label>
-                                            <input type="text" name="city" id="city" class="form-control" 
-                                                   placeholder="ex: Abidjan, Ouagadougou..." 
-                                                   value="{{ request('city') }}"
-                                                   onkeyup="liveSearch()">
+                                            <select name="statut" id="statut" class="form-control" onchange="applyFilters()">
+                                                <option value="">Tous les statuts</option>
+                                                <option value="actif" {{ request('statut') == 'actif' ? 'selected' : '' }}>✅ Actif</option>
+                                                <option value="inactif" {{ request('statut') == 'inactif' ? 'selected' : '' }}>⏸️ Inactif</option>
+                                            </select>
                                         </div>
                                     </div>
-                                    <div class="col-md-2">
+                                    
+                                    <!-- ✅ BOUTON FILTRER ÉLARGI -->
+                                    <div class="col-md-3">
                                         <div class="form-group">
                                             <label>&nbsp;</label>
                                             <div>
@@ -324,7 +301,7 @@
                 </div>
             </div><!--end row-->
 
-            <!-- Liste des Agences -->
+            <!-- Liste des Services -->
             <div class="row">
                 <div class="col-lg-12">
                     <div class="card">
@@ -333,18 +310,19 @@
                                 <div class="col">                      
                                     <h4 class="card-title">
                                         <i data-feather="list" class="mr-2"></i>Liste interactive
-                                        <span class="badge badge-soft-primary ml-2" id="resultCount">{{ $agencies->total() }} résultat(s)</span>
+                                        <span class="badge badge-soft-primary ml-2" id="resultCount">{{ $services->total() }} résultat(s)</span>
                                     </h4>                      
                                 </div><!--end col-->
+                                <!-- ✅ BOUTONS CORRIGÉS - CONFORMES AUX UTILISATEURS -->
                                 <div class="col-auto"> 
                                     <div class="btn-group mr-2">
-                                        <button class="btn btn-sm btn-success waves-effect" onclick="showCreateAgencyModal()" title="Créer agence">
-                                            <i data-feather="home" class="icon-xs mr-1"></i>Créer
+                                        <button class="btn btn-sm btn-success waves-effect" onclick="showCreateServiceModal()" title="Créer service">
+                                            <i data-feather="plus" class="icon-xs mr-1"></i>Créer
                                         </button>
-                                        <button class="btn btn-sm btn-warning waves-effect" onclick="showBulkActivateModal()" title="Activer toutes les inactives">
+                                        <button class="btn btn-sm btn-warning waves-effect" onclick="showBulkActivateModal()" title="Activer tous les inactifs">
                                             <i data-feather="zap" class="icon-xs mr-1"></i>Activer
                                         </button>
-                                        <button class="btn btn-sm btn-danger waves-effect" onclick="showBulkDeleteModal()" title="Supprimer sélectionnées">
+                                        <button class="btn btn-sm btn-danger waves-effect" onclick="showBulkDeleteModal()" title="Supprimer sélectionnés">
                                             <i data-feather="trash-2" class="icon-xs mr-1"></i>Supprimer
                                         </button>
                                     </div>
@@ -352,7 +330,7 @@
                                         <button class="btn btn-sm btn-outline-secondary" onclick="toggleSelectAll()" title="Sélectionner tout" id="selectAllBtn">
                                             <i data-feather="square" class="icon-xs"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="refreshAgenciesList()" title="Actualiser">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="refreshServicesList()" title="Actualiser">
                                             <i data-feather="refresh-cw" class="icon-xs"></i>
                                         </button>
                                     </div>           
@@ -370,90 +348,86 @@
 
                             <!-- Table view -->
                             <div id="tableView">
-                                @if($agencies->count() > 0)
+                                @if($services->count() > 0)
                                 <div class="table-responsive">
-                                    <table class="table table-hover mb-0" id="agenciesTable">
+                                    <table class="table table-hover mb-0" id="servicesTable">
                                         <thead class="thead-light">
                                             <tr>
+                                                <!-- ✅ COLONNES SIMPLIFIÉES (sans créateur) -->
                                                 <th class="border-top-0">
                                                     <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 
-                                                    Agence
+                                                    Service
                                                 </th>
-                                                <th class="border-top-0">Contact</th>
-                                                <th class="border-top-0">Localisation</th>
+                                                <th class="border-top-0">Code</th>
                                                 <th class="border-top-0">Statut</th>
+                                                <th class="border-top-0">Description</th>
                                                 <th class="border-top-0">Création</th>
                                                 <th class="border-top-0">Actions</th>
                                             </tr><!--end tr-->
                                         </thead>
-                                        <tbody id="agenciesTableBody">
-                                            @foreach($agencies as $index => $agency)
-                                            <tr class="agency-row" data-agency-id="{{ $agency->id }}">                                                        
+                                        <tbody id="servicesTableBody">
+                                            @foreach($services as $service)
+                                            <tr class="service-row" data-service-id="{{ $service->id }}">                                                        
                                                 <td>
                                                     <div class="media">
-                                                        <input type="checkbox" class="agency-checkbox mr-2" value="{{ $agency->id }}" onchange="handleIndividualCheckbox()">
-                                                        <div class="agency-avatar mr-3">
-                                                            <div class="agency-icon bg-soft-primary text-primary">
-                                                                <i data-feather="home" class="icon-sm"></i>
+                                                        <input type="checkbox" class="service-checkbox mr-2" value="{{ $service->id }}" onchange="handleIndividualCheckbox()">
+                                                        <div class="service-icon mr-3">
+                                                            <div class="avatar-sm bg-soft-{{ $service->getStatusBadgeColor() }} rounded-circle d-flex align-items-center justify-content-center">
+                                                                <i data-feather="settings" class="icon-xs text-{{ $service->getStatusBadgeColor() }}"></i>
                                                             </div>
                                                         </div>
                                                         <div class="media-body align-self-center">
-                                                            <h6 class="m-0 font-weight-semibold">{{ $agency->name }}</h6>
-                                                            <p class="text-muted mb-0 font-13">ID: #{{ $agency->id }}</p>
+                                                            <h6 class="m-0 font-weight-semibold">{{ $service->nom }}</h6>
+                                                            <p class="text-muted mb-0 font-13">ID: #{{ $service->id }}</p>
                                                         </div><!--end media body-->
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <p class="mb-0 font-14">
-                                                        <i data-feather="phone" class="icon-xs mr-1"></i>
-                                                        {{ $agency->phone }}
-                                                    </p>
-                                                    <small class="text-muted">{{ $agency->address_1 }}</small>
+                                                    <code class="text-{{ $service->getStatusBadgeColor() }}">{{ $service->code }}</code>
                                                 </td>
                                                 <td>
-                                                    <p class="mb-0 font-14">
-                                                        <i data-feather="map-pin" class="icon-xs mr-1"></i>
-                                                        {{ $agency->city }}
-                                                    </p>
-                                                    <small class="text-muted">{{ $agency->country }}</small>
-                                                </td>
-                                                <td>
-                                                    @if($agency->isActive())
+                                                    @if($service->isActive())
                                                         <span class="badge badge-success badge-pill">
-                                                            <i data-feather="check-circle" class="icon-xs mr-1"></i>Active
+                                                            <i data-feather="check-circle" class="icon-xs mr-1"></i>Actif
                                                         </span>
                                                     @else
                                                         <span class="badge badge-warning badge-pill">
-                                                            <i data-feather="pause-circle" class="icon-xs mr-1"></i>Inactive
+                                                            <i data-feather="pause-circle" class="icon-xs mr-1"></i>Inactif
                                                         </span>
                                                     @endif
                                                 </td>
                                                 <td>
-                                                    <p class="mb-0 font-14">{{ $agency->created_at->format('d/m/Y') }}</p>
-                                                    <small class="text-muted">{{ $agency->created_at->format('H:i') }}</small>
+                                                    <p class="mb-0 text-truncate" style="max-width: 200px;" title="{{ $service->description }}">
+                                                        {{ Str::limit($service->description ?: 'Aucune description', 50) }}
+                                                    </p>
                                                 </td>
                                                 <td>
+                                                    <p class="mb-0 font-14">{{ $service->created_at->format('d/m/Y') }}</p>
+                                                    <small class="text-muted">{{ $service->created_at->format('H:i') }}</small>
+                                                </td>
+                                                <td>
+                                                    <!-- ✅ ACTIONS CORRIGÉES - CONFORMES AUX UTILISATEURS -->
                                                     <div class="btn-group btn-group-sm" role="group">
                                                         <!-- ACTIONS SELON LE STATUT -->
-                                                        @if($agency->isInactive())
+                                                        @if($service->isInactive())
                                                             <button class="btn btn-soft-success waves-effect" title="Activer" 
-                                                                    onclick="showActivateAgencyModal({{ $agency->id }}, '{{ $agency->name }}')">
-                                                                <i data-feather="play" class="icon-xs"></i>
+                                                                    onclick="showActivateServiceModal({{ $service->id }}, '{{ $service->nom }}')">
+                                                                <i data-feather="check-circle" class="icon-xs"></i>
                                                             </button>
                                                         @else
                                                             <button class="btn btn-soft-warning waves-effect" title="Désactiver" 
-                                                                    onclick="showDeactivateAgencyModal({{ $agency->id }}, '{{ $agency->name }}')">
-                                                                <i data-feather="pause" class="icon-xs"></i>
+                                                                    onclick="showDeactivateServiceModal({{ $service->id }}, '{{ $service->nom }}')">
+                                                                <i data-feather="pause-circle" class="icon-xs"></i>
                                                             </button>
                                                         @endif
                                                         
                                                         <button type="button" class="btn btn-soft-info waves-effect" title="Détails" 
-                                                                onclick="showAgencyDetails({{ $agency->id }})">
+                                                                onclick="showServiceDetails({{ $service->id }})">
                                                             <i data-feather="eye" class="icon-xs"></i>
                                                         </button>
                                                         
                                                         <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
-                                                                onclick="showDeleteAgencyModal({{ $agency->id }}, '{{ $agency->name }}')">
+                                                                onclick="showDeleteServiceModal({{ $service->id }}, '{{ $service->nom }}')">
                                                             <i data-feather="trash-2" class="icon-xs"></i>
                                                         </button>
                                                     </div>
@@ -464,36 +438,38 @@
                                     </table> <!--end table-->                                               
                                 </div><!--end /div-->
                                 @else
-                                <!-- Aucun résultat -->
+                                <!-- ✅ AUCUN RÉSULTAT AMÉLIORÉ -->
                                 <div class="text-center py-5" id="noResults">
                                     <div>
-                                        <i data-feather="home" class="icon-lg text-muted mb-3"></i>
-                                        <h5 class="text-muted">Aucune agence trouvée</h5>
-                                        <p class="text-muted mb-4">Essayez de modifier vos critères de recherche ou créez une nouvelle agence.</p>
-                                        <a href="{{ route('agency.agence-create') }}" class="btn btn-primary waves-effect waves-light">
-                                            <i data-feather="plus" class="icon-xs mr-1"></i>Créer une agence
-                                        </a>
-                                        <button class="btn btn-outline-secondary waves-effect waves-light ml-2" onclick="resetFilters()">
-                                            <i data-feather="refresh-cw" class="icon-xs mr-1"></i>Réinitialiser les filtres
-                                        </button>
+                                        <i data-feather="settings" class="icon-lg text-muted mb-3"></i>
+                                        <h5 class="text-muted">Aucun service trouvé</h5>
+                                        <p class="text-muted mb-4">Essayez de modifier vos critères de recherche ou créez un nouveau service.</p>
+                                        <div>
+                                            <button class="btn btn-primary waves-effect waves-light mr-2" onclick="resetFilters()">
+                                                <i data-feather="refresh-cw" class="icon-xs mr-1"></i>Réinitialiser les filtres
+                                            </button>
+                                            <a href="{{ route('service.service-create') }}" class="btn btn-success waves-effect waves-light">
+                                                <i data-feather="plus" class="icon-xs mr-1"></i>Créer un service
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                                 @endif
                             </div>
 
             <!-- Pagination -->
-            @if($agencies->hasPages())
+            @if($services->hasPages())
             <div class="row mt-4">
                 <div class="col-sm-12 col-md-5">
                     <p class="text-muted mb-0">
-                        Affichage de <span class="font-weight-bold">{{ $agencies->firstItem() }}</span> à 
-                        <span class="font-weight-bold">{{ $agencies->lastItem() }}</span> 
-                        sur <span class="font-weight-bold">{{ $agencies->total() }}</span> agences
+                        Affichage de <span class="font-weight-bold">{{ $services->firstItem() }}</span> à 
+                        <span class="font-weight-bold">{{ $services->lastItem() }}</span> 
+                        sur <span class="font-weight-bold">{{ $services->total() }}</span> services
                     </p>
                 </div>
                 <div class="col-sm-12 col-md-7">
                     <div class="float-right">
-                        {{ $agencies->withQueryString()->links() }}
+                        {{ $services->withQueryString()->links() }}
                     </div>
                 </div>
             </div>
@@ -506,7 +482,7 @@
 </div><!-- container -->
 
 <footer class="footer text-center text-sm-left">
-&copy; {{ date('Y') }} Attendis <span class="d-none d-sm-inline-block float-right">Gestion dynamique des agences</span>
+&copy; {{ date('Y') }} Attendis <span class="d-none d-sm-inline-block float-right">Gestion dynamique des services</span>
 </footer><!--end footer-->
 </div>
 <!-- end page content -->
@@ -514,7 +490,7 @@
 <!-- end page-wrapper -->
 
 <!-- ==================================================================================== -->
-<!-- MODALES POUR AGENCES -->
+<!-- 🔧 MODALES PROFESSIONNELLES CORRIGÉES -->
 <!-- ==================================================================================== -->
 
 <!-- Modal Confirmation Universelle -->
@@ -554,35 +530,33 @@
     </div>
 </div>
 
-<!-- Modal Détails Agence -->
-<div class="modal fade" id="agencyDetailsModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
+<!-- Modal Détails Service -->
+<div class="modal fade" id="serviceDetailsModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
     <div class="modal-dialog modal-enhanced modal-dialog-centered modal-dialog-scrollable" role="document">
         <div class="modal-content modal-content-enhanced">
             <!-- En-tête du modal -->
             <div class="modal-header bg-gradient-primary text-white border-0 modal-header-enhanced">
                 <div class="d-flex align-items-center flex-grow-1">
-                    <div class="agency-avatar-modal mr-3">
-                        <div class="agency-icon-large bg-white text-primary">
-                            <i data-feather="home" class="icon-lg"></i>
+                    <div class="service-icon-modal mr-3">
+                        <div class="avatar-md bg-white rounded-circle d-flex align-items-center justify-content-center">
+                            <i data-feather="settings" class="icon-sm text-primary"></i>
                         </div>
-                        <div class="agency-status-indicator" id="agencyStatusIndicator"></div>
+                        <div class="service-status-indicator" id="serviceStatusIndicator"></div>
                     </div>
                     <div>
-                        <h5 class="modal-title mb-0" id="modalAgencyName">
-                            <i data-feather="home" class="icon-sm mr-2"></i>Chargement...
+                        <h5 class="modal-title mb-0" id="modalServiceName">
+                            <i data-feather="settings" class="icon-sm mr-2"></i>Chargement...
                         </h5>
-                        <small class="text-white-50" id="modalAgencyRole">Informations agence</small>
+                        <small class="text-white-50" id="modalServiceCode">Informations service</small>
                     </div>
                 </div>
-                <div class="d-flex align-items-center">
-                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fermer">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fermer">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
 
             <!-- Corps du modal -->
-            <div class="modal-body modal-body-enhanced p-0" id="agencyDetailsContent">
+            <div class="modal-body modal-body-enhanced p-0" id="serviceDetailsContent">
                 <!-- État de chargement -->
                 <div class="loading-state text-center py-5" id="loadingState">
                     <div class="spinner-grow text-primary mb-3" role="status">
@@ -593,33 +567,33 @@
                 </div>
 
                 <!-- Contenu principal -->
-                <div class="agency-details-content" id="agencyDetailsContentMain" style="display: none;">
-                    <!-- Section d'en-tête agence -->
-                    <div class="agency-header-section bg-light border-bottom">
+                <div class="service-details-content" id="serviceDetailsContentMain" style="display: none;">
+                    <!-- Section d'en-tête service -->
+                    <div class="service-header-section bg-light border-bottom">
                         <div class="container-fluid p-4">
                             <div class="row align-items-center">
                                 <div class="col-lg-8">
                                     <div class="d-flex align-items-center">
-                                        <div class="agency-avatar-large mr-4">
-                                            <div class="agency-icon-xl bg-primary text-white">
-                                                <i data-feather="home" class="icon-xl"></i>
+                                        <div class="service-avatar-large mr-4">
+                                            <div class="avatar-lg bg-primary rounded-circle d-flex align-items-center justify-content-center shadow">
+                                                <i data-feather="settings" class="icon-lg text-white"></i>
                                             </div>
-                                            <div class="status-badge" id="agencyStatusBadge"></div>
+                                            <div class="status-badge" id="serviceStatusBadge"></div>
                                         </div>
                                         <div>
-                                            <h4 class="mb-1 font-weight-bold" id="agencyFullName">Nom agence</h4>
-                                            <p class="text-muted mb-2" id="agencyLocation">Localisation</p>
+                                            <h4 class="mb-1 font-weight-bold" id="serviceFullName">Nom du service</h4>
+                                            <p class="text-muted mb-2" id="serviceCode">code-service</p>
                                             <div class="d-flex align-items-center">
-                                                <span class="badge mr-2" id="agencyStatusBadgeText">Statut</span>
+                                                <span class="badge mr-2" id="serviceStatusBadgeText">Statut</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-lg-4 text-lg-right">
-                                    <div class="agency-stats">
+                                    <div class="service-stats">
                                         <div class="stat-item">
                                             <h6 class="text-muted mb-0">Création</h6>
-                                            <p class="font-weight-bold mb-0" id="agencyCreationDate">--</p>
+                                            <p class="font-weight-bold mb-0" id="serviceCreationDate">--</p>
                                         </div>
                                     </div>
                                 </div>
@@ -630,51 +604,50 @@
                     <!-- Contenu en onglets -->
                     <div class="container-fluid p-4">
                         <!-- Navigation des onglets -->
-                        <ul class="nav nav-pills nav-pills-enhanced mb-4" id="agencyDetailsTabs" role="tablist">
+                        <ul class="nav nav-pills nav-pills-enhanced mb-4" id="serviceDetailsTabs" role="tablist">
                             <li class="nav-item">
                                 <a class="nav-link active" id="general-tab" data-toggle="pill" href="#general" role="tab">
-                                    <i data-feather="home" class="icon-xs mr-1"></i>Informations Générales
+                                    <i data-feather="settings" class="icon-xs mr-1"></i>Informations Générales
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" id="location-tab" data-toggle="pill" href="#location" role="tab">
-                                    <i data-feather="map-pin" class="icon-xs mr-1"></i>Localisation
+                                <a class="nav-link" id="creator-tab" data-toggle="pill" href="#creator" role="tab">
+                                    <i data-feather="user" class="icon-xs mr-1"></i>Créateur
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" id="contact-tab" data-toggle="pill" href="#contact" role="tab">
-                                    <i data-feather="phone" class="icon-xs mr-1"></i>Contact
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" id="activity-tab" data-toggle="pill" href="#activity" role="tab">
-                                    <i data-feather="activity" class="icon-xs mr-1"></i>Activité
+                                <a class="nav-link" id="history-tab" data-toggle="pill" href="#history" role="tab">
+                                    <i data-feather="activity" class="icon-xs mr-1"></i>Historique
                                 </a>
                             </li>
                         </ul>
 
                         <!-- Contenu des onglets -->
-                        <div class="tab-content" id="agencyDetailsTabsContent">
+                        <div class="tab-content" id="serviceDetailsTabsContent">
                             <!-- Onglet Informations Générales -->
                             <div class="tab-pane fade show active" id="general" role="tabpanel">
                                 <div class="row">
                                     <div class="col-lg-6">
                                         <div class="info-card">
                                             <h6 class="card-title text-primary">
-                                                <i data-feather="home" class="icon-sm mr-2"></i>Identité
+                                                <i data-feather="tag" class="icon-sm mr-2"></i>Identité
                                             </h6>
                                             <div class="info-list">
                                                 <div class="info-item">
                                                     <span class="info-label">Nom:</span>
-                                                    <span class="info-value" id="detailAgencyName">--</span>
+                                                    <span class="info-value" id="detailServiceName">--</span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Code:</span>
+                                                    <span class="info-value"><code id="detailServiceCode">--</code></span>
                                                 </div>
                                                 <div class="info-item">
                                                     <span class="info-label">Identifiant:</span>
-                                                    <span class="info-value" id="detailAgencyId">#--</span>
+                                                    <span class="info-value" id="detailServiceId">#--</span>
                                                 </div>
                                                 <div class="info-item">
                                                     <span class="info-label">Statut:</span>
-                                                    <span class="info-value" id="detailAgencyStatus">--</span>
+                                                    <span class="info-value" id="detailServiceStatus">--</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -694,43 +667,52 @@
                                                     <span class="info-value" id="detailUpdatedAt">--</span>
                                                 </div>
                                                 <div class="info-item">
-                                                    <span class="info-label">Âge de l'agence:</span>
-                                                    <span class="info-value" id="detailAgencyAge">--</span>
+                                                    <span class="info-label">Âge du service:</span>
+                                                    <span class="info-value" id="detailServiceAge">--</span>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Description -->
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <div class="info-card">
+                                            <h6 class="card-title text-info">
+                                                <i data-feather="file-text" class="icon-sm mr-2"></i>Description
+                                            </h6>
+                                            <div class="description-content p-3 bg-light rounded">
+                                                <p id="serviceDescription" class="mb-0">Chargement de la description...</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Onglet Localisation -->
-                            <div class="tab-pane fade" id="location" role="tabpanel">
+                            <!-- Onglet Créateur -->
+                            <div class="tab-pane fade" id="creator" role="tabpanel">
                                 <div class="row">
                                     <div class="col-lg-8">
                                         <div class="info-card">
                                             <h6 class="card-title text-info">
-                                                <i data-feather="map-pin" class="icon-sm mr-2"></i>Adresse complète
+                                                <i data-feather="user" class="icon-sm mr-2"></i>Informations du créateur
                                             </h6>
+                                            <div class="d-flex align-items-center mb-3">
+                                                <img src="{{asset('frontend/assets/images/users/user-5.jpg')}}" alt="Avatar" class="rounded-circle mr-3" width="60" height="60">
+                                                <div>
+                                                    <h5 class="mb-1" id="creatorName">Nom du créateur</h5>
+                                                    <p class="text-muted mb-0" id="creatorRole">Administrateur</p>
+                                                </div>
+                                            </div>
                                             <div class="info-list">
                                                 <div class="info-item">
-                                                    <span class="info-label">Adresse principale:</span>
-                                                    <span class="info-value" id="detailAddress1">--</span>
+                                                    <span class="info-label">Créé le:</span>
+                                                    <span class="info-value" id="creationDate">--</span>
                                                 </div>
                                                 <div class="info-item">
-                                                    <span class="info-label">Adresse complémentaire:</span>
-                                                    <span class="info-value" id="detailAddress2">--</span>
-                                                </div>
-                                                <div class="info-item">
-                                                    <span class="info-label">Ville:</span>
-                                                    <span class="info-value" id="detailCity">--</span>
-                                                </div>
-                                                <div class="info-item">
-                                                    <span class="info-label">Pays:</span>
-                                                    <span class="info-value" id="detailCountry">--</span>
-                                                </div>
-                                                <div class="info-item">
-                                                    <span class="info-label">Adresse complète:</span>
-                                                    <span class="info-value" id="detailFullAddress">--</span>
+                                                    <span class="info-label">Services créés:</span>
+                                                    <span class="info-value" id="creatorServicesCount">-- services créés</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -738,17 +720,17 @@
                                     <div class="col-lg-4">
                                         <div class="info-card bg-light">
                                             <h6 class="card-title text-warning">
-                                                <i data-feather="navigation" class="icon-sm mr-2"></i>Actions Rapides
+                                                <i data-feather="zap" class="icon-sm mr-2"></i>Actions Rapides
                                             </h6>
                                             <div class="quick-actions">
-                                                <button class="btn btn-outline-primary btn-sm btn-block mb-2" onclick="copyAgencyAddress()">
-                                                    <i data-feather="copy" class="icon-xs mr-1"></i>Copier Adresse
+                                                <button class="btn btn-outline-success btn-sm btn-block mb-2" onclick="quickActivateService()">
+                                                    <i data-feather="play-circle" class="icon-xs mr-1"></i>Activer
                                                 </button>
-                                                <button class="btn btn-outline-success btn-sm btn-block mb-2" onclick="openMap()">
-                                                    <i data-feather="map" class="icon-xs mr-1"></i>Voir sur la carte
+                                                <button class="btn btn-outline-warning btn-sm btn-block mb-2" onclick="quickDeactivateService()">
+                                                    <i data-feather="pause-circle" class="icon-xs mr-1"></i>Désactiver
                                                 </button>
-                                                <button class="btn btn-outline-info btn-sm btn-block" onclick="getDirections()">
-                                                    <i data-feather="navigation" class="icon-xs mr-1"></i>Itinéraire
+                                                <button class="btn btn-outline-danger btn-sm btn-block" onclick="quickDeleteService()">
+                                                    <i data-feather="trash-2" class="icon-xs mr-1"></i>Supprimer
                                                 </button>
                                             </div>
                                         </div>
@@ -756,58 +738,8 @@
                                 </div>
                             </div>
 
-                            <!-- Onglet Contact -->
-                            <div class="tab-pane fade" id="contact" role="tabpanel">
-                                <div class="row">
-                                    <div class="col-lg-8">
-                                        <div class="info-card">
-                                            <h6 class="card-title text-success">
-                                                <i data-feather="phone" class="icon-sm mr-2"></i>Informations de contact
-                                            </h6>
-                                            <div class="info-list">
-                                                <div class="info-item">
-                                                    <span class="info-label">Téléphone:</span>
-                                                    <span class="info-value">
-                                                        <a href="#" id="detailPhoneLink" class="text-decoration-none">
-                                                            <i data-feather="phone" class="icon-xs mr-1"></i>
-                                                            <span id="detailPhone">--</span>
-                                                        </a>
-                                                    </span>
-                                                </div>
-                                                <div class="info-item">
-                                                    <span class="info-label">Créé par:</span>
-                                                    <span class="info-value" id="detailCreatedBy">--</span>
-                                                </div>
-                                                <div class="info-item">
-                                                    <span class="info-label">Notes:</span>
-                                                    <span class="info-value" id="detailNotes">--</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-4">
-                                        <div class="info-card bg-light">
-                                            <h6 class="card-title text-warning">
-                                                <i data-feather="message-circle" class="icon-sm mr-2"></i>Actions Contact
-                                            </h6>
-                                            <div class="quick-actions">
-                                                <button class="btn btn-outline-success btn-sm btn-block mb-2" onclick="callAgency()">
-                                                    <i data-feather="phone-call" class="icon-xs mr-1"></i>Appeler
-                                                </button>
-                                                <button class="btn btn-outline-primary btn-sm btn-block mb-2" onclick="copyAgencyPhone()">
-                                                    <i data-feather="copy" class="icon-xs mr-1"></i>Copier Téléphone
-                                                </button>
-                                                <button class="btn btn-outline-info btn-sm btn-block" onclick="shareAgencyInfo()">
-                                                    <i data-feather="share-2" class="icon-xs mr-1"></i>Partager infos
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Onglet Activité -->
-                            <div class="tab-pane fade" id="activity" role="tabpanel">
+                            <!-- Onglet Historique -->
+                            <div class="tab-pane fade" id="history" role="tabpanel">
                                 <div class="info-card">
                                     <h6 class="card-title text-primary">
                                         <i data-feather="activity" class="icon-sm mr-2"></i>Historique d'activité
@@ -815,27 +747,27 @@
                                     <div class="activity-timeline">
                                         <div class="timeline-item">
                                             <div class="timeline-marker bg-success">
-                                                <i data-feather="home" class="icon-xs text-white"></i>
+                                                <i data-feather="plus" class="icon-xs text-white"></i>
                                             </div>
                                             <div class="timeline-content">
-                                                <h6 class="timeline-title">Agence créée</h6>
+                                                <h6 class="timeline-title">Service créé</h6>
                                                 <p class="timeline-description text-muted">
-                                                    L'agence a été créée dans le système
+                                                    Le service a été créé dans le système
                                                 </p>
                                                 <small class="timeline-time text-muted" id="activityCreationDate">--</small>
                                             </div>
                                         </div>
 
-                                        <div class="timeline-item">
-                                            <div class="timeline-marker bg-primary">
-                                                <i data-feather="check" class="icon-xs text-white"></i>
+                                        <div class="timeline-item" id="activityLastUpdate">
+                                            <div class="timeline-marker bg-info">
+                                                <i data-feather="edit" class="icon-xs text-white"></i>
                                             </div>
                                             <div class="timeline-content">
-                                                <h6 class="timeline-title">Statut actuel</h6>
+                                                <h6 class="timeline-title">Dernière modification</h6>
                                                 <p class="timeline-description text-muted">
-                                                    L'agence est actuellement active
+                                                    Informations du service mises à jour
                                                 </p>
-                                                <small class="timeline-time text-muted">Statut actuel</small>
+                                                <small class="timeline-time text-muted" id="activityUpdateDate">--</small>
                                             </div>
                                         </div>
                                     </div>
@@ -846,7 +778,7 @@
                 </div>
             </div>
 
-            <!-- Footer du modal -->
+            <!-- Footer -->
             <div class="modal-footer modal-footer-enhanced border-top bg-light">
                 <div class="d-flex justify-content-between w-100 align-items-center flex-wrap">
                     <div class="footer-left mb-2 mb-md-0">
@@ -856,7 +788,7 @@
                         </small>
                     </div> 
                     <div class="footer-right d-flex">
-                        <button type="button" class="btn btn-outline-secondary btn-sm mr-2" onclick="refreshAgencyDetails()">
+                        <button type="button" class="btn btn-outline-secondary btn-sm mr-2" onclick="refreshServiceDetails()">
                             <i data-feather="refresh-cw" class="icon-xs mr-1"></i>Actualiser
                         </button>
                         <button type="button" class="btn btn-primary btn-sm" data-dismiss="modal">
@@ -874,9 +806,9 @@
     <div id="toastContainer"></div>
 </div>
 
-<!-- CSS (même style que users-list mais adapté pour les agences) -->
+<!-- CSS STYLES ET JAVASCRIPT COMPLET -->
 <style>
-/* CSS existant + améliorations pour agences */
+/* CSS existant plus améliorations - IDENTIQUE À users-list.blade.php */
 .card {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     transition: background-color 0.3s ease, transform 0.2s ease;
@@ -910,91 +842,16 @@
     box-shadow: 0 6px 20px rgba(33, 150, 243, 0.3);
 }
 
-/* Styles spécifiques pour les agences */
-.agency-avatar {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
+/* Z-INDEX pour modales */
+#serviceDetailsModal {
+    z-index: 1050 !important;
 }
 
-.agency-icon {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
+#confirmationModal {
+    z-index: 1060 !important;
 }
 
-.agency-icon-large {
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 12px;
-}
-
-.agency-icon-xl {
-    width: 80px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 15px;
-}
-
-.agency-avatar-modal {
-    position: relative;
-}
-
-.agency-status-indicator {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 2px solid white;
-}
-
-.agency-status-indicator.active {
-    background-color: #28a745;
-}
-
-.agency-status-indicator.inactive {
-    background-color: #ffc107;
-}
-
-.agency-avatar-large {
-    position: relative;
-}
-
-.status-badge {
-    position: absolute;
-    bottom: 5px;
-    right: 5px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 3px solid white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.status-badge.active {
-    background-color: #28a745;
-}
-
-.status-badge.inactive {
-    background-color: #ffc107;
-}
-
-/* Styles modales (identiques à users-list) */
+/* Modal améliorée */
 .modal-enhanced {
     max-width: 90vw !important;
     width: 90vw !important;
@@ -1029,60 +886,86 @@
     margin-top: auto !important;
 }
 
-.footer-left, .footer-right {
-    flex-shrink: 0 !important;
+/* Icônes et design */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
 }
 
-.nav-pills-enhanced {
-    background: #f8f9fa;
-    padding: 10px;
-    border-radius: 10px;
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 5px !important;
+.service-icon-modal {
+    position: relative;
 }
 
-.nav-pills-enhanced .nav-link {
-    border-radius: 8px !important;
-    padding: 10px 15px !important;
-    margin: 0 !important;
-    font-size: 0.9rem !important;
-    font-weight: 500 !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap !important;
+.service-status-indicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid white;
 }
 
-.nav-pills-enhanced .nav-link:hover {
-    background-color: rgba(102, 126, 234, 0.1) !important;
-    transform: translateY(-1px) !important;
+.service-status-indicator.active {
+    background-color: #28a745;
 }
 
-.nav-pills-enhanced .nav-link.active {
-    background: linear-gradient(135deg, #667eea, #764ba2) !important;
-    color: white !important;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
-    transform: translateY(-1px) !important;
+.service-status-indicator.inactive {
+    background-color: #ffc107;
 }
 
-/* Styles confirmations modales */
-.modal-content {
-    border: none;
+/* Cartes d'information */
+.info-card {
+    background: white;
     border-radius: 15px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
-    animation: modalSlideIn 0.3s ease-out;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    border: 1px solid #f1f3f4;
 }
 
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-50px) scale(0.9);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+.info-card:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
 }
 
+.info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f8f9fa;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 500;
+    color: #6c757d;
+    font-size: 0.95rem;
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+.info-value {
+    font-weight: 600;
+    color: #495057;
+    text-align: right;
+    word-break: break-word;
+    flex: 1;
+}
+
+/* Icônes modales */
 .modal-icon {
     width: 80px;
     height: 80px;
@@ -1163,84 +1046,39 @@
     border: none;
 }
 
-.btn-loading {
-    pointer-events: none;
-    opacity: 0.7;
+/* Navigation onglets */
+.nav-pills-enhanced {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 10px;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
 }
 
-.bg-gradient-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+.nav-pills-enhanced .nav-link {
+    border-radius: 8px !important;
+    padding: 10px 15px !important;
+    margin: 0 !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap !important;
 }
 
-/* Info cards dans les modales */
-.info-card {
-    background: white;
-    border-radius: 15px;
-    padding: 24px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    transition: all 0.3s ease;
-    border: 1px solid #f1f3f4;
+.nav-pills-enhanced .nav-link:hover {
+    background-color: rgba(102, 126, 234, 0.1) !important;
+    transform: translateY(-1px) !important;
 }
 
-.info-card:hover {
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
+.nav-pills-enhanced .nav-link.active {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
+    transform: translateY(-1px) !important;
 }
 
-.info-card .card-title {
-    font-weight: 600;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    font-size: 1.1rem;
-}
-
-.info-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.info-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid #f8f9fa;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.info-item:last-child {
-    border-bottom: none;
-}
-
-.info-label {
-    font-weight: 500;
-    color: #6c757d;
-    font-size: 0.95rem;
-    min-width: 120px;
-    flex-shrink: 0;
-}
-
-.info-value {
-    font-weight: 600;
-    color: #495057;
-    text-align: right;
-    word-break: break-word;
-    flex: 1;
-}
-
-.quick-actions .btn {
-    transition: all 0.3s ease;
-}
-
-.quick-actions .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
+/* Timeline */
 .activity-timeline {
     position: relative;
     padding-left: 30px;
@@ -1298,6 +1136,52 @@
     font-size: 0.85rem;
 }
 
+/* Responsive */
+@media (max-width: 768px) {
+    .modal-enhanced {
+        max-width: 100vw !important;
+        width: 100vw !important;
+        margin: 0 !important;
+        height: 100vh !important;
+    }
+
+    .modal-content-enhanced {
+        height: 100vh !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+    }
+
+    .modal-body-enhanced {
+        max-height: calc(100vh - 160px) !important;
+    }
+
+    .nav-pills-enhanced {
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+
+    .nav-pills-enhanced .nav-link {
+        text-align: center !important;
+        width: 100% !important;
+    }
+
+    .info-item {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        text-align: left !important;
+    }
+
+    .info-value {
+        text-align: left !important;
+        width: 100% !important;
+    }
+
+    .info-label {
+        min-width: auto !important;
+        width: 100% !important;
+    }
+}
+
 /* Autres styles */
 .counter {
     font-size: 2rem;
@@ -1305,11 +1189,11 @@
     transition: all 0.3s ease;
 }
 
-.agency-row {
+.service-row {
     transition: all 0.3s ease;
 }
 
-.agency-row:hover {
+.service-row:hover {
     background-color: #f8f9fa;
 }
 
@@ -1345,6 +1229,7 @@
     min-width: 300px;
 }
 
+/* Animations */
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
@@ -1402,7 +1287,7 @@
     height: 3rem;
 }
 
-.agency-details-content {
+.service-details-content {
     animation: fadeInUp 0.5s ease-out;
 }
 
@@ -1416,102 +1301,25 @@
         transform: translateY(0);
     }
 }
-
-/* Responsive */
-@media (max-width: 992px) {
-    .modal-enhanced {
-        max-width: 95vw !important;
-        width: 95vw !important;
-        margin: 1rem auto !important;
-    }
-}
-
-@media (max-width: 768px) {
-    .modal-enhanced {
-        max-width: 100vw !important;
-        width: 100vw !important;
-        margin: 0 !important;
-        height: 100vh !important;
-    }
-
-    .modal-content-enhanced {
-        height: 100vh !important;
-        max-height: 100vh !important;
-        border-radius: 0 !important;
-    }
-
-    .modal-body-enhanced {
-        max-height: calc(100vh - 160px) !important;
-    }
-
-    .modal-header-enhanced {
-        padding: 15px !important;
-        min-height: 70px !important;
-    }
-
-    .modal-footer-enhanced {
-        padding: 15px !important;
-        flex-direction: column !important;
-        gap: 15px !important;
-    }
-
-    .nav-pills-enhanced {
-        flex-direction: column !important;
-        gap: 8px !important;
-    }
-
-    .nav-pills-enhanced .nav-link {
-        text-align: center !important;
-        width: 100% !important;
-    }
-
-    .agency-header-section .row {
-        flex-direction: column !important;
-        gap: 15px !important;
-    }
-
-    .info-item {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-        text-align: left !important;
-    }
-
-    .info-value {
-        text-align: left !important;
-        width: 100% !important;
-    }
-
-    .info-label {
-        min-width: auto !important;
-        width: 100% !important;
-    }
-
-    .agency-header-section .container-fluid {
-        padding: 15px !important;
-    }
-
-    .info-card {
-        padding: 15px !important;
-        margin-bottom: 15px !important;
-    }
-}
 </style>
+
+<!-- ✅ JAVASCRIPT COMPLET CORRIGÉ - CONFORME À users-list.blade.php -->
 <script>
-// Variables globales pour les agences
+// Variables globales pour services
 let searchTimeout;
 let realTimeInterval;
 let lastUpdateTimestamp = Date.now();
 let isSelectAllActive = false;
 let currentAction = null;
-let currentAgencyId = null;
+let currentServiceId = null;
 
-// Initialisation complète
+// Initialisation
 document.addEventListener('DOMContentLoaded', function() {
     // Initialiser Feather icons
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
-    
+
     // Démarrer les mises à jour temps réel
     startRealTimeUpdates();
 
@@ -1529,15 +1337,14 @@ document.addEventListener('DOMContentLoaded', function() {
             startRealTimeUpdates();
         }
     });
+
+    console.log('✅ Gestion des services initialisée avec succès');
 });
 
 // ==================================================================================== 
-// SYSTÈME DE MODALES POUR AGENCES
+// MODALES DE CONFIRMATION
 // ==================================================================================== 
 
-/**
- * Afficher une modale de confirmation personnalisée
- */
 function showConfirmationModal(config) {
     const modal = document.getElementById('confirmationModal');
     const modalIcon = document.getElementById('modalIcon');
@@ -1548,7 +1355,6 @@ function showConfirmationModal(config) {
     const confirmText = document.getElementById('confirmText');
     const confirmSpinner = document.getElementById('confirmSpinner');
 
-    // Configuration par défaut
     const defaultConfig = {
         type: 'danger',
         icon: 'alert-triangle',
@@ -1561,18 +1367,14 @@ function showConfirmationModal(config) {
         showSpinner: true
     };
 
-    // Fusionner avec la configuration fournie
     const finalConfig = { ...defaultConfig, ...config };
 
-    // Configurer l'icône
     modalIcon.className = `modal-icon ${finalConfig.type}`;
     modalIcon.innerHTML = `<i data-feather="${finalConfig.icon}"></i>`;
 
-    // Configurer le titre et le message
     modalTitle.textContent = finalConfig.title;
     modalMessage.textContent = finalConfig.message;
 
-    // Configurer les détails (optionnel)
     if (finalConfig.details) {
         modalDetails.innerHTML = finalConfig.details;
         modalDetails.style.display = 'block';
@@ -1580,31 +1382,20 @@ function showConfirmationModal(config) {
         modalDetails.style.display = 'none';
     }
 
-    // Configurer le bouton de confirmation
     confirmBtn.className = `btn btn-rounded ${finalConfig.confirmClass}`;
     confirmText.textContent = finalConfig.confirmText;
-    if (confirmSpinner) confirmSpinner.style.display = 'none';
+    confirmSpinner.style.display = 'none';
 
-    // Stocker l'action pour l'exécuter plus tard
     currentAction = finalConfig.onConfirm;
 
-    // Régénérer les icônes Feather
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
 
-    // Afficher la modal avec jQuery si disponible, sinon avec Bootstrap natif
-    if (typeof $ !== 'undefined') {
-        $('#confirmationModal').modal('show');
-    } else {
-        var confirmModal = new bootstrap.Modal(modal);
-        confirmModal.show();
-    }
+    $('#confirmationModal').modal('show');
 }
 
-/**
- * Gestionnaire du bouton de confirmation
- */
+// Gestionnaire du bouton de confirmation
 document.addEventListener('DOMContentLoaded', function() {
     const confirmBtn = document.getElementById('confirmBtn');
     const confirmText = document.getElementById('confirmText');
@@ -1613,12 +1404,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (confirmBtn) {
         confirmBtn.addEventListener('click', function() {
             if (currentAction && typeof currentAction === 'function') {
-                // Afficher le spinner
-                if (confirmSpinner) confirmSpinner.style.display = 'inline-block';
+                confirmSpinner.style.display = 'inline-block';
                 confirmBtn.classList.add('btn-loading');
-                if (confirmText) confirmText.textContent = 'Traitement...';
+                confirmText.textContent = 'Traitement...';
 
-                // Exécuter l'action
                 currentAction();
             }
         });
@@ -1626,133 +1415,101 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ==================================================================================== 
-// MODALES DES ACTIONS AGENCES
+// ACTIONS SUR LES SERVICES
 // ==================================================================================== 
 
-/**
- * Afficher la modal d'activation d'agence
- */
-function showActivateAgencyModal(agencyId, agencyName) {
+function showActivateServiceModal(serviceId, serviceName) {
     showConfirmationModal({
         type: 'success',
-        icon: 'play',
-        title: '✅ Activer l\'agence',
-        message: `Confirmer l'activation de l'agence "${agencyName}" ?`,
+        icon: 'check-circle',
+        title: '✅ Activer le service',
+        message: `Confirmer l'activation du service "${serviceName}" ?`,
         details: `
             <div class="text-success">
                 <i data-feather="info" class="icon-xs mr-1"></i>
                 <strong>Conséquences de l'activation :</strong><br>
-                <small>• L'agence deviendra opérationnelle<br>
-                • Elle sera visible dans les listes actives<br>
-                • Toutes les fonctionnalités seront accessibles</small>
+                <small>• Le service deviendra opérationnel<br>
+                • Il sera disponible pour utilisation<br>
+                • Le statut passera à "Actif"</small>
             </div>
         `,
-        confirmText: 'Activer l\'agence',
+        confirmText: 'Activer le service',
         confirmClass: 'btn-success',
-        onConfirm: () => executeAgencyAction(agencyId, 'activate', agencyName)
+        onConfirm: () => executeServiceAction(serviceId, 'activate', serviceName)
     });
 }
 
-/**
- * Afficher la modal de désactivation d'agence
- */
-function showDeactivateAgencyModal(agencyId, agencyName) {
+function showDeactivateServiceModal(serviceId, serviceName) {
     showConfirmationModal({
         type: 'warning',
-        icon: 'pause',
-        title: '⚠️ Désactiver l\'agence',
-        message: `Confirmer la désactivation de l'agence "${agencyName}" ?`,
+        icon: 'pause-circle',
+        title: '⏸️ Désactiver le service',
+        message: `Confirmer la désactivation du service "${serviceName}" ?`,
         details: `
             <div class="text-warning">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
                 <strong>Conséquences de la désactivation :</strong><br>
-                <small>• L'agence ne sera plus opérationnelle<br>
-                • Elle sera masquée des listes actives<br>
-                • Les fonctionnalités seront limitées</small>
+                <small>• Le service deviendra temporairement indisponible<br>
+                • Les utilisateurs ne pourront plus l'utiliser<br>
+                • Le statut passera à "Inactif"</small>
             </div>
         `,
-        confirmText: 'Désactiver l\'agence',
+        confirmText: 'Désactiver le service',
         confirmClass: 'btn-warning',
-        onConfirm: () => executeAgencyAction(agencyId, 'deactivate', agencyName)
+        onConfirm: () => executeServiceAction(serviceId, 'deactivate', serviceName)
     });
 }
 
-/**
- * Afficher la modal de suppression d'agence
- */
-function showDeleteAgencyModal(agencyId, agencyName) {
+function showDeleteServiceModal(serviceId, serviceName) {
     showConfirmationModal({
         type: 'danger',
         icon: 'trash-2',
-        title: '🗑️ Supprimer l\'agence',
-        message: `Confirmer la suppression définitive de l'agence "${agencyName}" ?`,
+        title: '🗑️ Supprimer le service',
+        message: `Confirmer la suppression définitive du service "${serviceName}" ?`,
         details: `
             <div class="text-danger">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
                 <strong>⚠️ ATTENTION : Cette action est irréversible !</strong><br>
-                <small>• Toutes les données de l'agence seront supprimées<br>
+                <small>• Toutes les données du service seront supprimées<br>
                 • L'historique sera perdu<br>
                 • Cette opération ne peut pas être annulée</small>
             </div>
         `,
         confirmText: 'Supprimer définitivement',
         confirmClass: 'btn-danger',
-        onConfirm: () => executeAgencyAction(agencyId, 'delete', agencyName)
+        onConfirm: () => executeServiceAction(serviceId, 'delete', serviceName)
     });
 }
 
-// ==================================================================================== 
-// MODALES D'ACTIONS GROUPÉES
-// ==================================================================================== 
-
-/**
- * Afficher la modal de création d'agence
- */
-function showCreateAgencyModal() {
-    window.location.href = "/admin/agencies/create";
+function showCreateServiceModal() {
+    window.location.href = "{{ route('service.service-create') }}";
 }
 
-/**
- * Afficher la modal d'activation en masse
- */
 function showBulkActivateModal() {
-    // Obtenir le nombre d'agences inactives depuis l'élément DOM
-    const inactiveCountElement = document.getElementById('inactiveCount');
-    const inactiveCount = inactiveCountElement ? parseInt(inactiveCountElement.textContent) : 0;
-
-    if (inactiveCount == 0) {
-        showToast('Info', 'Aucune agence inactive à activer', 'info');
-        return;
-    }
-
     showConfirmationModal({
         type: 'warning',
         icon: 'zap',
         title: '⚡ Activation en masse',
-        message: `Confirmer l'activation de toutes les agences inactives ?`,
+        message: `Confirmer l'activation de tous les services inactifs ?`,
         details: `
             <div class="text-warning">
-                <i data-feather="home" class="icon-xs mr-1"></i>
-                <strong>${inactiveCount} agence(s) seront activées</strong><br>
-                <small>• Toutes les agences inactives deviendront actives<br>
-                • Elles seront immédiatement opérationnelles<br>
-                • Cette action s'applique à toutes les agences inactives</small>
+                <i data-feather="settings" class="icon-xs mr-1"></i>
+                <strong>Tous les services inactifs seront activés</strong><br>
+                <small>• Ils seront immédiatement disponibles<br>
+                • Les statuts seront mis à jour</small>
             </div>
         `,
-        confirmText: `Activer ${inactiveCount} agence(s)`,
+        confirmText: `Activer les services inactifs`,
         confirmClass: 'btn-warning',
         onConfirm: () => executeBulkAction('activate')
     });
 }
 
-/**
- * Afficher la modal de suppression en masse
- */
 function showBulkDeleteModal() {
-    const selectedAgencies = document.querySelectorAll('.agency-checkbox:checked');
+    const selectedServices = document.querySelectorAll('.service-checkbox:checked');
 
-    if (selectedAgencies.length === 0) {
-        showToast('Attention', 'Aucune agence sélectionnée pour la suppression', 'warning');
+    if (selectedServices.length === 0) {
+        showToast('Attention', 'Aucun service sélectionné pour la suppression', 'warning');
         return;
     }
 
@@ -1760,55 +1517,41 @@ function showBulkDeleteModal() {
         type: 'danger',
         icon: 'trash-2',
         title: '🗑️ Suppression en masse',
-        message: `Confirmer la suppression de ${selectedAgencies.length} agence(s) sélectionnée(s) ?`,
+        message: `Confirmer la suppression de ${selectedServices.length} service(s) sélectionné(s) ?`,
         details: `
             <div class="text-danger">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
                 <strong>⚠️ ATTENTION : Cette action est irréversible !</strong><br>
-                <small>• ${selectedAgencies.length} agence(s) seront supprimées définitivement<br>
-                • Toutes les données associées seront perdues<br>
-                • Cette opération ne peut pas être annulée</small>
+                <small>• ${selectedServices.length} service(s) seront supprimés définitivement<br>
+                • Toutes les données associées seront perdues</small>
             </div>
         `,
-        confirmText: `Supprimer ${selectedAgencies.length} agence(s)`,
+        confirmText: `Supprimer ${selectedServices.length} service(s)`,
         confirmClass: 'btn-danger',
         onConfirm: () => executeBulkDelete()
     });
 }
 
 // ==================================================================================== 
-// EXÉCUTION DES ACTIONS
+// EXÉCUTION DES ACTIONS - ROUTES CORRIGÉES
 // ==================================================================================== 
 
-/**
- * Exécuter une action sur une agence
- */
-function executeAgencyAction(agencyId, action, agencyName) {
+function executeServiceAction(serviceId, action, serviceName) {
     setTimeout(() => {
-        // Fermer la modal
-        if (typeof $ !== 'undefined') {
-            $('#confirmationModal').modal('hide');
-        } else {
-            const modal = document.getElementById('confirmationModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
-        
+        $('#confirmationModal').modal('hide');
         showLoading();
 
         let url, method = 'POST';
 
         switch(action) {
             case 'activate':
-                url = `/admin/agencies/${agencyId}/activate`;
+                url = `/admin/services/${serviceId}/activate`;
                 break;
             case 'deactivate':
-                url = `/admin/agencies/${agencyId}/deactivate`;
+                url = `/admin/services/${serviceId}/deactivate`;
                 break;
             case 'delete':
-                url = `/admin/agencies/${agencyId}`;
+                url = `/admin/services/${serviceId}`;
                 method = 'DELETE';
                 break;
             default:
@@ -1817,14 +1560,10 @@ function executeAgencyAction(agencyId, action, agencyName) {
                 return;
         }
 
-        // Obtenir le token CSRF
-        const token = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = token ? token.getAttribute('content') : '';
-
         fetch(url, {
             method: method,
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             }
@@ -1834,12 +1573,8 @@ function executeAgencyAction(agencyId, action, agencyName) {
             hideLoading();
 
             if (data.success) {
-                showToast('Succès', data.message || `Action ${action} effectuée sur l'agence "${agencyName}"`, 'success');
-
-                // Rafraîchir la liste
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                showToast('Succès', data.message || `Action ${action} effectuée sur ${serviceName}`, 'success');
+                setTimeout(() => window.location.reload(), 1500);
             } else {
                 showToast('Erreur', data.message || `Erreur lors de l'action ${action}`, 'error');
             }
@@ -1852,32 +1587,15 @@ function executeAgencyAction(agencyId, action, agencyName) {
     }, 1500);
 }
 
-/**
- * Exécuter une action groupée
- */
 function executeBulkAction(action) {
     setTimeout(() => {
-        // Fermer la modal
-        if (typeof $ !== 'undefined') {
-            $('#confirmationModal').modal('hide');
-        } else {
-            const modal = document.getElementById('confirmationModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
-        
+        $('#confirmationModal').modal('hide');
         showLoading();
 
-        // Obtenir le token CSRF
-        const token = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = token ? token.getAttribute('content') : '';
-
-        fetch(`/admin/agencies/bulk-${action}`, {
+        fetch(`/admin/services/bulk-${action}`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             }
@@ -1888,11 +1606,7 @@ function executeBulkAction(action) {
 
             if (data.success) {
                 showToast('Succès', data.message || `Action ${action} en masse effectuée`, 'success');
-
-                // Rafraîchir la page
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                setTimeout(() => window.location.reload(), 1500);
             } else {
                 showToast('Erreur', data.message || `Erreur lors de l'action ${action} en masse`, 'error');
             }
@@ -1905,50 +1619,29 @@ function executeBulkAction(action) {
     }, 1500);
 }
 
-/**
- * Exécuter la suppression en masse
- */
 function executeBulkDelete() {
-    const selectedAgencies = Array.from(document.querySelectorAll('.agency-checkbox:checked')).map(cb => cb.value);
+    const selectedServices = Array.from(document.querySelectorAll('.service-checkbox:checked')).map(cb => cb.value);
 
     setTimeout(() => {
-        // Fermer la modal
-        if (typeof $ !== 'undefined') {
-            $('#confirmationModal').modal('hide');
-        } else {
-            const modal = document.getElementById('confirmationModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
-        
+        $('#confirmationModal').modal('hide');
         showLoading();
 
-        // Obtenir le token CSRF
-        const token = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = token ? token.getAttribute('content') : '';
-
-        fetch('/admin/agencies/bulk-delete', {
+        fetch('/admin/services/bulk-delete', {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ agency_ids: selectedAgencies })
+            body: JSON.stringify({ service_ids: selectedServices })
         })
         .then(response => response.json())
         .then(data => {
             hideLoading();
 
             if (data.success) {
-                showToast('Succès', data.message || `${selectedAgencies.length} agence(s) supprimée(s)`, 'success');
-
-                // Rafraîchir la page
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                showToast('Succès', data.message || `${selectedServices.length} service(s) supprimé(s)`, 'success');
+                setTimeout(() => window.location.reload(), 1500);
             } else {
                 showToast('Erreur', data.message || 'Erreur lors de la suppression en masse', 'error');
             }
@@ -1962,44 +1655,24 @@ function executeBulkDelete() {
 }
 
 // ==================================================================================== 
-// MODAL DÉTAILS AGENCE
+// MODAL DÉTAILS SERVICE
 // ==================================================================================== 
 
-/**
- * Afficher les détails d'une agence
- */
-function showAgencyDetails(agencyId) {
-    currentAgencyId = agencyId;
+function showServiceDetails(serviceId) {
+    currentServiceId = serviceId;
 
-    // Afficher la modal
-    if (typeof $ !== 'undefined') {
-        $('#agencyDetailsModal').modal('show');
-    } else {
-        const modal = document.getElementById('agencyDetailsModal');
-        if (modal) {
-            const bsModal = new bootstrap.Modal(modal);
-            bsModal.show();
-        }
-    }
+    $('#serviceDetailsModal').modal('show');
 
-    // Afficher l'état de chargement
-    const loadingState = document.getElementById('loadingState');
-    const contentMain = document.getElementById('agencyDetailsContentMain');
-    
-    if (loadingState) loadingState.style.display = 'block';
-    if (contentMain) contentMain.style.display = 'none';
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('serviceDetailsContentMain').style.display = 'none';
 
-    // Charger les données agence
     setTimeout(() => {
-        loadAgencyDetails(agencyId);
+        loadServiceDetails(serviceId);
     }, 500);
 }
 
-/**
- * Charger les détails d'une agence
- */
-function loadAgencyDetails(agencyId) {
-    fetch(`/admin/agencies/${agencyId}/details`, {
+function loadServiceDetails(serviceId) {
+    fetch(`/admin/services/${serviceId}/details`, {
         method: 'GET',
         headers: {
             'Accept': 'application/json',
@@ -2008,174 +1681,145 @@ function loadAgencyDetails(agencyId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            populateAgencyDetails(data.agency);
-
-            // Masquer le chargement et afficher le contenu
-            const loadingState = document.getElementById('loadingState');
-            const contentMain = document.getElementById('agencyDetailsContentMain');
-            
-            if (loadingState) loadingState.style.display = 'none';
-            if (contentMain) contentMain.style.display = 'block';
+            populateServiceDetails(data.service);
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('serviceDetailsContentMain').style.display = 'block';
         } else {
             showToast('Erreur', data.message || 'Erreur lors du chargement des détails', 'error');
-            if (typeof $ !== 'undefined') {
-                $('#agencyDetailsModal').modal('hide');
-            } else {
-                const modal = document.getElementById('agencyDetailsModal');
-                if (modal) {
-                    const bsModal = bootstrap.Modal.getInstance(modal);
-                    if (bsModal) bsModal.hide();
-                }
-            }
+            $('#serviceDetailsModal').modal('hide');
         }
     })
     .catch(error => {
         console.error('Erreur:', error);
         showToast('Erreur', 'Erreur lors du chargement des détails', 'error');
-        if (typeof $ !== 'undefined') {
-            $('#agencyDetailsModal').modal('hide');
-        } else {
-            const modal = document.getElementById('agencyDetailsModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
+        $('#serviceDetailsModal').modal('hide');
     });
 }
 
-/**
- * Remplir les détails de l'agence dans la modal
- */
-function populateAgencyDetails(agency) {
-    console.log('✅ Remplissage des détails agence:', agency);
-
-    // Helper function pour remplir un élément de façon sécurisée
-    function setElementText(id, text) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = text || 'N/A';
-        }
-    }
+function populateServiceDetails(service) {
+    console.log('✅ Remplissage des détails service:', service);
 
     // En-tête
-    setElementText('modalAgencyName', `🏢 ${agency.name || 'Agence'}`);
-    setElementText('modalAgencyRole', agency.country || 'Localisation');
+    document.getElementById('modalServiceName').textContent = `⚙️ ${service.nom || 'Service'}`;
+    document.getElementById('modalServiceCode').textContent = service.code || 'code-service';
 
-    // Informations générales
-    setElementText('agencyFullName', agency.name);
-    setElementText('agencyLocation', `${agency.city || 'N/A'}, ${agency.country || 'N/A'}`);
+    // Informations principales
+    document.getElementById('serviceFullName').textContent = service.nom || 'N/A';
+    document.getElementById('serviceCode').textContent = service.code || 'N/A';
 
     // Badge de statut
-    const statusBadge = document.getElementById('agencyStatusBadgeText');
-    if (statusBadge) {
-        statusBadge.textContent = agency.status_name || 'Non défini';
-        statusBadge.className = `badge badge-${agency.status_badge_color || 'secondary'}`;
-    }
+    const statusBadge = document.getElementById('serviceStatusBadgeText');
+    statusBadge.textContent = service.statut_emoji || service.statut || 'Non défini';
+    statusBadge.className = `badge badge-${service.status_badge_color || 'secondary'}`;
 
     // Détails dans les onglets
-    setElementText('detailAgencyName', agency.name);
-    setElementText('detailAgencyId', `#${agency.id}`);
-    setElementText('detailAgencyStatus', agency.status_name);
+    document.getElementById('detailServiceName').textContent = service.nom || 'N/A';
+    document.getElementById('detailServiceCode').textContent = service.code || 'N/A';
+    document.getElementById('detailServiceId').textContent = `#${service.id}`;
+    document.getElementById('detailServiceStatus').textContent = service.statut || 'Non défini';
 
     // Informations temporelles
-    setElementText('detailCreatedAt', agency.created_at);
-    setElementText('detailUpdatedAt', agency.updated_at);
-    setElementText('detailAgencyAge', agency.age_formatted);
-    setElementText('agencyCreationDate', formatDateSimple(agency.created_at_iso));
+    document.getElementById('detailCreatedAt').textContent = service.created_at || 'Non disponible';
+    document.getElementById('detailUpdatedAt').textContent = service.updated_at || 'Non disponible';
+    document.getElementById('detailServiceAge').textContent = service.age_formatted || 'Calcul impossible';
+    document.getElementById('serviceCreationDate').textContent = service.created_at || 'Non disponible';
 
-    // Localisation
-    setElementText('detailAddress1', agency.address_1);
-    setElementText('detailAddress2', agency.address_2 || 'Non renseigné');
-    setElementText('detailCity', agency.city);
-    setElementText('detailCountry', agency.country);
-    setElementText('detailFullAddress', agency.full_address);
+    // Description
+    document.getElementById('serviceDescription').textContent = service.description || 'Aucune description disponible';
 
-    // Contact
-    setElementText('detailPhone', agency.phone);
-    const phoneLink = document.getElementById('detailPhoneLink');
-    if (phoneLink && agency.phone) {
-        phoneLink.href = `tel:${agency.phone}`;
-    }
-    setElementText('detailCreatedBy', agency.creator_name);
-    setElementText('detailNotes', agency.notes);
+    // Créateur
+    document.getElementById('creatorName').textContent = service.created_by || 'Système';
+    document.getElementById('creationDate').textContent = service.created_at || 'Non disponible';
 
     // Activité
-    setElementText('activityCreationDate', agency.created_at);
+    document.getElementById('activityCreationDate').textContent = service.created_at || 'Non disponible';
+    document.getElementById('activityUpdateDate').textContent = service.updated_at || 'Non disponible';
 
     // Mise à jour du timestamp
-    setElementText('modalLastUpdate', new Date().toLocaleString('fr-FR'));
+    document.getElementById('modalLastUpdate').textContent = new Date().toLocaleString('fr-FR');
 
     // Régénérer les icônes Feather
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
 
-    console.log('✅ Détails agence remplis avec succès');
+    console.log('✅ Détails service remplis avec succès');
+}
+
+// Actions rapides depuis le modal
+function quickActivateService() {
+    if (currentServiceId) {
+        executeServiceAction(currentServiceId, 'activate', 'ce service');
+    }
+}
+
+function quickDeactivateService() {
+    if (currentServiceId) {
+        executeServiceAction(currentServiceId, 'deactivate', 'ce service');
+    }
+}
+
+function quickDeleteService() {
+    if (currentServiceId) {
+        executeServiceAction(currentServiceId, 'delete', 'ce service');
+    }
+}
+
+function refreshServiceDetails() {
+    if (currentServiceId) {
+        showToast('Info', 'Actualisation des détails...', 'info');
+        loadServiceDetails(currentServiceId);
+    }
 }
 
 // ==================================================================================== 
 // SYSTÈME DE FILTRES ET RECHERCHE
 // ==================================================================================== 
 
-/**
- * Filtrer par statut depuis les cartes statistiques
- */
 function filterByStatus(status) {
-    const statusSelect = document.getElementById('status');
+    const statusSelect = document.getElementById('statut');
     const cards = document.querySelectorAll('.clickable-card');
 
-    // Retirer la sélection de toutes les cartes
     cards.forEach(card => card.classList.remove('card-selected'));
+    event.currentTarget.classList.add('card-selected');
 
-    // Ajouter la sélection à la carte cliquée
-    if (event && event.currentTarget) {
-        event.currentTarget.classList.add('card-selected');
+    switch(status) {
+        case 'actif':
+            statusSelect.value = 'actif';
+            break;
+        case 'inactif':
+            statusSelect.value = 'inactif';
+            break;
+        case 'all':
+        default:
+            statusSelect.value = '';
+            break;
     }
 
-    // Définir la valeur du select selon le statut
-    if (statusSelect) {
-        switch(status) {
-            case 'active':
-                statusSelect.value = 'active';
-                break;
-            case 'inactive':
-                statusSelect.value = 'inactive';
-                break;
-            case 'all':
-            default:
-                statusSelect.value = '';
-                break;
-        }
-    }
-
-    // Appliquer les filtres
     applyFilters();
 }
 
-/**
- * Filtrer par récent
- */
 function filterByRecent() {
     const cards = document.querySelectorAll('.clickable-card');
-
-    // Retirer la sélection de toutes les cartes
     cards.forEach(card => card.classList.remove('card-selected'));
+    event.currentTarget.classList.add('card-selected');
 
-    // Ajouter la sélection à la carte cliquée
-    if (event && event.currentTarget) {
-        event.currentTarget.classList.add('card-selected');
+    // Ajouter un paramètre pour filtrer les services récents
+    const form = document.getElementById('filterForm');
+    if (form) {
+        // Ajouter un input hidden pour les services récents
+        let recentInput = form.querySelector('input[name="recent"]');
+        if (!recentInput) {
+            recentInput = document.createElement('input');
+            recentInput.type = 'hidden';
+            recentInput.name = 'recent';
+            form.appendChild(recentInput);
+        }
+        recentInput.value = '7'; // 7 derniers jours
+        form.submit();
     }
-
-    // Rediriger avec un filtre de date récente
-    const url = new URL(window.location.href);
-    url.searchParams.set('recent', '7');
-    window.location.href = url.toString();
 }
 
-/**
- * Appliquer les filtres
- */
 function applyFilters() {
     const form = document.getElementById('filterForm');
     if (form) {
@@ -2183,61 +1827,44 @@ function applyFilters() {
     }
 }
 
-/**
- * Réinitialiser les filtres
- */
 function resetFilters() {
     const form = document.getElementById('filterForm');
     if (form) {
-        // Vider tous les champs
         form.querySelectorAll('input, select').forEach(field => {
-            field.value = '';
+            if (field.type !== 'hidden') {
+                field.value = '';
+            }
         });
 
-        // Retirer la sélection des cartes
+        // Supprimer les inputs hidden ajoutés
+        form.querySelectorAll('input[type="hidden"]').forEach(input => {
+            if (input.name !== '_token') {
+                input.remove();
+            }
+        });
+
         document.querySelectorAll('.clickable-card').forEach(card => {
             card.classList.remove('card-selected');
         });
 
-        // Soumettre le formulaire vide
         form.submit();
     }
 }
 
-/**
- * Recherche en temps réel
- */
-function liveSearch() {
-    const searchField = document.getElementById('search');
-    if (!searchField) return;
-    
-    const query = searchField.value;
-
-    // Annuler le timeout précédent
-    if (searchTimeout) {
-        clearTimeout(searchTimeout);
+// Fonction de recherche optimisée
+const optimizedLiveSearch = debounce(function() {
+    const query = document.getElementById('search').value;
+    if (query.length >= 2 || query.length === 0) {
+        document.getElementById('filterForm').submit();
     }
+}, 300);
 
-    // Programmer une nouvelle recherche
-    searchTimeout = setTimeout(() => {
-        if (query.length >= 2 || query.length === 0) {
-            // Soumettre le formulaire de recherche
-            const form = document.getElementById('filterForm');
-            if (form) {
-                form.submit();
-            }
-        }
-    }, 500);
+function liveSearch() {
+    optimizedLiveSearch();
 }
 
-/**
- * Recherche rapide dans l'en-tête
- */
-function quickSearchAgencies() {
-    const searchField = document.getElementById('quickSearch');
-    if (!searchField) return;
-    
-    const query = searchField.value;
+function quickSearchServices() {
+    const query = document.getElementById('quickSearch').value;
 
     if (searchTimeout) {
         clearTimeout(searchTimeout);
@@ -2245,32 +1872,21 @@ function quickSearchAgencies() {
 
     searchTimeout = setTimeout(() => {
         if (query.length >= 2) {
-            // Rediriger avec la recherche
             window.location.href = `${window.location.pathname}?search=${encodeURIComponent(query)}`;
         }
     }, 300);
 }
 
-/**
- * Vider la recherche rapide
- */
 function clearQuickSearch() {
-    const searchField = document.getElementById('quickSearch');
-    if (searchField) {
-        searchField.value = '';
-    }
+    document.getElementById('quickSearch').value = '';
     window.location.href = window.location.pathname;
 }
 
-/**
- * Vérifier les filtres actifs
- */
 function checkActiveFilters() {
     const urlParams = new URLSearchParams(window.location.search);
-    const hasFilters = urlParams.has('search') || urlParams.has('status') || urlParams.has('country') || urlParams.has('city');
+    const hasFilters = urlParams.has('search') || urlParams.has('statut') || urlParams.has('recent');
 
     if (hasFilters) {
-        // Marquer visuellement qu'il y a des filtres actifs
         const filterButton = document.querySelector('button[type="submit"]');
         if (filterButton) {
             filterButton.classList.add('filter-active');
@@ -2282,39 +1898,27 @@ function checkActiveFilters() {
 // GESTION DES SÉLECTIONS
 // ==================================================================================== 
 
-/**
- * Initialiser la gestion des sélections
- */
 function initializeSelectionHandlers() {
     const selectAllCheckbox = document.getElementById('selectAll');
     if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            toggleSelectAll();
-        });
+        selectAllCheckbox.addEventListener('change', toggleSelectAll);
     }
 
-    // Initialiser les checkboxes individuelles
-    document.querySelectorAll('.agency-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            handleIndividualCheckbox();
-        });
+    document.querySelectorAll('.service-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', handleIndividualCheckbox);
     });
 }
 
-/**
- * Basculer la sélection de toutes les agences
- */
 function toggleSelectAll() {
     const selectAllCheckbox = document.getElementById('selectAll');
-    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
     const selectAllBtn = document.getElementById('selectAllBtn');
 
     isSelectAllActive = selectAllCheckbox ? selectAllCheckbox.checked : !isSelectAllActive;
 
-    agencyCheckboxes.forEach(checkbox => {
+    serviceCheckboxes.forEach(checkbox => {
         checkbox.checked = isSelectAllActive;
 
-        // Animation visuelle
         const row = checkbox.closest('tr');
         if (row) {
             if (isSelectAllActive) {
@@ -2325,7 +1929,6 @@ function toggleSelectAll() {
         }
     });
 
-    // Mettre à jour l'icône du bouton
     if (selectAllBtn) {
         const icon = selectAllBtn.querySelector('i');
         if (icon) {
@@ -2336,56 +1939,44 @@ function toggleSelectAll() {
         }
     }
 
-    // Mettre à jour le statut de sélection
     updateSelectionStatus();
 }
 
-/**
- * Gérer les checkboxes individuelles
- */
 function handleIndividualCheckbox() {
-    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
-    const checkedCheckboxes = document.querySelectorAll('.agency-checkbox:checked');
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.service-checkbox:checked');
     const selectAllCheckbox = document.getElementById('selectAll');
 
-    // Mettre à jour l'état du "Sélectionner tout"
     if (selectAllCheckbox) {
-        selectAllCheckbox.checked = checkedCheckboxes.length === agencyCheckboxes.length;
-        selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < agencyCheckboxes.length;
+        selectAllCheckbox.checked = checkedCheckboxes.length === serviceCheckboxes.length;
+        selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < serviceCheckboxes.length;
     }
 
-    // Animation sur la ligne
-    if (event && event.target) {
-        const row = event.target.closest('tr');
-        if (row) {
-            if (event.target.checked) {
-                row.classList.add('highlight-change');
-            } else {
-                row.classList.remove('highlight-change');
-            }
+    const row = event.target.closest('tr');
+    if (row) {
+        if (event.target.checked) {
+            row.classList.add('highlight-change');
+        } else {
+            row.classList.remove('highlight-change');
         }
     }
 
     updateSelectionStatus();
 }
 
-/**
- * Mettre à jour le statut de sélection
- */
 function updateSelectionStatus() {
-    const checkedCount = document.querySelectorAll('.agency-checkbox:checked').length;
+    const checkedCount = document.querySelectorAll('.service-checkbox:checked').length;
 
-    // Mettre à jour les boutons d'action selon la sélection
     const bulkDeleteBtn = document.querySelector('button[onclick="showBulkDeleteModal()"]');
     if (bulkDeleteBtn) {
         if (checkedCount > 0) {
             bulkDeleteBtn.classList.remove('btn-outline-danger');
             bulkDeleteBtn.classList.add('btn-danger');
-            bulkDeleteBtn.title = `Supprimer ${checkedCount} agence(s) sélectionnée(s)`;
+            bulkDeleteBtn.title = `Supprimer ${checkedCount} service(s) sélectionné(s)`;
         } else {
             bulkDeleteBtn.classList.remove('btn-danger');
             bulkDeleteBtn.classList.add('btn-outline-danger');
-            bulkDeleteBtn.title = 'Supprimer sélectionnées';
+            bulkDeleteBtn.title = 'Supprimer sélectionnés';
         }
     }
 }
@@ -2394,19 +1985,12 @@ function updateSelectionStatus() {
 // MISE À JOUR TEMPS RÉEL
 // ==================================================================================== 
 
-/**
- * Démarrer les mises à jour temps réel
- */
 function startRealTimeUpdates() {
-    // Mettre à jour les statistiques toutes les 30 secondes
     realTimeInterval = setInterval(() => {
         refreshStats();
     }, 30000);
 }
 
-/**
- * Arrêter les mises à jour temps réel
- */
 function stopRealTimeUpdates() {
     if (realTimeInterval) {
         clearInterval(realTimeInterval);
@@ -2414,71 +1998,81 @@ function stopRealTimeUpdates() {
     }
 }
 
-/**
- * Actualiser les statistiques
- */
 function refreshStats() {
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) {
-        // Animation de rotation sur l'icône
         const icon = refreshBtn.querySelector('i');
         if (icon) {
             icon.style.animation = 'spin 1s linear infinite';
         }
 
-        // Simuler une mise à jour des stats
-        setTimeout(() => {
-            if (icon) {
-                icon.style.animation = '';
+        // Faire un vrai appel API pour les stats
+        fetch('/admin/api/services/stats', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
             }
-
-            // Mettre à jour le timestamp
-            lastUpdateTimestamp = Date.now();
-        }, 1000);
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Mettre à jour les statistiques dans l'interface
+                updateStatsDisplay(data.stats);
+                console.log('✅ Statistiques mises à jour');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur stats:', error);
+        })
+        .finally(() => {
+            setTimeout(() => {
+                if (icon) {
+                    icon.style.animation = '';
+                }
+            }, 1000);
+        });
     }
 }
 
-/**
- * Actualiser la liste des agences
- */
-function refreshAgenciesList() {
+function updateStatsDisplay(stats) {
+    // Mettre à jour les cartes de statistiques
+    const totalElement = document.getElementById('totalServices');
+    if (totalElement) {
+        totalElement.textContent = stats.total || 0;
+    }
+    
+    // Mettre à jour les autres compteurs si nécessaire
+    document.querySelectorAll('.counter').forEach(counter => {
+        const target = counter.getAttribute('data-target');
+        if (target) {
+            // Animation du compteur si souhaité
+            counter.textContent = target;
+        }
+    });
+}
+
+function refreshServicesList() {
     showToast('Info', 'Actualisation de la liste...', 'info');
     window.location.reload();
 }
 
-/**
- * Exporter les agences
- */
-function exportAgencies() {
+function exportServices() {
     showToast('Info', 'Export en cours...', 'info');
 
-    // Simuler un export
+    // Vraie redirection vers l'export
     setTimeout(() => {
-        showToast('Succès', 'Export terminé !', 'success');
-
-        // Créer un lien de téléchargement factice
-        const link = document.createElement('a');
-        link.href = '/admin/agencies/export';
-        link.download = `agences_${new Date().toISOString().split('T')[0]}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }, 2000);
+        window.location.href = '/admin/services/export';
+        showToast('Succès', 'Export lancé !', 'success');
+    }, 1000);
 }
 
 // ==================================================================================== 
-// SYSTÈME DE NOTIFICATIONS TOAST (Version améliorée)
+// SYSTÈME DE NOTIFICATIONS TOAST
 // ==================================================================================== 
 
-/**
- * Afficher une notification toast
- */
 function showToast(title, message, type = 'info') {
     const toastContainer = document.getElementById('toastContainer');
-    if (!toastContainer) {
-        console.warn('Toast container non trouvé');
-        return;
-    }
+    if (!toastContainer) return;
 
     const toastId = 'toast_' + Date.now();
     const icons = {
@@ -2513,45 +2107,20 @@ function showToast(title, message, type = 'info') {
     toastContainer.insertAdjacentHTML('beforeend', toastHTML);
 
     const toastElement = document.getElementById(toastId);
-    
-    // Initialiser le toast selon la version de Bootstrap disponible
-    if (typeof $ !== 'undefined') {
-        // Bootstrap 4 avec jQuery
-        $(toastElement).toast({ delay: 5000 }).toast('show');
-        
-        $(toastElement).on('hidden.bs.toast', function() {
-            if (this.parentNode) {
-                this.parentNode.removeChild(this);
-            }
-        });
-    } else if (typeof bootstrap !== 'undefined') {
-        // Bootstrap 5 natif
-        const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
-        toast.show();
-        
-        toastElement.addEventListener('hidden.bs.toast', function() {
-            if (this.parentNode) {
-                this.parentNode.removeChild(this);
-            }
-        });
-    } else {
-        // Fallback : supprimer automatiquement après 5 secondes
-        setTimeout(() => {
-            if (toastElement && toastElement.parentNode) {
-                toastElement.parentNode.removeChild(toastElement);
-            }
-        }, 5000);
-    }
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
 
-    // Régénérer les icônes Feather
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
+
+    setTimeout(() => {
+        if (toastElement && toastElement.parentNode) {
+            toastElement.parentNode.removeChild(toastElement);
+        }
+    }, 6000);
 }
 
-/**
- * Afficher un overlay de chargement
- */
 function showLoading() {
     const overlay = document.getElementById('loadingOverlay');
     const tableView = document.getElementById('tableView');
@@ -2562,9 +2131,6 @@ function showLoading() {
     }
 }
 
-/**
- * Masquer l'overlay de chargement
- */
 function hideLoading() {
     const overlay = document.getElementById('loadingOverlay');
     const tableView = document.getElementById('tableView');
@@ -2575,156 +2141,33 @@ function hideLoading() {
     }
 }
 
-/**
- * Formater une date simple avec gestion d'erreurs
- */
-function formatDateSimple(dateString) {
-    if (!dateString) return 'Non disponible';
-
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return 'Date invalide';
-
-        return date.toLocaleDateString('fr-FR');
-    } catch (error) {
-        console.error('Erreur formatage date simple:', error);
-        return 'Format invalide';
-    }
-}
-
-// Actions pour les détails d'agence
-function refreshAgencyDetails() {
-    if (currentAgencyId) {
-        showToast('Info', 'Actualisation des détails...', 'info');
-        loadAgencyDetails(currentAgencyId);
-    }
-}
-
-function copyAgencyAddress() {
-    const addressElement = document.getElementById('detailFullAddress');
-    if (addressElement) {
-        const address = addressElement.textContent;
-        if (address && address !== 'Adresse non disponible') {
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(address).then(() => {
-                    showToast('Succès', 'Adresse copiée dans le presse-papier !', 'success');
-                }).catch(() => {
-                    showToast('Erreur', 'Impossible de copier l\'adresse', 'error');
-                });
-            } else {
-                showToast('Erreur', 'Fonction de copie non supportée', 'error');
-            }
-        }
-    }
-}
-
-function openMap() {
-    const addressElement = document.getElementById('detailFullAddress');
-    if (addressElement) {
-        const address = addressElement.textContent;
-        if (address && address !== 'Adresse non disponible') {
-            const encodedAddress = encodeURIComponent(address);
-            window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
-        } else {
-            showToast('Erreur', 'Aucune adresse disponible pour la carte', 'error');
-        }
-    }
-}
-
-function getDirections() {
-    const addressElement = document.getElementById('detailFullAddress');
-    if (addressElement) {
-        const address = addressElement.textContent;
-        if (address && address !== 'Adresse non disponible') {
-            const encodedAddress = encodeURIComponent(address);
-            window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank');
-        } else {
-            showToast('Erreur', 'Aucune adresse disponible pour l\'itinéraire', 'error');
-        }
-    }
-}
-
-function callAgency() {
-    const phoneElement = document.getElementById('detailPhone');
-    if (phoneElement) {
-        const phone = phoneElement.textContent;
-        if (phone && phone !== 'N/A') {
-            window.location.href = `tel:${phone}`;
-        } else {
-            showToast('Erreur', 'Aucun numéro de téléphone disponible', 'error');
-        }
-    }
-}
-
-function copyAgencyPhone() {
-    const phoneElement = document.getElementById('detailPhone');
-    if (phoneElement) {
-        const phone = phoneElement.textContent;
-        if (phone && phone !== 'N/A') {
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(phone).then(() => {
-                    showToast('Succès', 'Téléphone copié dans le presse-papier !', 'success');
-                }).catch(() => {
-                    showToast('Erreur', 'Impossible de copier le téléphone', 'error');
-                });
-            } else {
-                showToast('Erreur', 'Fonction de copie non supportée', 'error');
-            }
-        }
-    }
-}
-
-function shareAgencyInfo() {
-    const agencyNameElement = document.getElementById('detailAgencyName');
-    const agencyPhoneElement = document.getElementById('detailPhone');
-    const agencyAddressElement = document.getElementById('detailFullAddress');
-
-    if (agencyNameElement && agencyPhoneElement && agencyAddressElement) {
-        const agencyName = agencyNameElement.textContent;
-        const agencyPhone = agencyPhoneElement.textContent;
-        const agencyAddress = agencyAddressElement.textContent;
-
-        const shareText = `Informations agence "${agencyName}":
- Téléphone: ${agencyPhone}
- Adresse: ${agencyAddress}`;
-
-        if (navigator.share) {
-            navigator.share({
-                title: `Agence ${agencyName}`,
-                text: shareText
-            });
-        } else if (navigator.clipboard) {
-            navigator.clipboard.writeText(shareText).then(() => {
-                showToast('Succès', 'Informations copiées dans le presse-papier !', 'success');
-            }).catch(() => {
-                showToast('Erreur', 'Impossible de partager les informations', 'error');
-            });
-        } else {
-            showToast('Erreur', 'Fonction de partage non supportée', 'error');
-        }
-    }
-}
-
 // ==================================================================================== 
-// GESTION DES ERREURS ET CLEANUP
+// FONCTIONS UTILITAIRES
 // ==================================================================================== 
 
-/**
- * Nettoyage avant fermeture de page
- */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Gestion des erreurs globales
 window.addEventListener('beforeunload', function() {
     stopRealTimeUpdates();
 });
 
-/**
- * Gestion des erreurs globales
- */
 window.addEventListener('error', function(event) {
     console.error('Erreur JavaScript:', event.error);
     showToast('Erreur', 'Une erreur inattendue s\'est produite', 'error');
 });
 
-// Initialisation finale
-console.log(' Système de gestion des agences initialisé avec succès');
+console.log(' Système de gestion des services corrigé - Prêt à l\'utilisation !');
 </script>
+
 @endsection

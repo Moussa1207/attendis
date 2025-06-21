@@ -100,7 +100,7 @@
                 </ul>                        
             </li>
 
-            <!-- ✅ CORRIGÉ: Gestion des Agences avec les bonnes routes -->
+            <!--  Gestion des Agences avec les bonnes routes -->
             <li>
                 <a href="javascript: void(0);">
                     <i data-feather="home" class="align-self-center menu-icon"></i>
@@ -108,29 +108,58 @@
                     <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <!-- ✅ CORRIGÉ: Route création agence -->
+                    <!--  Route création agence -->
                     <li>
-                        <a href="{{ route('agencies.create') }}">
+                        <a href="{{ route('agency.agence-create') }}">
                             <i class="ti-control-record"></i>Nouveau
                         </a>
                     </li>
-                    <!-- ✅ CORRIGÉ: Route liste agences -->
+                    <!--  Route liste agences -->
                     <li>
-                        <a href="{{ route('agencies.index') }}">
+                        <a href="{{ route('agency.agence') }}">
                             <i class="ti-control-record"></i>Liste
                         </a>                           
                     </li>
                 </ul>                        
             </li>
 
-            <!-- Statistiques Admin -->
             <li>
-                <a href="{{ route('layouts.app') }}">
-                    <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i>
-                    <span>Statistiques</span>
-                </a>
-            </li>
+    <a href="javascript: void(0);">
+        <i data-feather="settings" class="align-self-center menu-icon"></i>
+        <span>Service</span>
+        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+    </a>
+    <ul class="nav-second-level" aria-expanded="false">
+        <!-- NOUVEAU : Route création service -->
+        <li>
+            <a href="{{ route('service.service-create') }}">
+                <i class="ti-control-record"></i>Nouveau
+            </a>
+        </li>
+        <!-- NOUVEAU : Route liste services -->
+                      <li>
+                    <a href="{{ route('service.service-list') }}">
+                      <i class="ti-control-record"></i>Liste
+                   </a>                           
+                 </li>
+             </ul>                        
+          </li>
 
+            <!-- Paramètres Admin -->
+<li>
+    <a href="javascript: void(0);">
+        <i data-feather="settings" class="align-self-center menu-icon"></i>
+        <span>Paramètres</span>
+        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+    </a>
+    <ul class="nav-second-level" aria-expanded="false">
+        <li>
+            <a href="{{ route('layouts.app') }}">
+                <i class="ti-control-record"></i>Général
+            </a>
+        </li>
+    </ul>
+</li>
             @else
             <!-- Section Utilisateur Normal -->
             <hr class="hr-dashed hr-menu">

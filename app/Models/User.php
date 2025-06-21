@@ -131,6 +131,59 @@ class User extends Authenticatable
     {
         return $this->status_id === 3;
     }
+    // ===============================================
+// MÉTHODES UTILITAIRES POUR LES SERVICES (à ajouter dans la section méthodes utilitaires)
+// ===============================================
+
+/**
+ * Obtenir le nombre de services créés par cet utilisateur
+ */
+public function getCreatedServicesCountAttribute(): int
+{
+    return $this->createdServices()->count();
+}
+
+/**
+ * Vérifier si l'utilisateur a créé des services
+ */
+public function hasCreatedServices(): bool
+{
+    return $this->createdServices()->exists();
+}
+
+/**
+ * Obtenir les services actifs créés par cet utilisateur
+ */
+public function getActiveCreatedServices()
+{
+    return $this->createdServices()->where('statut', 'actif');
+}
+
+/**
+ * Obtenir les services inactifs créés par cet utilisateur
+ */
+public function getInactiveCreatedServices()
+{
+    return $this->createdServices()->where('statut', 'inactif');
+}
+
+/**
+ * Obtenir les statistiques des services créés par cet utilisateur
+ */
+public function getServicesStats(): array
+{
+    $services = $this->createdServices();
+    
+    return [
+        'total_services' => $services->count(),
+        'active_services' => $services->where('statut', 'actif')->count(),
+        'inactive_services' => $services->where('statut', 'inactif')->count(),
+        'recent_services' => $services->where('created_at', '>=', now()->subDays(30))->count(),
+        'services_this_month' => $services->whereMonth('created_at', now()->month)->count(),
+        'services_today' => $services->whereDate('created_at', today())->count(),
+    ];
+}
+
 
     // ===============================================
     // MÉTHODES POUR CHANGER LE STATUT
@@ -685,7 +738,47 @@ class User extends Authenticatable
     {
         return $query->whereIn('user_type_id', [2, 3, 4]);
     }
+// ===============================================
+// SCOPE POUR LES SERVICES 
+// ===============================================
 
+/**
+ * NOUVEAU : Scope pour les utilisateurs ayant créé des services
+ */
+public function scopeWithServices($query)
+{
+    return $query->whereHas('createdServices');
+}
+
+/**
+ * NOUVEAU : Scope pour les utilisateurs ayant créé des services actifs
+ */
+public function scopeWithActiveServices($query)
+{
+    return $query->whereHas('createdServices', function($q) {
+        $q->where('statut', 'actif');
+    });
+}
+
+/**
+ * NOUVEAU : Scope pour les utilisateurs ayant créé des services inactifs
+ */
+public function scopeWithInactiveServices($query)
+{
+    return $query->whereHas('createdServices', function($q) {
+        $q->where('statut', 'inactif');
+    });
+}
+
+/**
+ * NOUVEAU : Scope pour les utilisateurs ayant créé au moins X services
+ */
+public function scopeWithMinServices($query, int $minCount = 1)
+{
+    return $query->whereHas('createdServices', function($q) use ($minCount) {
+        $q->havingRaw('COUNT(*) >= ?', [$minCount]);
+    });
+}
     /**
      * Legacy - Garde la compatibilité avec l'ancien code
      */
@@ -812,8 +905,19 @@ class User extends Authenticatable
             'conseiller_users' => self::conseillerUsers()->count(),
             'recent_users' => self::recentlyCreated()->count(),
             'users_needing_password_reset' => self::needingPasswordReset()->count(),
-            'recently_logged_in' => self::recentlyLoggedIn()->count(), // ✅ NOUVEAU
-            'with_failed_attempts' => self::withFailedAttempts()->count(), // ✅ NOUVEAU
+            'recently_logged_in' => self::recentlyLoggedIn()->count(), //  NOUVEAU
+            'with_failed_attempts' => self::withFailedAttempts()->count(), //  NOUVEAU
+            // NOUVEAU : Services
+        'total_services' => \App\Models\Service::count(),
+        'active_services' => \App\Models\Service::where('statut', 'actif')->count(),
+        'inactive_services' => \App\Models\Service::where('statut', 'inactif')->count(),
+        'recent_services' => \App\Models\Service::where('created_at', '>=', now()->subDays(30))->count(),
+        'services_created_today' => \App\Models\Service::whereDate('created_at', today())->count(),
+        'services_created_this_month' => \App\Models\Service::whereMonth('created_at', now()->month)->count(),
+        
+        // Relations utilisateurs-services
+        'users_with_services' => self::whereHas('createdServices')->count(),
+        'admins_with_services' => self::admins()->whereHas('createdServices')->count(),
         ];
     }
 
@@ -894,4 +998,113 @@ class User extends Authenticatable
 
         return $query;
     }
+
+    // ===============================================
+// NOUVELLE MÉTHODE POUR LES STATISTIQUES SERVICES D'UN ADMIN
+// ===============================================
+
+/**
+ * NOUVEAU : Obtenir les statistiques détaillées des services pour un admin
+ */
+public function getDetailedServicesStats(): array
+{
+    if (!$this->isAdmin()) {
+        return [];
+    }
+
+    $services = $this->createdServices();
+    $baseStats = $this->getServicesStats();
+    
+    // Statistiques avancées
+    $oldestService = $services->oldest('created_at')->first();
+    $newestService = $services->latest('created_at')->first();
+    
+    return array_merge($baseStats, [
+        'oldest_service' => $oldestService ? [
+            'nom' => $oldestService->nom,
+            'code' => $oldestService->code,
+            'created_at' => $oldestService->created_at->format('d/m/Y'),
+            'days_ago' => $oldestService->created_at->diffInDays(now())
+        ] : null,
+        
+        'newest_service' => $newestService ? [
+            'nom' => $newestService->nom,
+            'code' => $newestService->code,
+            'created_at' => $newestService->created_at->format('d/m/Y'),
+            'days_ago' => $newestService->created_at->diffInDays(now())
+        ] : null,
+        
+        'average_services_per_month' => $this->getAverageServicesPerMonth(),
+        'most_productive_month' => $this->getMostProductiveMonth(),
+        'services_by_status' => [
+            'actif' => $services->where('statut', 'actif')->get()->map(function($service) {
+                return [
+                    'nom' => $service->nom,
+                    'code' => $service->code,
+                    'created_at' => $service->created_at->format('d/m/Y')
+                ];
+            })->toArray(),
+            'inactif' => $services->where('statut', 'inactif')->get()->map(function($service) {
+                return [
+                    'nom' => $service->nom,
+                    'code' => $service->code,
+                    'created_at' => $service->created_at->format('d/m/Y')
+                ];
+            })->toArray(),
+        ]
+    ]);
+}
+
+/**
+ * Calculer la moyenne de services créés par mois
+ */
+private function getAverageServicesPerMonth(): float
+{
+    $firstService = $this->createdServices()->oldest('created_at')->first();
+    if (!$firstService) {
+        return 0;
+    }
+    
+    $monthsSinceFirst = $firstService->created_at->diffInMonths(now()) + 1;
+    $totalServices = $this->createdServices()->count();
+    
+    return round($totalServices / $monthsSinceFirst, 2);
+}
+
+/**
+ * Trouver le mois le plus productif
+ */
+private function getMostProductiveMonth(): ?array
+{
+    $servicesByMonth = $this->createdServices()
+        ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, COUNT(*) as count')
+        ->groupBy('year', 'month')
+        ->orderBy('count', 'desc')
+        ->first();
+    
+    if (!$servicesByMonth) {
+        return null;
+    }
+    
+    return [
+        'year' => $servicesByMonth->year,
+        'month' => $servicesByMonth->month,
+        'month_name' => \Carbon\Carbon::create($servicesByMonth->year, $servicesByMonth->month)->locale('fr')->monthName,
+        'count' => $servicesByMonth->count,
+        'formatted' => \Carbon\Carbon::create($servicesByMonth->year, $servicesByMonth->month)->locale('fr')->format('F Y')
+    ];
+}
+
+
+    // ===============================================
+// RELATIONS AVEC LES SERVICES 
+// ===============================================
+
+/**
+ * Services créés par cet utilisateur
+ */
+public function createdServices()
+{
+    return $this->hasMany(Service::class, 'created_by');
+}
 }

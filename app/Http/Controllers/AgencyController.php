@@ -118,7 +118,7 @@ class AgencyController extends Controller
                 'created_by' => Auth::id(),
             ]);
 
-            return redirect()->route('agencies.index')
+            return redirect()->route('agency.agence')
                 ->with('success', " Agence \"{$agency->name}\" créée avec succès !");
 
         } catch (\Exception $e) {
@@ -169,7 +169,7 @@ class AgencyController extends Controller
                 'name', 'phone', 'address_1', 'address_2', 'city', 'country'
             ]));
 
-            return redirect()->route('agencies.index')
+            return redirect()->route('agency.agence')
                 ->with('success', " Agence \"{$agency->name}\" mise à jour avec succès !");
 
         } catch (\Exception $e) {

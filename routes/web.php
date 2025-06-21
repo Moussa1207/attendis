@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\AgencyController;
+use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\PasswordManagementController;
@@ -81,8 +82,8 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
 Route::prefix('admin')->middleware(['auth'])->group(function () {
     
     // Routes principales des agences
-    Route::get('/agencies', [AgencyController::class, 'index'])->name('agencies.index');
-    Route::get('/agencies/create', [AgencyController::class, 'create'])->name('agencies.create');
+    Route::get('/agencies', [AgencyController::class, 'index'])->name('agency.agence');
+    Route::get('/agencies/create', [AgencyController::class, 'create'])->name('agency.agence-create');
     Route::post('/agencies', [AgencyController::class, 'store'])->name('agencies.store');
     Route::get('/agencies/{agency}', [AgencyController::class, 'show'])->name('agencies.show');
     Route::get('/agencies/{agency}/edit', [AgencyController::class, 'edit'])->name('agencies.edit');
@@ -99,6 +100,38 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
     Route::post('/agencies/bulk-delete', [AgencyController::class, 'bulkDelete'])->name('agencies.bulk-delete');
     Route::get('/agencies/export', [AgencyController::class, 'export'])->name('agencies.export');
 });  
+
+/*
+|--------------------------------------------------------------------------
+| GESTION DES SERVICES (À ajouter dans la section ROUTES ADMINISTRATEURS)
+|--------------------------------------------------------------------------
+*/
+
+// Routes principales des services
+Route::prefix('admin')->middleware(['auth', 'admin'])->group(function () {
+    
+    // Routes principales des services
+    Route::get('/services', [ServiceController::class, 'index'])->name('service.service-list');
+    Route::get('/services/create', [ServiceController::class, 'create'])->name('service.service-create');
+    Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
+    Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show');
+    Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
+    Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
+    Route::delete('/services/{service}', [ServiceController::class, 'destroy'])->name('services.destroy');
+    
+    // Routes pour les actions spécifiques des services
+    Route::post('/services/{service}/activate', [ServiceController::class, 'activate'])->name('services.activate');
+    Route::post('/services/{service}/deactivate', [ServiceController::class, 'deactivate'])->name('services.deactivate');
+    Route::get('/services/{service}/details', [ServiceController::class, 'details'])->name('services.details');
+    
+    // Routes pour les actions en masse
+    Route::post('/services/bulk-activate', [ServiceController::class, 'bulkActivate'])->name('services.bulk-activate');
+    Route::post('/services/bulk-delete', [ServiceController::class, 'bulkDelete'])->name('services.bulk-delete');
+    Route::get('/services/export', [ServiceController::class, 'export'])->name('services.export');
+    
+    // API pour statistiques des services
+    Route::get('/api/services/stats', [ServiceController::class, 'getStats'])->name('services.api.stats');
+});
         /*
         |--------------------------------------------------------------------------
         | GESTION DES UTILISATEURS
