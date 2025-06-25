@@ -116,7 +116,7 @@
                         <div class="row">
                             <div class="col">
                                 <h4 class="page-title animate__animated animate__fadeInDown">
-                                    <i data-feather="settings" class="mr-2"></i>Gestion des services
+                                    <i data-feather="briefcase" class="mr-2"></i>Gestion des services
                                 </h4>
                                 <ol class="breadcrumb">
                                     <li class="breadcrumb-item"><a href="{{ route('layouts.app') }}">Dashboard</a></li>
@@ -156,7 +156,7 @@
                                 </div>
                                 <div class="col-auto align-self-center">
                                     <div class="report-main-icon bg-light-alt">
-                                        <i data-feather="settings" class="align-self-center text-primary icon-md"></i>  
+                                        <i data-feather="briefcase" class="align-self-center text-primary icon-md"></i>  
                                     </div>
                                 </div>
                             </div>
@@ -373,7 +373,7 @@
                                                         <input type="checkbox" class="service-checkbox mr-2" value="{{ $service->id }}" onchange="handleIndividualCheckbox()">
                                                         <div class="service-icon mr-3">
                                                             <div class="avatar-sm bg-soft-{{ $service->getStatusBadgeColor() }} rounded-circle d-flex align-items-center justify-content-center">
-                                                                <i data-feather="settings" class="icon-xs text-{{ $service->getStatusBadgeColor() }}"></i>
+                                                                <i data-feather="briefcase" class="icon-xs text-{{ $service->getStatusBadgeColor() }}"></i>
                                                             </div>
                                                         </div>
                                                         <div class="media-body align-self-center">
@@ -441,7 +441,7 @@
                                 <!-- ✅ AUCUN RÉSULTAT AMÉLIORÉ -->
                                 <div class="text-center py-5" id="noResults">
                                     <div>
-                                        <i data-feather="settings" class="icon-lg text-muted mb-3"></i>
+                                        <i data-feather="briefcase" class="icon-lg text-muted mb-3"></i>
                                         <h5 class="text-muted">Aucun service trouvé</h5>
                                         <p class="text-muted mb-4">Essayez de modifier vos critères de recherche ou créez un nouveau service.</p>
                                         <div>
@@ -539,13 +539,13 @@
                 <div class="d-flex align-items-center flex-grow-1">
                     <div class="service-icon-modal mr-3">
                         <div class="avatar-md bg-white rounded-circle d-flex align-items-center justify-content-center">
-                            <i data-feather="settings" class="icon-sm text-primary"></i>
+                            <i data-feather="briefcase" class="icon-sm text-primary"></i>
                         </div>
                         <div class="service-status-indicator" id="serviceStatusIndicator"></div>
                     </div>
                     <div>
                         <h5 class="modal-title mb-0" id="modalServiceName">
-                            <i data-feather="settings" class="icon-sm mr-2"></i>Chargement...
+                            <i data-feather="briefcase" class="icon-sm mr-2"></i>Chargement...
                         </h5>
                         <small class="text-white-50" id="modalServiceCode">Informations service</small>
                     </div>
@@ -576,7 +576,7 @@
                                     <div class="d-flex align-items-center">
                                         <div class="service-avatar-large mr-4">
                                             <div class="avatar-lg bg-primary rounded-circle d-flex align-items-center justify-content-center shadow">
-                                                <i data-feather="settings" class="icon-lg text-white"></i>
+                                                <i data-feather="briefcase" class="icon-lg text-white"></i>
                                             </div>
                                             <div class="status-badge" id="serviceStatusBadge"></div>
                                         </div>
@@ -607,7 +607,7 @@
                         <ul class="nav nav-pills nav-pills-enhanced mb-4" id="serviceDetailsTabs" role="tablist">
                             <li class="nav-item">
                                 <a class="nav-link active" id="general-tab" data-toggle="pill" href="#general" role="tab">
-                                    <i data-feather="settings" class="icon-xs mr-1"></i>Informations Générales
+                                    <i data-feather="briefcase" class="icon-xs mr-1"></i>Informations Générales
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -1493,7 +1493,7 @@ function showBulkActivateModal() {
         message: `Confirmer l'activation de tous les services inactifs ?`,
         details: `
             <div class="text-warning">
-                <i data-feather="settings" class="icon-xs mr-1"></i>
+                <i data-feather="briefcase" class="icon-xs mr-1"></i>
                 <strong>Tous les services inactifs seront activés</strong><br>
                 <small>• Ils seront immédiatement disponibles<br>
                 • Les statuts seront mis à jour</small>

@@ -123,38 +123,39 @@
                 </ul>                        
             </li>
 
+            <!-- ✅ CORRECTION: Service avec icône "briefcase" -->
+            <li>
+                <a href="javascript: void(0);">
+                    <i data-feather="briefcase" class="align-self-center menu-icon"></i>
+                    <span>Service</span>
+                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                </a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <!-- NOUVEAU : Route création service -->
+                    <li>
+                        <a href="{{ route('service.service-create') }}">
+                            <i class="ti-control-record"></i>Nouveau
+                        </a>
+                    </li>
+                    <!-- NOUVEAU : Route liste services -->
+                    <li>
+                        <a href="{{ route('service.service-list') }}">
+                            <i class="ti-control-record"></i>Liste
+                        </a>                           
+                    </li>
+                </ul>                        
+            </li>
+
+            <!--  Paramètres avec icône "settings" -->
             <li>
     <a href="javascript: void(0);">
         <i data-feather="settings" class="align-self-center menu-icon"></i>
-        <span>Service</span>
-        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-    </a>
-    <ul class="nav-second-level" aria-expanded="false">
-        <!-- NOUVEAU : Route création service -->
-        <li>
-            <a href="{{ route('service.service-create') }}">
-                <i class="ti-control-record"></i>Nouveau
-            </a>
-        </li>
-        <!-- NOUVEAU : Route liste services -->
-                      <li>
-                    <a href="{{ route('service.service-list') }}">
-                      <i class="ti-control-record"></i>Liste
-                   </a>                           
-                 </li>
-             </ul>                        
-          </li>
-
-            <!-- Paramètres Admin -->
-<li>
-    <a href="javascript: void(0);">
-        <i data-feather="settings" class="align-self-center menu-icon"></i>
-        <span>Paramètres</span>
+        <span>Paramètre</span>
         <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
     </a>
     <ul class="nav-second-level" aria-expanded="false">
         <li>
-            <a href="{{ route('layouts.app') }}">
+            <a href="{{ route('layouts.setting') }}">
                 <i class="ti-control-record"></i>Général
             </a>
         </li>
@@ -342,6 +343,372 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+});
+
+class AttendisSessionChecker {
+    constructor(options = {}) {
+        this.options = {
+            checkInterval: options.checkInterval || 30000, // 30 secondes
+            warningTime: options.warningTime || 300000,    // 5 minutes avant fermeture
+            enableDebug: options.enableDebug || false,
+            ...options
+        };
+        
+        this.isChecking = false;
+        this.warningShown = false;
+        this.lastCheck = null;
+        
+        this.init();
+    }
+
+    /**
+     * Initialiser le vérificateur
+     */
+    init() {
+        // Vérifier si l'utilisateur est connecté
+        if (!this.isAuthenticated()) {
+            return;
+        }
+
+        this.log('SessionChecker initialized');
+        
+        // Démarrer la vérification périodique
+        this.startPeriodicCheck();
+        
+        // Écouter les événements de focus/blur pour optimiser
+        this.setupWindowEvents();
+        
+        // Vérification initiale
+        this.checkSession();
+    }
+
+    /**
+     * Vérifier si l'utilisateur est authentifié
+     */
+    isAuthenticated() {
+        // Vérifier la présence d'un token CSRF (indique une session Laravel)
+        return document.querySelector('meta[name="csrf-token"]') !== null;
+    }
+
+    /**
+     * Démarrer la vérification périodique
+     */
+    startPeriodicCheck() {
+        this.intervalId = setInterval(() => {
+            if (document.hasFocus() || !this.lastCheck || 
+                (Date.now() - this.lastCheck) > this.options.checkInterval * 2) {
+                this.checkSession();
+            }
+        }, this.options.checkInterval);
+    }
+
+    /**
+     * Arrêter la vérification périodique
+     */
+    stopPeriodicCheck() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+    }
+
+    /**
+     * Configurer les événements de fenêtre
+     */
+    setupWindowEvents() {
+        // Pause quand la fenêtre n'est pas active
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.log('Window hidden, pausing checks');
+            } else {
+                this.log('Window visible, resuming checks');
+                this.checkSession();
+            }
+        });
+
+        // Vérifier lors du retour de focus
+        window.addEventListener('focus', () => {
+            this.checkSession();
+        });
+    }
+
+    /**
+     * Vérifier l'état de la session
+     */
+    async checkSession() {
+        if (this.isChecking) {
+            return;
+        }
+
+        this.isChecking = true;
+        this.lastCheck = Date.now();
+
+        try {
+            // Vérifier la fermeture automatique
+            const closureResponse = await this.fetchSessionClosure();
+            
+            if (closureResponse.should_logout) {
+                this.handleForcedLogout(closureResponse);
+                return;
+            }
+
+            // Obtenir les informations de session détaillées
+            const sessionInfo = await this.fetchSessionInfo();
+            
+            if (!sessionInfo.authenticated) {
+                this.handleSessionExpired();
+                return;
+            }
+
+            // Vérifier les actions requises
+            this.handleRequiredActions(sessionInfo.required_actions || []);
+            
+            // Vérifier les avertissements de fermeture
+            this.checkClosureWarning(sessionInfo.session_settings);
+            
+            this.log('Session check completed', sessionInfo);
+
+        } catch (error) {
+            this.log('Session check failed', error);
+            
+            // En cas d'erreur 401/403, considérer comme déconnecté
+            if (error.status === 401 || error.status === 403) {
+                this.handleSessionExpired();
+            }
+        } finally {
+            this.isChecking = false;
+        }
+    }
+
+    /**
+     * Faire une requête pour vérifier la fermeture automatique
+     */
+    async fetchSessionClosure() {
+        const response = await fetch('/api/session/check-closure', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            }
+        });
+
+        if (!response.ok) {
+            throw { status: response.status, message: response.statusText };
+        }
+
+        return await response.json();
+    }
+
+    /**
+     * Obtenir les informations détaillées de session
+     */
+    async fetchSessionInfo() {
+        const response = await fetch('/api/session/info', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            }
+        });
+
+        if (!response.ok) {
+            throw { status: response.status, message: response.statusText };
+        }
+
+        return await response.json();
+    }
+
+    /**
+     * Gérer une déconnexion forcée
+     */
+    handleForcedLogout(response) {
+        this.stopPeriodicCheck();
+        
+        this.showNotification('warning', response.message || 'Votre session a été fermée automatiquement.');
+        
+        setTimeout(() => {
+            window.location.href = response.redirect_url || '/login';
+        }, 3000);
+    }
+
+    /**
+     * Gérer une session expirée
+     */
+    handleSessionExpired() {
+        this.stopPeriodicCheck();
+        
+        this.showNotification('error', 'Votre session a expiré. Redirection vers la page de connexion...');
+        
+        setTimeout(() => {
+            window.location.href = '/login';
+        }, 3000);
+    }
+
+    /**
+     * Gérer les actions requises
+     */
+    handleRequiredActions(actions) {
+        actions.forEach(action => {
+            switch (action.type) {
+                case 'password_change':
+                    this.showNotification('info', action.message, { persistent: true });
+                    break;
+                case 'session_closure':
+                    this.showClosureWarning(action.message);
+                    break;
+                case 'security_warning':
+                    this.showNotification('warning', action.message);
+                    break;
+            }
+        });
+    }
+
+    /**
+     * Vérifier et afficher l'avertissement de fermeture
+     */
+    checkClosureWarning(settings) {
+        if (!settings.auto_closure_enabled || settings.should_close_now) {
+            return;
+        }
+
+        const closureTime = settings.closure_time;
+        if (!closureTime) {
+            return;
+        }
+
+        const now = new Date();
+        const [hours, minutes] = closureTime.split(':').map(Number);
+        const closureDate = new Date();
+        closureDate.setHours(hours, minutes, 0, 0);
+
+        const timeUntilClosure = closureDate.getTime() - now.getTime();
+
+        // Afficher un avertissement 5 minutes avant la fermeture
+        if (timeUntilClosure > 0 && timeUntilClosure <= this.options.warningTime && !this.warningShown) {
+            const minutesLeft = Math.floor(timeUntilClosure / 60000);
+            this.showClosureWarning(`Votre session se fermera automatiquement dans ${minutesLeft} minute(s) (${closureTime}).`);
+            this.warningShown = true;
+        }
+    }
+
+    /**
+     * Afficher un avertissement de fermeture
+     */
+    showClosureWarning(message) {
+        this.showNotification('warning', message, { 
+            persistent: true,
+            actionButton: {
+                text: 'Prolonger',
+                action: () => this.requestSessionExtension()
+            }
+        });
+    }
+
+    /**
+     * Demander une extension de session (pour les admins)
+     */
+    async requestSessionExtension() {
+        try {
+            // Cette fonctionnalité pourrait être ajoutée pour les admins
+            this.showNotification('info', 'Demande d\'extension envoyée...');
+        } catch (error) {
+            this.showNotification('error', 'Impossible de prolonger la session.');
+        }
+    }
+
+    /**
+     * Afficher une notification
+     */
+    showNotification(type, message, options = {}) {
+        // Utiliser votre système de notifications existant
+        // Ici, j'utilise une implémentation simple
+        
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show session-notification`;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 500px;
+        `;
+        
+        notification.innerHTML = `
+            <i class="mdi mdi-${this.getIcon(type)} mr-2"></i>
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            ${options.actionButton ? `
+                <button type="button" class="btn btn-sm btn-outline-${type} ml-2" onclick="this.parentNode.remove(); (${options.actionButton.action})()">
+                    ${options.actionButton.text}
+                </button>
+            ` : ''}
+        `;
+
+        document.body.appendChild(notification);
+
+        // Auto-dismiss sauf si persistant
+        if (!options.persistent) {
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+    }
+
+    /**
+     * Obtenir l'icône selon le type de notification
+     */
+    getIcon(type) {
+        const icons = {
+            'success': 'check-circle',
+            'error': 'alert-circle',
+            'warning': 'alert',
+            'info': 'information'
+        };
+        return icons[type] || 'information';
+    }
+
+    /**
+     * Log de débogage
+     */
+    log(message, data = null) {
+        if (this.options.enableDebug) {
+            console.log(`[AttendisSessionChecker] ${message}`, data);
+        }
+    }
+
+    /**
+     * Destructor
+     */
+    destroy() {
+        this.stopPeriodicCheck();
+        this.log('SessionChecker destroyed');
+    }
+}
+
+// Auto-initialisation si jQuery est disponible
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialiser seulement si l'utilisateur est connecté
+    if (document.querySelector('meta[name="csrf-token"]')) {
+        window.attendisSessionChecker = new AttendisSessionChecker({
+            enableDebug: false, // Passer à true pour le debug
+            checkInterval: 30000, // Vérifier toutes les 30 secondes
+            warningTime: 300000   // Avertir 5 minutes avant
+        });
+        
+        console.log('Attendis Session Checker initialized');
+    }
+});
+
+// Nettoyer lors du déchargement de la page
+window.addEventListener('beforeunload', function() {
+    if (window.attendisSessionChecker) {
+        window.attendisSessionChecker.destroy();
+    }
 });
 </script>
 

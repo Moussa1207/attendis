@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Setting;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 
@@ -19,6 +20,12 @@ class LoginController extends Controller
      */
     public function login(Request $request)
     {
+        // Vérifier la fermeture automatique des sessions avec les paramètres
+        if (Setting::shouldCloseSessionsNow()) {
+            return redirect()->route('login')
+                ->with('warning', 'Les connexions sont fermées pour aujourd\'hui. Revenez demain ou contactez un administrateur.');
+        }
+             
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
@@ -31,21 +38,28 @@ class LoginController extends Controller
         $credentials = $request->only('email', 'password');
         $remember = $request->has('remember');
 
-        // ✅ NOUVEAU : Vérifier si l'utilisateur existe et s'il est verrouillé AVANT la tentative
+        // ✅ AMÉLIORATION : Vérifier avec les paramètres de sécurité dynamiques
         $user = User::where('email', $credentials['email'])->first();
         
         if ($user && $user->isLockedOut()) {
+            $timeRemaining = $user->getLockoutTimeRemaining();
+            
             \Log::warning('Login attempt on locked account', [
                 'user_id' => $user->id,
                 'username' => $user->username,
                 'email' => $credentials['email'],
                 'failed_attempts' => $user->failed_login_attempts,
+                'time_remaining' => $timeRemaining,
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
 
+            $message = $timeRemaining > 0 
+                ? "Votre compte est temporairement verrouillé. Réessayez dans {$timeRemaining} minute(s)."
+                : 'Votre compte est temporairement verrouillé. Contactez un administrateur.';
+
             return redirect()->route('login')
-                ->with('error', 'Votre compte est temporairement verrouillé en raison de trop nombreuses tentatives de connexion. Contactez un administrateur.')
+                ->with('error', $message)
                 ->withInput($request->only('email'));
         }
 
@@ -53,8 +67,27 @@ class LoginController extends Controller
         if (Auth::attempt($credentials, $remember)) {
             $user = Auth::user();
 
-            // ✅ NOUVEAU : Enregistrer la connexion réussie avec tracking complet
-            $this->recordSuccessfulLogin($user, $request);
+            // ✅ AMÉLIORATION : Vérifier le nombre de sessions avec les paramètres
+            $maxSessions = $user->getMaxAllowedSessions();
+            $currentSessions = $this->getCurrentSessionsCount($user->id);
+            
+            if ($currentSessions >= $maxSessions) {
+                Auth::logout();
+                return redirect()->route('login')
+                    ->with('error', "Nombre maximum de sessions simultanées atteint ({$maxSessions}). Fermez une session existante pour vous reconnecter.");
+            }
+
+            // ✅ AMÉLIORATION : Appliquer les paramètres automatiques selon le type d'utilisateur
+            if ($user->canBeAutoDetected()) {
+                $user->markAsAvailable();
+                
+                if ($user->shouldAutoAssignAllServices()) {
+                    $user->assignAllActiveServices();
+                }
+            }
+
+            // ✅ AMÉLIORATION : Enregistrer la connexion avec les paramètres
+            $user->recordSuccessfulLoginWithSettings();
 
             // Vérifier le statut de l'utilisateur
             if ($user->isInactive()) {
@@ -72,16 +105,15 @@ class LoginController extends Controller
             // Régénérer la session pour la sécurité
             $request->session()->regenerate();
 
-            // LOGIQUE EXISTANTE : Vérifier si l'utilisateur doit changer son mot de passe
+            // Vérifier si l'utilisateur doit changer son mot de passe
             if ($user->mustChangePassword()) {
-                // Stocker temporairement l'ID utilisateur en session
                 session(['user_must_change_password' => $user->id]);
                 
                 return redirect()->route('password.mandatory-change')
                     ->with('info', 'Vous devez changer votre mot de passe avant d\'accéder à votre compte.');
             }
 
-            // LOGIQUE DE REDIRECTION NORMALE
+            // Redirection normale selon le type d'utilisateur
             if ($user->isAdmin()) {
                 return redirect()->route('layouts.app')
                     ->with('success', 'Bienvenue ' . $user->username . ' ! Vous êtes connecté en tant qu\'administrateur.');
@@ -91,8 +123,17 @@ class LoginController extends Controller
             }
         }
 
-        // ✅ NOUVEAU : Enregistrer la tentative échouée avec tracking
-        $this->recordFailedLogin($request, $credentials['email']);
+        // ✅ AMÉLIORATION : Enregistrer l'échec avec les paramètres
+        if ($user) {
+            $user->recordFailedLoginWithSettings();
+        } else {
+            // Tentative sur un email inexistant
+            \Log::warning('Failed login attempt on non-existent email', [
+                'email' => $credentials['email'],
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        }
 
         return redirect()->route('login')
             ->with('error', 'Les identifiants saisis sont incorrects.')
@@ -344,7 +385,7 @@ class LoginController extends Controller
         $user = Auth::user();
         $userName = $user->username ?? '';
         
-        // ✅ NOUVEAU : Log détaillé de la déconnexion
+        // Log avec informations des paramètres
         if ($user) {
             \Log::info('User logout', [
                 'user_id' => $user->id,
@@ -354,7 +395,9 @@ class LoginController extends Controller
                 'user_agent' => $request->userAgent(),
                 'session_duration' => $user->last_login_at ? 
                     now()->diffInMinutes($user->last_login_at) . ' minutes' : 'unknown',
-                'logout_timestamp' => now()->toISOString()
+                'logout_timestamp' => now()->toISOString(),
+                'auto_closure_active' => Setting::isAutoSessionClosureEnabled(),
+                'closure_time' => Setting::getSessionClosureTime()
             ]);
         }
        
@@ -372,7 +415,6 @@ class LoginController extends Controller
      */
     public function unlockAccount(Request $request, User $user)
     {
-        // Vérifier que l'utilisateur connecté est admin
         if (!Auth::check() || !Auth::user()->isAdmin()) {
             abort(403, 'Action non autorisée');
         }
@@ -380,11 +422,13 @@ class LoginController extends Controller
         try {
             $user->update(['failed_login_attempts' => 0]);
             
-            \Log::info('Account unlocked by admin', [
+            \Log::info('Account unlocked by admin with settings', [
                 'unlocked_user_id' => $user->id,
                 'unlocked_username' => $user->username,
                 'admin_id' => Auth::id(),
                 'admin_username' => Auth::user()->username,
+                'max_attempts_setting' => Setting::getMaxLoginAttempts(),
+                'lockout_duration_setting' => Setting::getLockoutDurationMinutes(),
                 'ip' => $request->ip(),
                 'timestamp' => now()->toISOString()
             ]);
@@ -392,7 +436,8 @@ class LoginController extends Controller
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
-                    'message' => "Compte de {$user->username} débloqué avec succès"
+                    'message' => "Compte de {$user->username} débloqué avec succès",
+                    'security_info' => $user->getSecurityInfo()
                 ]);
             }
 
@@ -416,5 +461,109 @@ class LoginController extends Controller
             return redirect()->back()
                 ->with('error', 'Erreur lors du déblocage du compte.');
         }
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Attribution automatique des services
+    private function autoAssignServicesToAdvisor(User $user): void
+    {
+        try {
+            // Récupérer tous les services actifs
+            $activeServices = \App\Models\Service::where('statut', 'actif')->get();
+            
+            if ($activeServices->isNotEmpty()) {
+                // Ici vous pouvez créer une table pivot advisor_services ou utiliser votre logique métier
+                
+                \Log::info('Services automatically assigned to advisor', [
+                    'advisor_id' => $user->id,
+                    'advisor_username' => $user->username,
+                    'services_count' => $activeServices->count(),
+                    'assigned_at' => now()->toISOString()
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('Error auto-assigning services to advisor', [
+                'advisor_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Compter les sessions actives
+    private function getCurrentSessionsCount(int $userId): int
+    {
+        try {
+            $timeoutMinutes = Setting::getSessionTimeoutMinutes();
+            
+            return \DB::table('sessions')
+                      ->where('user_id', $userId)
+                      ->where('last_activity', '>', now()->subMinutes($timeoutMinutes)->timestamp)
+                      ->count();
+        } catch (\Exception $e) {
+            \Log::warning('Could not count active sessions', [
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+            return 0;
+        }
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Marquer un conseiller comme disponible
+    private function markAdvisorAsAvailable(User $user): void
+    {
+        try {
+            // Ici vous pouvez implémenter la logique de détection automatique
+            // Par exemple : mettre à jour un champ "is_available" ou créer un enregistrement
+            
+            \Log::info('Advisor marked as available', [
+                'advisor_id' => $user->id,
+                'advisor_username' => $user->username,
+                'detected_at' => now()->toISOString()
+            ]);
+            
+            // Si l'attribution automatique des services est activée
+            if (Setting::isAutoAssignServicesEnabled()) {
+                $this->autoAssignServicesToAdvisor($user);
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('Error marking advisor as available', [
+                'advisor_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU : Middleware pour vérifier la fermeture automatique en temps réel
+     */
+    public function checkSessionClosure(Request $request)
+    {
+        if (!Auth::check()) {
+            return response()->json(['should_logout' => false]);
+        }
+
+        $user = Auth::user();
+        
+        // Les admins ne sont pas affectés par la fermeture automatique
+        if ($user->isAdmin()) {
+            return response()->json(['should_logout' => false]);
+        }
+
+        $shouldClose = Setting::shouldCloseSessionsNow();
+        
+        if ($shouldClose) {
+            // Forcer la déconnexion
+            Auth::logout();
+            $request->session()->invalidate();
+            
+            return response()->json([
+                'should_logout' => true,
+                'message' => 'Votre session a été fermée automatiquement selon la configuration du système.',
+                'redirect_url' => route('login')
+            ]);
+        }
+
+        return response()->json(['should_logout' => false]);
     }
 }

@@ -5,6 +5,8 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\SettingsController;
+use App\Models\Setting;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\PasswordManagementController;
@@ -72,6 +74,45 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         Route::get('/layouts/app', [DashboardController::class, 'adminDashboard'])
             ->name('layouts.app');
 
+/*
+|--------------------------------------------------------------------------
+| ROUTES PARAMÈTRES GÉNÉRAUX - VERSION COMPLÈTE
+|--------------------------------------------------------------------------
+*/
+
+// Routes principales des paramètres (dans la section ROUTES ADMINISTRATEURS UNIQUEMENT)
+Route::prefix('layouts/setting')->middleware(['auth', 'admin'])->group(function () {
+    
+    // Page principale des paramètres généraux
+    Route::get('/general', [SettingsController::class, 'index'])
+        ->name('layouts.setting');
+    
+    // Mise à jour des paramètres
+    Route::put('/general', [SettingsController::class, 'update'])
+        ->name('layouts.setting.update');
+    
+    // Actions sur les paramètres
+    Route::post('/reset', [SettingsController::class, 'reset'])
+        ->name('layouts.setting.reset');
+    
+    Route::post('/clear-cache', [SettingsController::class, 'clearCache'])
+        ->name('layouts.setting.clear-cache');
+    
+    // API pour les paramètres (AJAX)
+    Route::get('/api/group/{group}', [SettingsController::class, 'getGroupSettings'])
+        ->name('layouts.setting.api.group');
+    
+    Route::post('/api/update', [SettingsController::class, 'updateSetting'])
+        ->name('layouts.setting.api.update');
+    
+    Route::get('/api/stats', [SettingsController::class, 'getStats'])
+        ->name('layouts.setting.api.stats');
+});
+
+// Route alternative pour compatibility (si vous aviez d'autres références)
+Route::get('/settings', function() {
+    return redirect()->route('layouts.setting');
+})->middleware(['auth', 'admin']);
             /*
         |--------------------------------------------------------------------------
         | GESTION DES AGENCES
@@ -341,3 +382,131 @@ Route::post('/admin/users/{user}/suspend', [DashboardController::class, 'suspend
 // Alias pour la réactivation (même endpoint que activate)
 Route::post('/admin/users/{user}/reactivate', [DashboardController::class, 'activateUser'])
     ->name('admin.users.reactivate.post');
+
+    // À ajouter dans la section ROUTES ADMINISTRATEURS UNIQUEMENT de web.php
+
+/*
+|--------------------------------------------------------------------------
+| API POUR LA VÉRIFICATION DES SESSIONS EN TEMPS RÉEL
+|--------------------------------------------------------------------------
+*/
+
+// Route pour vérifier la fermeture automatique des sessions (AJAX)
+Route::get('/api/session/check-closure', [LoginController::class, 'checkSessionClosure'])
+    ->name('api.session.check-closure')
+    ->middleware(['auth']);
+
+// Route pour obtenir les informations de session (AJAX)
+Route::get('/api/session/info', function(Request $request) {
+    if (!Auth::check()) {
+        return response()->json(['authenticated' => false]);
+    }
+    
+    $user = Auth::user();
+    $settings = Setting::validateSessionSettings();
+    
+    return response()->json([
+        'authenticated' => true,
+        'user' => [
+            'id' => $user->id,
+            'username' => $user->username,
+            'type' => $user->getTypeName(),
+            'is_admin' => $user->isAdmin()
+        ],
+        'session_settings' => $settings,
+        'security_info' => $user->getSecurityInfo(),
+        'required_actions' => $user->getRequiredActions(),
+        'server_time' => now()->format('H:i:s')
+    ]);
+})->middleware(['auth']);
+
+/*
+|--------------------------------------------------------------------------
+| ROUTES API POUR LES PARAMÈTRES (AJAX)
+|--------------------------------------------------------------------------
+*/
+
+// API publique pour les paramètres (sans authentification)
+Route::prefix('api/settings')->group(function () {
+    
+    // Obtenir les paramètres publics (comme le nom de l'app)
+    Route::get('/public', function() {
+        return response()->json([
+            'app_name' => Setting::get('app_name', 'Attendis'),
+            'app_version' => Setting::get('app_version', '1.0.0'),
+            'maintenance_mode' => Setting::get('maintenance_mode', false),
+            'auto_session_closure' => Setting::isAutoSessionClosureEnabled(),
+            'closure_time' => Setting::getSessionClosureTime()
+        ]);
+    });
+    
+    // Vérifier si un paramètre spécifique est activé
+    Route::get('/check/{key}', function($key) {
+        $allowedKeys = [
+            'auto_detect_available_advisors',
+            'auto_assign_all_services_to_advisors', 
+            'enable_auto_session_closure',
+            'maintenance_mode'
+        ];
+        
+        if (!in_array($key, $allowedKeys)) {
+            return response()->json(['error' => 'Paramètre non autorisé'], 403);
+        }
+        
+        return response()->json([
+            'key' => $key,
+            'value' => Setting::get($key),
+            'active' => (bool) Setting::get($key)
+        ]);
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| ROUTES DE DÉVELOPPEMENT POUR LES PARAMÈTRES
+|--------------------------------------------------------------------------
+*/
+
+if (app()->environment('local')) {
+    Route::prefix('dev/settings')->middleware(['auth', 'admin'])->group(function () {
+        
+        // Tester tous les paramètres
+        Route::get('/test-all', function() {
+            return response()->json([
+                'user_management' => Setting::getUserManagementSettings(),
+                'security' => Setting::getSecuritySettings(),
+                'all_settings' => Setting::getAllSettings(),
+                'stats' => Setting::getStats(),
+                'consistency_check' => Setting::checkConsistency()
+            ]);
+        });
+        
+        // Forcer une valeur pour test
+        Route::post('/force/{key}', function(Request $request, $key) {
+            $value = $request->input('value');
+            $type = $request->input('type', 'string');
+            
+            $success = Setting::set($key, $value, $type);
+            
+            return response()->json([
+                'success' => $success,
+                'key' => $key,
+                'new_value' => Setting::get($key),
+                'message' => $success ? 'Paramètre forcé avec succès' : 'Erreur lors du forçage'
+            ]);
+        });
+        
+        // Simuler la fermeture automatique
+        Route::post('/simulate-closure', function() {
+            // Forcer la fermeture pour test
+            Setting::set('enable_auto_session_closure', true, 'boolean');
+            Setting::set('auto_session_closure_time', now()->format('H:i'), 'time');
+            
+            return response()->json([
+                'message' => 'Fermeture automatique simulée',
+                'closure_time' => Setting::getSessionClosureTime(),
+                'should_close_now' => Setting::shouldCloseSessionsNow()
+            ]);
+        });
+    });
+}

@@ -220,7 +220,7 @@
                                                             <i data-feather="phone" class="icon-xs"></i>
                                                         </span>
                                                     </div>
-                                                    <input type="text" class="form-control @error('phone') is-invalid @enderror" name="phone" id="agency_phone" value="{{ old('phone') }}" placeholder="ex: +225 27 20 30 40 50" required>
+                                                    <input type="text" class="form-control @error('phone') is-invalid @enderror" name="phone" id="agency_phone" value="{{ old('phone') }}" placeholder="ex: 0707000000" required>
                                                     @error('phone')
                                                     <span class="invalid-feedback" role="alert">
                                                         <strong>{{ $message }}</strong>
@@ -297,17 +297,17 @@
                                                     </div>
                                                     <select class="form-control @error('country') is-invalid @enderror" name="country" id="country" required>
                                                         <option value="">-- Sélectionnez le pays --</option>
-                                                        <option value="Côte d'Ivoire" {{ old('country') == "Côte d'Ivoire" ? 'selected' : '' }}>🇨🇮 Côte d'Ivoire</option>
-                                                        <option value="Burkina Faso" {{ old('country') == 'Burkina Faso' ? 'selected' : '' }}>🇧🇫 Burkina Faso</option>
-                                                        <option value="Mali" {{ old('country') == 'Mali' ? 'selected' : '' }}>🇲🇱 Mali</option>
-                                                        <option value="Sénégal" {{ old('country') == 'Sénégal' ? 'selected' : '' }}>🇸🇳 Sénégal</option>
-                                                        <option value="Ghana" {{ old('country') == 'Ghana' ? 'selected' : '' }}>🇬🇭 Ghana</option>
-                                                        <option value="Niger" {{ old('country') == 'Niger' ? 'selected' : '' }}>🇳🇪 Niger</option>
-                                                        <option value="Guinée" {{ old('country') == 'Guinée' ? 'selected' : '' }}>🇬🇳 Guinée</option>
-                                                        <option value="Bénin" {{ old('country') == 'Bénin' ? 'selected' : '' }}>🇧🇯 Bénin</option>
-                                                        <option value="Togo" {{ old('country') == 'Togo' ? 'selected' : '' }}>🇹🇬 Togo</option>
-                                                        <option value="France" {{ old('country') == 'France' ? 'selected' : '' }}>🇫🇷 France</option>
-                                                        <option value="Autre" {{ old('country') == 'Autre' ? 'selected' : '' }}>🌍 Autre</option>
+                                                        <option value="Côte d'Ivoire" {{ old('country') == "Côte d'Ivoire" ? 'selected' : '' }}> Côte d'Ivoire</option>
+                                                        <option value="Burkina Faso" {{ old('country') == 'Burkina Faso' ? 'selected' : '' }}> Burkina Faso</option>
+                                                        <option value="Mali" {{ old('country') == 'Mali' ? 'selected' : '' }}> Mali</option>
+                                                        <option value="Sénégal" {{ old('country') == 'Sénégal' ? 'selected' : '' }}> Sénégal</option>
+                                                        <option value="Ghana" {{ old('country') == 'Ghana' ? 'selected' : '' }}> Ghana</option>
+                                                        <option value="Niger" {{ old('country') == 'Niger' ? 'selected' : '' }}> Niger</option>
+                                                        <option value="Guinée" {{ old('country') == 'Guinée' ? 'selected' : '' }}> Guinée</option>
+                                                        <option value="Bénin" {{ old('country') == 'Bénin' ? 'selected' : '' }}> Bénin</option>
+                                                        <option value="Togo" {{ old('country') == 'Togo' ? 'selected' : '' }}> Togo</option>
+                                                        <option value="France" {{ old('country') == 'France' ? 'selected' : '' }}> France</option>
+                                                        <option value="Autre" {{ old('country') == 'Autre' ? 'selected' : '' }}> Autre</option>
                                                     </select>
                                                     @error('country')
                                                     <span class="invalid-feedback" role="alert">
@@ -502,7 +502,7 @@
 
 .bg-soft-primary {
     background-color: rgba(0, 123, 255, 0.1) !important;
-}
+}  
 
 .text-info {
     color: #17a2b8 !important;

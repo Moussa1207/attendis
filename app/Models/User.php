@@ -12,7 +12,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'username', 'email', 'password', 'mobile_number', 'company', 'user_type_id', 'status_id',
-        'last_login_at', 'failed_login_attempts', 'last_password_change', // ✅ NOUVEAUX CHAMPS
+        'last_login_at', 'failed_login_attempts', 'last_password_change',
     ];
 
     protected $hidden = [
@@ -23,209 +23,147 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'last_login_at' => 'datetime', // ✅ NOUVEAU
-        'last_password_change' => 'datetime', // ✅ NOUVEAU
-        'failed_login_attempts' => 'integer', // ✅ NOUVEAU
+        'last_login_at' => 'datetime',
+        'last_password_change' => 'datetime',
+        'failed_login_attempts' => 'integer',
     ];
 
     // ===============================================
     // RELATIONS
     // ===============================================
 
-    /**
-     * Relation avec le model UserType
-     */
     public function userType()
     {
         return $this->belongsTo(UserType::class);
     }
 
-    /**
-     * Relation avec le model Status
-     */
     public function status()
     {
         return $this->belongsTo(Status::class);
     }
 
-    /**
-     * Relation : Utilisateurs créés par cet admin
-     */
     public function createdUsers()
     {
         return $this->hasMany(AdministratorUser::class, 'administrator_id');
     }
 
-    /**
-     * Relation : Admin qui a créé cet utilisateur
-     */
     public function createdBy()
     {
         return $this->hasOne(AdministratorUser::class, 'user_id');
+    }
+
+    public function createdServices()
+    {
+        return $this->hasMany(Service::class, 'created_by');
     }
 
     // ===============================================
     // MÉTHODES UTILITAIRES - TYPE ET STATUT
     // ===============================================
 
-    /**
-     * Vérifier si l'utilisateur est administrateur
-     */
     public function isAdmin(): bool
     {
         return $this->user_type_id === 1;
     }
 
-    /**
-     * NOUVEAU : Vérifier si l'utilisateur est Poste Ecran
-     */
     public function isEcranUser(): bool
     {
         return $this->user_type_id === 2;
     }
 
-    /**
-     * NOUVEAU : Vérifier si l'utilisateur est Poste Accueil
-     */
     public function isAccueilUser(): bool
     {
         return $this->user_type_id === 3;
     }
 
-    /**
-     * NOUVEAU : Vérifier si l'utilisateur est Poste Conseiller
-     */
     public function isConseillerUser(): bool
     {
         return $this->user_type_id === 4;
     }
 
-    /**
-     * NOUVEAU : Vérifier si l'utilisateur est un utilisateur normal (pas admin)
-     */
     public function isNormalUser(): bool
     {
         return in_array($this->user_type_id, [2, 3, 4]);
     }
 
-    /**
-     * Vérifier si l'utilisateur est actif
-     */
     public function isActive(): bool
     {
         return $this->status_id === 2;
     }
 
-    /**
-     * Vérifier si l'utilisateur est inactif
-     */
     public function isInactive(): bool
     {
         return $this->status_id === 1;
     }
 
-    /**
-     * Vérifier si l'utilisateur est suspendu
-     */
     public function isSuspended(): bool
     {
         return $this->status_id === 3;
     }
+
     // ===============================================
-// MÉTHODES UTILITAIRES POUR LES SERVICES (à ajouter dans la section méthodes utilitaires)
-// ===============================================
+    // MÉTHODES POUR LES SERVICES
+    // ===============================================
 
-/**
- * Obtenir le nombre de services créés par cet utilisateur
- */
-public function getCreatedServicesCountAttribute(): int
-{
-    return $this->createdServices()->count();
-}
+    public function getCreatedServicesCountAttribute(): int
+    {
+        return $this->createdServices()->count();
+    }
 
-/**
- * Vérifier si l'utilisateur a créé des services
- */
-public function hasCreatedServices(): bool
-{
-    return $this->createdServices()->exists();
-}
+    public function hasCreatedServices(): bool
+    {
+        return $this->createdServices()->exists();
+    }
 
-/**
- * Obtenir les services actifs créés par cet utilisateur
- */
-public function getActiveCreatedServices()
-{
-    return $this->createdServices()->where('statut', 'actif');
-}
+    public function getActiveCreatedServices()
+    {
+        return $this->createdServices()->where('statut', 'actif');
+    }
 
-/**
- * Obtenir les services inactifs créés par cet utilisateur
- */
-public function getInactiveCreatedServices()
-{
-    return $this->createdServices()->where('statut', 'inactif');
-}
+    public function getInactiveCreatedServices()
+    {
+        return $this->createdServices()->where('statut', 'inactif');
+    }
 
-/**
- * Obtenir les statistiques des services créés par cet utilisateur
- */
-public function getServicesStats(): array
-{
-    $services = $this->createdServices();
-    
-    return [
-        'total_services' => $services->count(),
-        'active_services' => $services->where('statut', 'actif')->count(),
-        'inactive_services' => $services->where('statut', 'inactif')->count(),
-        'recent_services' => $services->where('created_at', '>=', now()->subDays(30))->count(),
-        'services_this_month' => $services->whereMonth('created_at', now()->month)->count(),
-        'services_today' => $services->whereDate('created_at', today())->count(),
-    ];
-}
-
+    public function getServicesStats(): array
+    {
+        $services = $this->createdServices();
+        
+        return [
+            'total_services' => $services->count(),
+            'active_services' => $services->where('statut', 'actif')->count(),
+            'inactive_services' => $services->where('statut', 'inactif')->count(),
+            'recent_services' => $services->where('created_at', '>=', now()->subDays(30))->count(),
+            'services_this_month' => $services->whereMonth('created_at', now()->month)->count(),
+            'services_today' => $services->whereDate('created_at', today())->count(),
+        ];
+    }
 
     // ===============================================
     // MÉTHODES POUR CHANGER LE STATUT
     // ===============================================
 
-    /**
-     * Activer l'utilisateur
-     */
     public function activate(): bool
     {
         return $this->update(['status_id' => 2]);
     }
 
-    /**
-     * Désactiver l'utilisateur
-     */
     public function deactivate(): bool
     {
         return $this->update(['status_id' => 1]);
     }
 
-    /**
-     * Suspendre l'utilisateur
-     */
     public function suspend(): bool
     {
         try {
-            // ✅ MISE À JOUR FORCÉE EN BASE DE DONNÉES
             $result = $this->update(['status_id' => 3]);
             
             if ($result) {
-                // ✅ RECHARGER DEPUIS LA BASE POUR VÉRIFICATION
                 $this->refresh();
                 
-                // ✅ LOG DE SUCCÈS
                 \Log::info('User suspended successfully', [
                     'user_id' => $this->id,
                     'username' => $this->username,
-                    'old_status' => 'Before suspension',
-                    'new_status_id' => $this->status_id,
-                    'new_status_name' => $this->getStatusName(),
-                    'is_suspended' => $this->isSuspended(),
                     'timestamp' => now()->format('Y-m-d H:i:s')
                 ]);
                 
@@ -246,72 +184,45 @@ public function getServicesStats(): array
     }
 
     // ===============================================
-    // ✅ NOUVELLES MÉTHODES POUR LE TRACKING DES CONNEXIONS
+    // MÉTHODES POUR LE TRACKING DES CONNEXIONS
     // ===============================================
 
-    /**
-     * ✅ NOUVEAU : Enregistrer une connexion réussie
-     */
     public function recordSuccessfulLogin(): void
     {
         $this->update([
             'last_login_at' => now(),
-            'failed_login_attempts' => 0 // Remettre à zéro les échecs
+            'failed_login_attempts' => 0
         ]);
     }
 
-    /**
-     * ✅ NOUVEAU : Enregistrer une tentative de connexion échouée
-     */
     public function recordFailedLogin(): void
     {
         $this->increment('failed_login_attempts');
     }
 
-    /**
-     * ✅ NOUVEAU : Réinitialiser les tentatives de connexion échouées
-     */
     public function resetFailedLoginAttempts(): void
     {
         $this->update(['failed_login_attempts' => 0]);
     }
 
-    /**
-     * ✅ NOUVEAU : Vérifier si le compte est verrouillé par trop de tentatives
-     */
-    public function isLockedOut(int $maxAttempts = 5): bool
-    {
-        return $this->failed_login_attempts >= $maxAttempts;
-    }
-
-    /**
-     * ✅ NOUVEAU : Enregistrer un changement de mot de passe
-     */
     public function recordPasswordChange(): void
     {
         $this->update([
             'last_password_change' => now(),
-            'failed_login_attempts' => 0 // Réinitialiser lors du changement de mot de passe
+            'failed_login_attempts' => 0
         ]);
     }
 
     // ===============================================
-    // NOUVELLES MÉTHODES POUR LE CHANGEMENT DE MOT DE PASSE OBLIGATOIRE
+    // MÉTHODES POUR LE CHANGEMENT DE MOT DE PASSE OBLIGATOIRE
     // ===============================================
 
-    /**
-     * Vérifier si l'utilisateur doit changer son mot de passe
-     */
     public function mustChangePassword(): bool
     {
-        // Si l'utilisateur a été créé par un admin et n'a pas encore changé son mot de passe
         $adminRelation = $this->createdBy;
         return $adminRelation && $adminRelation->password_reset_required;
     }
 
-    /**
-     * Marquer que l'utilisateur a changé son mot de passe
-     */
     public function markPasswordChanged(): bool
     {
         $adminRelation = $this->createdBy;
@@ -323,12 +234,9 @@ public function getServicesStats(): array
     }
 
     // ===============================================
-    // MÉTHODES AMÉLIORÉES POUR OBTENIR LES NOMS ET INFORMATIONS
+    // MÉTHODES POUR LES INFORMATIONS UTILISATEUR
     // ===============================================
 
-    /**
-     * AMÉLIORÉ : Obtenir le nom du type d'utilisateur
-     */
     public function getTypeName(): string
     {
         return match($this->user_type_id) {
@@ -340,37 +248,28 @@ public function getServicesStats(): array
         };
     }
 
-    /**
-     * AMÉLIORÉ : Obtenir l'icône selon le type avec fallback
-     */
     public function getTypeIcon(): string
     {
         return match($this->user_type_id) {
-            1 => 'shield',      // Administrateur
-            2 => 'monitor',     // Poste Ecran
-            3 => 'home',        // Poste Accueil
-            4 => 'users',       // Poste Conseiller
+            1 => 'shield',
+            2 => 'monitor',
+            3 => 'home',
+            4 => 'users',
             default => 'user'
         };
     }
 
-    /**
-     * NOUVEAU : Obtenir la couleur du badge selon le type
-     */
     public function getTypeBadgeColor(): string
     {
         return match($this->user_type_id) {
-            1 => 'primary',     // Administrateur (bleu)
-            2 => 'info',        // Poste Ecran (cyan)
-            3 => 'success',     // Poste Accueil (vert)
-            4 => 'warning',     // Poste Conseiller (orange)
+            1 => 'primary',
+            2 => 'info',
+            3 => 'success',
+            4 => 'warning',
             default => 'secondary'
         };
     }
 
-    /**
-     * NOUVEAU : Obtenir le rôle du formulaire depuis le type
-     */
     public function getUserRole(): string
     {
         return match($this->user_type_id) {
@@ -382,9 +281,6 @@ public function getServicesStats(): array
         };
     }
 
-    /**
-     * NOUVEAU : Obtenir la description courte du type
-     */
     public function getTypeShortDescription(): string
     {
         return match($this->user_type_id) {
@@ -396,23 +292,17 @@ public function getServicesStats(): array
         };
     }
 
-    /**
-     * NOUVEAU : Obtenir l'emoji du type
-     */
     public function getTypeEmoji(): string
     {
         return match($this->user_type_id) {
-            1 => '🛡️',  // Administrateur
-            2 => '🖥️',  // Poste Ecran
-            3 => '🏢',  // Poste Accueil
-            4 => '👥',  // Poste Conseiller
+            1 => '🛡️',
+            2 => '🖥️',
+            3 => '🏢',
+            4 => '👥',
             default => '👤'
         };
     }
 
-    /**
-     * Obtenir le nom du statut
-     */
     public function getStatusName(): string
     {
         return match($this->status_id) {
@@ -423,22 +313,16 @@ public function getServicesStats(): array
         };
     }
 
-    /**
-     * AMÉLIORÉ : Obtenir la couleur du badge selon le statut
-     */
     public function getStatusBadgeColor(): string
     {
         return match($this->status_id) {
-            1 => 'warning',   // Inactif (orange)
-            2 => 'success',   // Actif (vert)
-            3 => 'danger',    // Suspendu (rouge)
+            1 => 'warning',
+            2 => 'success',
+            3 => 'danger',
             default => 'secondary'
         };
     }
 
-    /**
-     * NOUVEAU : Obtenir les informations complètes du type
-     */
     public function getTypeInfo(): array
     {
         return [
@@ -454,9 +338,6 @@ public function getServicesStats(): array
         ];
     }
 
-    /**
-     * NOUVEAU : Obtenir les informations complètes du statut
-     */
     public function getStatusInfo(): array
     {
         return [
@@ -470,12 +351,9 @@ public function getServicesStats(): array
     }
 
     // ===============================================
-    // ✅ NOUVELLES MÉTHODES POUR LES INFORMATIONS DE CONNEXION
+    // MÉTHODES POUR LES INFORMATIONS DE CONNEXION
     // ===============================================
 
-    /**
-     * ✅ NOUVEAU : Obtenir le statut de la dernière connexion
-     */
     public function getLastLoginInfo(): array
     {
         return [
@@ -492,22 +370,16 @@ public function getServicesStats(): array
         ];
     }
 
-    /**
-     * ✅ NOUVEAU : Obtenir les informations sur les tentatives de connexion
-     */
     public function getLoginAttemptsInfo(): array
     {
         return [
             'failed_attempts' => $this->failed_login_attempts ?? 0,
             'is_locked_out' => $this->isLockedOut(),
-            'attempts_remaining' => max(0, 5 - ($this->failed_login_attempts ?? 0)),
+            'attempts_remaining' => max(0, Setting::getMaxLoginAttempts() - ($this->failed_login_attempts ?? 0)),
             'formatted_attempts' => ($this->failed_login_attempts ?? 0) . ' échec(s) récent(s)',
         ];
     }
 
-    /**
-     * ✅ NOUVEAU : Obtenir les informations sur le mot de passe
-     */
     public function getPasswordInfo(): array
     {
         $lastChange = $this->last_password_change ?? $this->created_at;
@@ -523,7 +395,7 @@ public function getServicesStats(): array
                 : $lastChange->diffForHumans(),
             'days_since_password_change' => $lastChange->diffInDays(now()),
             'is_initial_password' => $isInitialPassword,
-            'password_age_warning' => $lastChange->diffInDays(now()) > 90, // Alerte si > 90 jours
+            'password_age_warning' => $lastChange->diffInDays(now()) > 90,
         ];
     }
 
@@ -531,41 +403,26 @@ public function getServicesStats(): array
     // MÉTHODES DE TRAÇABILITÉ
     // ===============================================
 
-    /**
-     * Obtenir l'administrateur qui a créé cet utilisateur
-     */
     public function getCreator(): ?User
     {
         return AdministratorUser::getUserCreator($this->id);
     }
 
-    /**
-     * Obtenir tous les utilisateurs créés par cet admin
-     */
     public function getCreatedUsers()
     {
         return AdministratorUser::getUsersCreatedBy($this->id);
     }
 
-    /**
-     * Vérifier si cet admin a créé des utilisateurs
-     */
     public function hasCreatedUsers(): bool
     {
         return $this->createdUsers()->count() > 0;
     }
 
-    /**
-     * Vérifier si cet utilisateur a été créé par un admin
-     */
     public function wasCreatedByAdmin(): bool
     {
         return $this->createdBy()->exists();
     }
 
-    /**
-     * AMÉLIORÉ : Obtenir les informations de création
-     */
     public function getCreationInfo(): ?array
     {
         $creator = $this->getCreator();
@@ -587,12 +444,8 @@ public function getServicesStats(): array
     // MÉTHODES DE SÉCURITÉ ET VALIDATION
     // ===============================================
 
-    /**
-     * Vérifier si cet utilisateur peut être supprimé
-     */
     public function canBeDeleted(): bool
     {
-        // Ne pas supprimer le dernier admin actif
         if ($this->isAdmin()) {
             $activeAdmins = self::where('user_type_id', 1)->where('status_id', 2)->count();
             return $activeAdmins > 1;
@@ -601,12 +454,8 @@ public function getServicesStats(): array
         return true;
     }
 
-    /**
-     * Vérifier si cet utilisateur peut être suspendu
-     */
     public function canBeSuspended(): bool
     {
-        // Ne pas suspendre le dernier admin actif
         if ($this->isAdmin() && $this->isActive()) {
             $activeAdmins = self::where('user_type_id', 1)->where('status_id', 2)->count();
             return $activeAdmins > 1;
@@ -615,12 +464,8 @@ public function getServicesStats(): array
         return true;
     }
 
-    /**
-     * NOUVEAU : Vérifier si l'utilisateur peut changer de type
-     */
     public function canChangeType(): bool
     {
-        // Un admin ne peut pas perdre ses privilèges s'il est le dernier admin actif
         if ($this->isAdmin()) {
             $activeAdmins = self::where('user_type_id', 1)->where('status_id', 2)->count();
             return $activeAdmins > 1;
@@ -633,38 +478,27 @@ public function getServicesStats(): array
     // GESTION DES MOTS DE PASSE TEMPORAIRES
     // ===============================================
 
-    /**
-     * Générer un mot de passe temporaire sécurisé
-     * UTILISÉ par UserManagementController
-     */
     public static function generateSecureTemporaryPassword(int $length = 12): string
     {
-        // Caractères pour le mot de passe
         $lowercase = 'abcdefghijklmnopqrstuvwxyz';
         $uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         $numbers = '0123456789';
         $symbols = '@#$%&*!?';
         
-        // Assurer au moins un caractère de chaque type
         $password = '';
         $password .= $lowercase[random_int(0, strlen($lowercase) - 1)];
         $password .= $uppercase[random_int(0, strlen($uppercase) - 1)];
         $password .= $numbers[random_int(0, strlen($numbers) - 1)];
         $password .= $symbols[random_int(0, strlen($symbols) - 1)];
         
-        // Compléter avec des caractères aléatoires
         $allChars = $lowercase . $uppercase . $numbers . $symbols;
         for ($i = 4; $i < $length; $i++) {
             $password .= $allChars[random_int(0, strlen($allChars) - 1)];
         }
         
-        // Mélanger le mot de passe
         return str_shuffle($password);
     }
 
-    /**
-     * Vérifier si l'utilisateur nécessite un reset password
-     */
     public function requiresPasswordReset(): bool
     {
         $relation = $this->createdBy;
@@ -675,121 +509,77 @@ public function getServicesStats(): array
     // SCOPES POUR LES REQUÊTES
     // ===============================================
 
-    /**
-     * Scope pour les utilisateurs actifs
-     */
     public function scopeActive($query)
     {
         return $query->where('status_id', 2);
     }
 
-    /**
-     * Scope pour les utilisateurs inactifs
-     */
     public function scopeInactive($query)
     {
         return $query->where('status_id', 1);
     }
 
-    /**
-     * Scope pour les utilisateurs suspendus
-     */
     public function scopeSuspended($query)
     {
         return $query->where('status_id', 3);
     }
 
-    /**
-     * Scope pour les administrateurs
-     */
     public function scopeAdmins($query)
     {
         return $query->where('user_type_id', 1);
     }
 
-    /**
-     * NOUVEAU : Scope pour les postes écran
-     */
     public function scopeEcranUsers($query)
     {
         return $query->where('user_type_id', 2);
     }
 
-    /**
-     * NOUVEAU : Scope pour les postes accueil
-     */
     public function scopeAccueilUsers($query)
     {
         return $query->where('user_type_id', 3);
     }
 
-    /**
-     * NOUVEAU : Scope pour les postes conseillers
-     */
     public function scopeConseillerUsers($query)
     {
         return $query->where('user_type_id', 4);
     }
 
-    /**
-     * AMÉLIORÉ : Scope pour les utilisateurs normaux (tous sauf admin)
-     */
     public function scopeNormalUsers($query)
     {
         return $query->whereIn('user_type_id', [2, 3, 4]);
     }
-// ===============================================
-// SCOPE POUR LES SERVICES 
-// ===============================================
 
-/**
- * NOUVEAU : Scope pour les utilisateurs ayant créé des services
- */
-public function scopeWithServices($query)
-{
-    return $query->whereHas('createdServices');
-}
+    public function scopeWithServices($query)
+    {
+        return $query->whereHas('createdServices');
+    }
 
-/**
- * NOUVEAU : Scope pour les utilisateurs ayant créé des services actifs
- */
-public function scopeWithActiveServices($query)
-{
-    return $query->whereHas('createdServices', function($q) {
-        $q->where('statut', 'actif');
-    });
-}
+    public function scopeWithActiveServices($query)
+    {
+        return $query->whereHas('createdServices', function($q) {
+            $q->where('statut', 'actif');
+        });
+    }
 
-/**
- * NOUVEAU : Scope pour les utilisateurs ayant créé des services inactifs
- */
-public function scopeWithInactiveServices($query)
-{
-    return $query->whereHas('createdServices', function($q) {
-        $q->where('statut', 'inactif');
-    });
-}
+    public function scopeWithInactiveServices($query)
+    {
+        return $query->whereHas('createdServices', function($q) {
+            $q->where('statut', 'inactif');
+        });
+    }
 
-/**
- * NOUVEAU : Scope pour les utilisateurs ayant créé au moins X services
- */
-public function scopeWithMinServices($query, int $minCount = 1)
-{
-    return $query->whereHas('createdServices', function($q) use ($minCount) {
-        $q->havingRaw('COUNT(*) >= ?', [$minCount]);
-    });
-}
-    /**
-     * Legacy - Garde la compatibilité avec l'ancien code
-     */
+    public function scopeWithMinServices($query, int $minCount = 1)
+    {
+        return $query->whereHas('createdServices', function($q) use ($minCount) {
+            $q->havingRaw('COUNT(*) >= ?', [$minCount]);
+        });
+    }
+
     public function scopeUsers($query)
     {
         return $query->normalUsers();
     }
 
-    /**
-     * NOUVEAU : Scope pour filtrer par type de rôle
-     */
     public function scopeByRole($query, string $role)
     {
         $roleMapping = [
@@ -806,9 +596,6 @@ public function scopeWithMinServices($query, int $minCount = 1)
         return $query;
     }
 
-    /**
-     * NOUVEAU : Scope pour filtrer par multiple rôles
-     */
     public function scopeByRoles($query, array $roles)
     {
         $roleMapping = [
@@ -832,9 +619,6 @@ public function scopeWithMinServices($query, int $minCount = 1)
         return $query;
     }
 
-    /**
-     * AMÉLIORÉ : Scope pour recherche par terme (avec company et type)
-     */
     public function scopeSearch($query, $term)
     {
         return $query->where(function($q) use ($term) {
@@ -851,17 +635,11 @@ public function scopeWithMinServices($query, int $minCount = 1)
         });
     }
 
-    /**
-     * NOUVEAU : Scope pour les utilisateurs créés récemment
-     */
     public function scopeRecentlyCreated($query, int $days = 7)
     {
         return $query->where('created_at', '>=', now()->subDays($days));
     }
 
-    /**
-     * NOUVEAU : Scope pour les utilisateurs nécessitant un reset password
-     */
     public function scopeNeedingPasswordReset($query)
     {
         return $query->whereHas('createdBy', function($q) {
@@ -869,29 +647,213 @@ public function scopeWithMinServices($query, int $minCount = 1)
         });
     }
 
-    /**
-     * ✅ NOUVEAU : Scope pour les utilisateurs avec connexions récentes
-     */
     public function scopeRecentlyLoggedIn($query, int $days = 30)
     {
         return $query->where('last_login_at', '>=', now()->subDays($days));
     }
 
-    /**
-     * ✅ NOUVEAU : Scope pour les utilisateurs avec tentatives de connexion échouées
-     */
     public function scopeWithFailedAttempts($query, int $minAttempts = 1)
     {
         return $query->where('failed_login_attempts', '>=', $minAttempts);
+    }
+
+    public function scopeForAutoDetection($query)
+    {
+        if (!Setting::isAutoDetectAdvisorsEnabled()) {
+            return $query->whereRaw('1 = 0');
+        }
+        
+        return $query->where('user_type_id', 4)
+                     ->where('status_id', 2);
+    }
+
+    public function scopeForAutoSessionClosure($query)
+    {
+        if (!Setting::isAutoSessionClosureEnabled()) {
+            return $query->whereRaw('1 = 0');
+        }
+        
+        return $query->where('user_type_id', '!=', 1)
+                     ->where('status_id', 2);
+    }
+
+    // ===============================================
+    // MÉTHODES LIÉES AUX PARAMÈTRES
+    // ===============================================
+
+    public function canBeAutoDetected(): bool
+    {
+        return $this->isConseillerUser() && Setting::isAutoDetectAdvisorsEnabled();
+    }
+
+    public function shouldAutoAssignAllServices(): bool
+    {
+        return $this->isConseillerUser() && Setting::isAutoAssignServicesEnabled();
+    }
+
+    public function shouldCloseSessionNow(): bool
+    {
+        return Setting::shouldCloseSessionsNow();
+    }
+
+    public function getMaxAllowedSessions(): int
+    {
+        if ($this->isAdmin()) {
+            return Setting::getMaxConcurrentSessions() + 2;
+        }
+        
+        return Setting::getMaxConcurrentSessions();
+    }
+
+    /**
+     * Vérifier si le compte est verrouillé selon les paramètres système
+     */
+    public function isLockedOut(): bool
+    {
+        $maxAttempts = Setting::getMaxLoginAttempts();
+        return $this->failed_login_attempts >= $maxAttempts;
+    }
+
+    public function getLockoutTimeRemaining(): ?int
+    {
+        if (!$this->isLockedOut()) {
+            return null;
+        }
+        
+        $lockoutDuration = Setting::getLockoutDurationMinutes();
+        $lastFailedAttempt = $this->updated_at;
+        
+        $unlockTime = $lastFailedAttempt->addMinutes($lockoutDuration);
+        $now = now();
+        
+        if ($now >= $unlockTime) {
+            $this->update(['failed_login_attempts' => 0]);
+            return 0;
+        }
+        
+        return $now->diffInMinutes($unlockTime);
+    }
+
+    public function getSecurityInfo(): array
+    {
+        $settings = Setting::getSecuritySettings();
+        
+        return [
+            'failed_attempts' => $this->failed_login_attempts ?? 0,
+            'max_attempts' => $settings['max_login_attempts'],
+            'is_locked' => $this->isLockedOut(),
+            'lockout_remaining' => $this->getLockoutTimeRemaining(),
+            'last_login' => $this->last_login_at,
+            'max_sessions' => $this->getMaxAllowedSessions(),
+            'session_timeout' => $settings['session_timeout']
+        ];
+    }
+
+    public function getRequiredActions(): array
+    {
+        $actions = [];
+        
+        if ($this->mustChangePassword()) {
+            $actions[] = [
+                'type' => 'password_change',
+                'message' => 'Changement de mot de passe requis',
+                'priority' => 'high'
+            ];
+        }
+        
+        if ($this->shouldCloseSessionNow() && !$this->isAdmin()) {
+            $actions[] = [
+                'type' => 'session_closure',
+                'message' => 'Votre session va se fermer automatiquement',
+                'priority' => 'medium'
+            ];
+        }
+        
+        if ($this->failed_login_attempts > 0) {
+            $remaining = Setting::getMaxLoginAttempts() - $this->failed_login_attempts;
+            if ($remaining <= 2) {
+                $actions[] = [
+                    'type' => 'security_warning',
+                    'message' => "Attention: {$remaining} tentative(s) restante(s)",
+                    'priority' => 'warning'
+                ];
+            }
+        }
+        
+        return $actions;
+    }
+
+    public function applyLoginSettings(): void
+    {
+        if ($this->canBeAutoDetected()) {
+            $this->markAsAvailable();
+            
+            if ($this->shouldAutoAssignAllServices()) {
+                $this->assignAllActiveServices();
+            }
+        }
+    }
+
+    public function markAsAvailable(): void
+    {
+        \Log::info('Advisor marked as available via auto-detection', [
+            'user_id' => $this->id,
+            'username' => $this->username,
+            'type' => $this->getTypeName()
+        ]);
+    }
+
+    public function assignAllActiveServices(): void
+    {
+        try {
+            $activeServices = \App\Models\Service::where('statut', 'actif')->get();
+            
+            \Log::info('All active services auto-assigned to advisor', [
+                'user_id' => $this->id,
+                'username' => $this->username,
+                'services_count' => $activeServices->count()
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error auto-assigning services', [
+                'user_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    public function recordSuccessfulLoginWithSettings(): void
+    {
+        $this->update([
+            'last_login_at' => now(),
+            'failed_login_attempts' => 0,
+            'last_login_ip' => request()->ip(),
+            'last_user_agent' => request()->userAgent(),
+        ]);
+        
+        $this->applyLoginSettings();
+    }
+
+    public function recordFailedLoginWithSettings(): void
+    {
+        $this->increment('failed_login_attempts');
+        
+        $maxAttempts = Setting::getMaxLoginAttempts();
+        
+        \Log::warning('Failed login attempt with settings', [
+            'user_id' => $this->id,
+            'username' => $this->username,
+            'failed_attempts' => $this->failed_login_attempts,
+            'max_attempts' => $maxAttempts,
+            'will_be_locked' => $this->failed_login_attempts >= $maxAttempts,
+            'ip' => request()->ip()
+        ]);
     }
 
     // ===============================================
     // MÉTHODES STATIQUES UTILITAIRES
     // ===============================================
 
-    /**
-     * NOUVEAU : Obtenir les statistiques générales des utilisateurs
-     */
     public static function getGlobalStats(): array
     {
         return [
@@ -905,25 +867,19 @@ public function scopeWithMinServices($query, int $minCount = 1)
             'conseiller_users' => self::conseillerUsers()->count(),
             'recent_users' => self::recentlyCreated()->count(),
             'users_needing_password_reset' => self::needingPasswordReset()->count(),
-            'recently_logged_in' => self::recentlyLoggedIn()->count(), //  NOUVEAU
-            'with_failed_attempts' => self::withFailedAttempts()->count(), //  NOUVEAU
-            // NOUVEAU : Services
-        'total_services' => \App\Models\Service::count(),
-        'active_services' => \App\Models\Service::where('statut', 'actif')->count(),
-        'inactive_services' => \App\Models\Service::where('statut', 'inactif')->count(),
-        'recent_services' => \App\Models\Service::where('created_at', '>=', now()->subDays(30))->count(),
-        'services_created_today' => \App\Models\Service::whereDate('created_at', today())->count(),
-        'services_created_this_month' => \App\Models\Service::whereMonth('created_at', now()->month)->count(),
-        
-        // Relations utilisateurs-services
-        'users_with_services' => self::whereHas('createdServices')->count(),
-        'admins_with_services' => self::admins()->whereHas('createdServices')->count(),
+            'recently_logged_in' => self::recentlyLoggedIn()->count(),
+            'with_failed_attempts' => self::withFailedAttempts()->count(),
+            'total_services' => \App\Models\Service::count(),
+            'active_services' => \App\Models\Service::where('statut', 'actif')->count(),
+            'inactive_services' => \App\Models\Service::where('statut', 'inactif')->count(),
+            'recent_services' => \App\Models\Service::where('created_at', '>=', now()->subDays(30))->count(),
+            'services_created_today' => \App\Models\Service::whereDate('created_at', today())->count(),
+            'services_created_this_month' => \App\Models\Service::whereMonth('created_at', now()->month)->count(),
+            'users_with_services' => self::whereHas('createdServices')->count(),
+            'admins_with_services' => self::admins()->whereHas('createdServices')->count(),
         ];
     }
 
-    /**
-     * NOUVEAU : Obtenir les utilisateurs par type avec statistiques
-     */
     public static function getStatsByType(): array
     {
         $types = [
@@ -946,29 +902,22 @@ public function scopeWithMinServices($query, int $minCount = 1)
         return $stats;
     }
 
-    /**
-     * NOUVEAU : Rechercher des utilisateurs avec filtres avancés
-     */
     public static function advancedSearch(array $filters = []): \Illuminate\Database\Eloquent\Builder
     {
         $query = self::with(['userType', 'status', 'createdBy']);
 
-        // Filtrer par terme de recherche
         if (!empty($filters['search'])) {
             $query->search($filters['search']);
         }
 
-        // Filtrer par rôle
         if (!empty($filters['role'])) {
             $query->byRole($filters['role']);
         }
 
-        // Filtrer par rôles multiples
         if (!empty($filters['roles']) && is_array($filters['roles'])) {
             $query->byRoles($filters['roles']);
         }
 
-        // Filtrer par statut
         if (!empty($filters['status'])) {
             $statusMap = [
                 'active' => 2,
@@ -980,14 +929,12 @@ public function scopeWithMinServices($query, int $minCount = 1)
             }
         }
 
-        // Filtrer par créateur
         if (!empty($filters['created_by'])) {
             $query->whereHas('createdBy', function($q) use ($filters) {
                 $q->where('administrator_id', $filters['created_by']);
             });
         }
 
-        // Filtrer par période de création
         if (!empty($filters['created_after'])) {
             $query->where('created_at', '>=', $filters['created_after']);
         }
@@ -999,112 +946,85 @@ public function scopeWithMinServices($query, int $minCount = 1)
         return $query;
     }
 
-    // ===============================================
-// NOUVELLE MÉTHODE POUR LES STATISTIQUES SERVICES D'UN ADMIN
-// ===============================================
+    public function getDetailedServicesStats(): array
+    {
+        if (!$this->isAdmin()) {
+            return [];
+        }
 
-/**
- * NOUVEAU : Obtenir les statistiques détaillées des services pour un admin
- */
-public function getDetailedServicesStats(): array
-{
-    if (!$this->isAdmin()) {
-        return [];
-    }
-
-    $services = $this->createdServices();
-    $baseStats = $this->getServicesStats();
-    
-    // Statistiques avancées
-    $oldestService = $services->oldest('created_at')->first();
-    $newestService = $services->latest('created_at')->first();
-    
-    return array_merge($baseStats, [
-        'oldest_service' => $oldestService ? [
-            'nom' => $oldestService->nom,
-            'code' => $oldestService->code,
-            'created_at' => $oldestService->created_at->format('d/m/Y'),
-            'days_ago' => $oldestService->created_at->diffInDays(now())
-        ] : null,
+        $services = $this->createdServices();
+        $baseStats = $this->getServicesStats();
         
-        'newest_service' => $newestService ? [
-            'nom' => $newestService->nom,
-            'code' => $newestService->code,
-            'created_at' => $newestService->created_at->format('d/m/Y'),
-            'days_ago' => $newestService->created_at->diffInDays(now())
-        ] : null,
+        $oldestService = $services->oldest('created_at')->first();
+        $newestService = $services->latest('created_at')->first();
         
-        'average_services_per_month' => $this->getAverageServicesPerMonth(),
-        'most_productive_month' => $this->getMostProductiveMonth(),
-        'services_by_status' => [
-            'actif' => $services->where('statut', 'actif')->get()->map(function($service) {
-                return [
-                    'nom' => $service->nom,
-                    'code' => $service->code,
-                    'created_at' => $service->created_at->format('d/m/Y')
-                ];
-            })->toArray(),
-            'inactif' => $services->where('statut', 'inactif')->get()->map(function($service) {
-                return [
-                    'nom' => $service->nom,
-                    'code' => $service->code,
-                    'created_at' => $service->created_at->format('d/m/Y')
-                ];
-            })->toArray(),
-        ]
-    ]);
-}
-
-/**
- * Calculer la moyenne de services créés par mois
- */
-private function getAverageServicesPerMonth(): float
-{
-    $firstService = $this->createdServices()->oldest('created_at')->first();
-    if (!$firstService) {
-        return 0;
+        return array_merge($baseStats, [
+            'oldest_service' => $oldestService ? [
+                'nom' => $oldestService->nom,
+                'code' => $oldestService->code,
+                'created_at' => $oldestService->created_at->format('d/m/Y'),
+                'days_ago' => $oldestService->created_at->diffInDays(now())
+            ] : null,
+            
+            'newest_service' => $newestService ? [
+                'nom' => $newestService->nom,
+                'code' => $newestService->code,
+                'created_at' => $newestService->created_at->format('d/m/Y'),
+                'days_ago' => $newestService->created_at->diffInDays(now())
+            ] : null,
+            
+            'average_services_per_month' => $this->getAverageServicesPerMonth(),
+            'most_productive_month' => $this->getMostProductiveMonth(),
+            'services_by_status' => [
+                'actif' => $services->where('statut', 'actif')->get()->map(function($service) {
+                    return [
+                        'nom' => $service->nom,
+                        'code' => $service->code,
+                        'created_at' => $service->created_at->format('d/m/Y')
+                    ];
+                })->toArray(),
+                'inactif' => $services->where('statut', 'inactif')->get()->map(function($service) {
+                    return [
+                        'nom' => $service->nom,
+                        'code' => $service->code,
+                        'created_at' => $service->created_at->format('d/m/Y')
+                    ];
+                })->toArray(),
+            ]
+        ]);
     }
-    
-    $monthsSinceFirst = $firstService->created_at->diffInMonths(now()) + 1;
-    $totalServices = $this->createdServices()->count();
-    
-    return round($totalServices / $monthsSinceFirst, 2);
-}
 
-/**
- * Trouver le mois le plus productif
- */
-private function getMostProductiveMonth(): ?array
-{
-    $servicesByMonth = $this->createdServices()
-        ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, COUNT(*) as count')
-        ->groupBy('year', 'month')
-        ->orderBy('count', 'desc')
-        ->first();
-    
-    if (!$servicesByMonth) {
-        return null;
+    private function getAverageServicesPerMonth(): float
+    {
+        $firstService = $this->createdServices()->oldest('created_at')->first();
+        if (!$firstService) {
+            return 0;
+        }
+        
+        $monthsSinceFirst = $firstService->created_at->diffInMonths(now()) + 1;
+        $totalServices = $this->createdServices()->count();
+        
+        return round($totalServices / $monthsSinceFirst, 2);
     }
-    
-    return [
-        'year' => $servicesByMonth->year,
-        'month' => $servicesByMonth->month,
-        'month_name' => \Carbon\Carbon::create($servicesByMonth->year, $servicesByMonth->month)->locale('fr')->monthName,
-        'count' => $servicesByMonth->count,
-        'formatted' => \Carbon\Carbon::create($servicesByMonth->year, $servicesByMonth->month)->locale('fr')->format('F Y')
-    ];
-}
 
-
-    // ===============================================
-// RELATIONS AVEC LES SERVICES 
-// ===============================================
-
-/**
- * Services créés par cet utilisateur
- */
-public function createdServices()
-{
-    return $this->hasMany(Service::class, 'created_by');
-}
+    private function getMostProductiveMonth(): ?array
+    {
+        $servicesByMonth = $this->createdServices()
+            ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, COUNT(*) as count')
+            ->groupBy('year', 'month')
+            ->orderBy('count', 'desc')
+            ->first();
+        
+        if (!$servicesByMonth) {
+            return null;
+        }
+        
+        return [
+            'year' => $servicesByMonth->year,
+            'month' => $servicesByMonth->month,
+            'month_name' => \Carbon\Carbon::create($servicesByMonth->year, $servicesByMonth->month)->locale('fr')->monthName,
+            'count' => $servicesByMonth->count,
+            'formatted' => \Carbon\Carbon::create($servicesByMonth->year, $servicesByMonth->month)->locale('fr')->format('F Y')
+        ];
+    }
 }

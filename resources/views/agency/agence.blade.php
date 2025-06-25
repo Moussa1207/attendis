@@ -393,8 +393,8 @@
                                                     <div class="media">
                                                         <input type="checkbox" class="agency-checkbox mr-2" value="{{ $agency->id }}" onchange="handleIndividualCheckbox()">
                                                         <div class="agency-avatar mr-3">
-                                                            <div class="agency-icon bg-soft-primary text-primary">
-                                                                <i data-feather="home" class="icon-sm"></i>
+                                                            <div class="agency-icon text-primary">
+                                                                <i data-feather="home" class="icon-xs"></i>
                                                             </div>
                                                         </div>
                                                         <div class="media-body align-self-center">
@@ -569,7 +569,7 @@
                     </div>
                     <div>
                         <h5 class="modal-title mb-0" id="modalAgencyName">
-                            <i data-feather="home" class="icon-sm mr-2"></i>Chargement...
+                            <i data-feather="home" class="icon-xs mr-2"></i>Chargement...
                         </h5>
                         <small class="text-white-50" id="modalAgencyRole">Informations agence</small>
                     </div>
@@ -661,7 +661,7 @@
                                     <div class="col-lg-6">
                                         <div class="info-card">
                                             <h6 class="card-title text-primary">
-                                                <i data-feather="home" class="icon-sm mr-2"></i>Identité
+                                                <i data-feather="home" class="icon-xs mr-2"></i>Identité
                                             </h6>
                                             <div class="info-list">
                                                 <div class="info-item">
@@ -682,7 +682,7 @@
                                     <div class="col-lg-6">
                                         <div class="info-card">
                                             <h6 class="card-title text-success">
-                                                <i data-feather="calendar" class="icon-sm mr-2"></i>Informations Temporelles
+                                                <i data-feather="calendar" class="icon-xs mr-2"></i>Informations Temporelles
                                             </h6>
                                             <div class="info-list">
                                                 <div class="info-item">
@@ -709,7 +709,7 @@
                                     <div class="col-lg-8">
                                         <div class="info-card">
                                             <h6 class="card-title text-info">
-                                                <i data-feather="map-pin" class="icon-sm mr-2"></i>Adresse complète
+                                                <i data-feather="map-pin" class="icon-xs mr-2"></i>Adresse complète
                                             </h6>
                                             <div class="info-list">
                                                 <div class="info-item">
@@ -738,7 +738,7 @@
                                     <div class="col-lg-4">
                                         <div class="info-card bg-light">
                                             <h6 class="card-title text-warning">
-                                                <i data-feather="navigation" class="icon-sm mr-2"></i>Actions Rapides
+                                                <i data-feather="navigation" class="icon-xs mr-2"></i>Actions Rapides
                                             </h6>
                                             <div class="quick-actions">
                                                 <button class="btn btn-outline-primary btn-sm btn-block mb-2" onclick="copyAgencyAddress()">
@@ -762,7 +762,7 @@
                                     <div class="col-lg-8">
                                         <div class="info-card">
                                             <h6 class="card-title text-success">
-                                                <i data-feather="phone" class="icon-sm mr-2"></i>Informations de contact
+                                                <i data-feather="phone" class="icon-xs mr-2"></i>Informations de contact
                                             </h6>
                                             <div class="info-list">
                                                 <div class="info-item">
@@ -788,7 +788,7 @@
                                     <div class="col-lg-4">
                                         <div class="info-card bg-light">
                                             <h6 class="card-title text-warning">
-                                                <i data-feather="message-circle" class="icon-sm mr-2"></i>Actions Contact
+                                                <i data-feather="message-circle" class="icon-xs mr-2"></i>Actions Contact
                                             </h6>
                                             <div class="quick-actions">
                                                 <button class="btn btn-outline-success btn-sm btn-block mb-2" onclick="callAgency()">
@@ -810,7 +810,7 @@
                             <div class="tab-pane fade" id="activity" role="tabpanel">
                                 <div class="info-card">
                                     <h6 class="card-title text-primary">
-                                        <i data-feather="activity" class="icon-sm mr-2"></i>Historique d'activité
+                                        <i data-feather="activity" class="icon-xs mr-2"></i>Historique d'activité
                                     </h6>
                                     <div class="activity-timeline">
                                         <div class="timeline-item">
@@ -1660,7 +1660,7 @@ function showDeactivateAgencyModal(agencyId, agencyName) {
     showConfirmationModal({
         type: 'warning',
         icon: 'pause',
-        title: '⚠️ Désactiver l\'agence',
+        title: ' Désactiver l\'agence',
         message: `Confirmer la désactivation de l'agence "${agencyName}" ?`,
         details: `
             <div class="text-warning">
@@ -1689,7 +1689,7 @@ function showDeleteAgencyModal(agencyId, agencyName) {
         details: `
             <div class="text-danger">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
-                <strong>⚠️ ATTENTION : Cette action est irréversible !</strong><br>
+                <strong> ATTENTION : Cette action est irréversible !</strong><br>
                 <small>• Toutes les données de l'agence seront supprimées<br>
                 • L'historique sera perdu<br>
                 • Cette opération ne peut pas être annulée</small>
@@ -1764,7 +1764,7 @@ function showBulkDeleteModal() {
         details: `
             <div class="text-danger">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
-                <strong>⚠️ ATTENTION : Cette action est irréversible !</strong><br>
+                <strong>ATTENTION : Cette action est irréversible !</strong><br>
                 <small>• ${selectedAgencies.length} agence(s) seront supprimées définitivement<br>
                 • Toutes les données associées seront perdues<br>
                 • Cette opération ne peut pas être annulée</small>
@@ -2498,7 +2498,7 @@ function showToast(title, message, type = 'info') {
     const toastHTML = `
         <div class="toast fade show" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true" data-delay="5000">
             <div class="toast-header bg-${colors[type]} text-white">
-                <i data-feather="${icons[type]}" class="icon-sm mr-2"></i>
+                <i data-feather="${icons[type]}" class="icon-xs mr-2"></i>
                 <strong class="mr-auto">${title}</strong>
                 <small class="text-white-50">${new Date().toLocaleTimeString('fr-FR')}</small>
                 <button type="button" class="ml-2 mb-1 close text-white" data-dismiss="toast" aria-label="Close">

@@ -39,7 +39,7 @@
                                 <small class="float-right text-muted pl-2">Maintenant</small>
                                 <div class="media">
                                     <div class="avatar-md bg-soft-primary">
-                                        <i data-feather="settings" class="align-self-center icon-xs"></i>
+                                        <i data-feather="briefcase" class="align-self-center icon-xs"></i>
                                     </div>
                                     <div class="media-body align-self-center ml-2 text-truncate">
                                         <h6 class="my-0 font-weight-normal text-dark">Création de service</h6>
@@ -104,7 +104,7 @@
                         <div class="row">
                             <div class="col">
                                 <h4 class="page-title animate__animated animate__fadeInDown">
-                                    <i data-feather="settings" class="mr-2"></i>Créer un nouveau service
+                                    <i data-feather="briefcase" class="mr-2"></i>Créer un nouveau service
                                 </h4>
                                 <ol class="breadcrumb">
                                     <li class="breadcrumb-item"><a href="{{ route('layouts.app') }}">Dashboard</a></li>
@@ -182,7 +182,7 @@
                                 </div><!--end col-->
                                 <div class="col-auto"> 
                                     <span class="badge badge-soft-primary font-12">
-                                        <i data-feather="settings" class="icon-xs mr-1"></i>Création d'un service
+                                        <i data-feather="briefcase" class="icon-xs mr-1"></i>Création d'un service
                                     </span>
                                 </div><!--end col-->
                             </div>  <!--end row-->                                  
