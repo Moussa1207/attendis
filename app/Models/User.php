@@ -11,8 +11,8 @@ class User extends Authenticatable
     use Notifiable;
 
     protected $fillable = [
-        'username', 'email', 'password', 'mobile_number', 'company', 'user_type_id', 'status_id',
-        'last_login_at', 'failed_login_attempts', 'last_password_change',
+        'username', 'email', 'password', 'mobile_number', 'company', 'agency_id', 'user_type_id', 'status_id',
+    'last_login_at', 'failed_login_attempts', 'last_password_change',
     ];
 
     protected $hidden = [
@@ -101,6 +101,33 @@ class User extends Authenticatable
         return $this->status_id === 3;
     }
 
+    // Ajoutez cette relation après les autres relations
+public function agency()
+{
+    return $this->belongsTo(Agency::class);
+}
+
+// Ajoutez ces méthodes utilitaires
+public function hasAgency(): bool
+{
+    return $this->agency_id !== null;
+}
+
+public function getAgencyName(): string
+{
+    return $this->agency ? $this->agency->name : 'Non assigné';
+}
+
+// Ajoutez ce scope pour filtrer par agence
+public function scopeByAgency($query, $agencyId)
+{
+    return $query->where('agency_id', $agencyId);
+}
+
+public function scopeWithoutAgency($query)
+{
+    return $query->whereNull('agency_id');
+}
     // ===============================================
     // MÉTHODES POUR LES SERVICES
     // ===============================================

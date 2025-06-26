@@ -285,6 +285,30 @@ class Agency extends Model
     }
 
     /**
+ * Relation: Les utilisateurs assignés à cette agence.
+ */
+public function users()
+{
+    return $this->hasMany(User::class);
+}
+
+/**
+ * Obtenir le nombre d'utilisateurs assignés.
+ */
+public function getUsersCountAttribute()
+{
+    return $this->users()->count();
+}
+
+/**
+ * Obtenir les utilisateurs actifs de l'agence.
+ */
+public function getActiveUsers()
+{
+    return $this->users()->where('status_id', 2)->get();
+}
+
+    /**
      * Messages de validation personnalisés.
      */
     public static function validationMessages()

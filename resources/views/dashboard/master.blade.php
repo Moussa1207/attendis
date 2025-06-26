@@ -87,7 +87,7 @@
                 <ul class="nav-second-level" aria-expanded="false">
                     <!-- AMÉLIORÉ: Nouveau en premier -->
                     <li>
-                        <a href="{{ route('admin.users.create') }}">
+                        <a href="{{ route('User.user-create') }}">
                             <i class="ti-control-record"></i>Nouveau
                         </a>
                     </li>

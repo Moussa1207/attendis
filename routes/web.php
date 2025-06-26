@@ -183,16 +183,19 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->group(function () {
         Route::get('/user/users-list', [DashboardController::class, 'usersList'])
             ->name('user.users-list');
         
-        // Création d'utilisateurs (UserManagementController)
-        Route::get('/admin/users/create', [UserManagementController::class, 'create'])
-            ->name('admin.users.create');
-        Route::post('/admin/users/store', [UserManagementController::class, 'store'])
-            ->name('admin.users.store');
-        
+        // Création d'utilisateurs 
+        Route::get('/admin/user/create', [UserManagementController::class, 'create'])
+            ->name('User.user-create');
+        Route::post('/admin/user/store', [UserManagementController::class, 'store'])
+            ->name('User.user.store');
+         
         // Mes utilisateurs créés
         Route::get('/admin/users/my-created', [UserManagementController::class, 'myCreatedUsers'])
             ->name('admin.users.my-created');
-        
+         Route::get('/admin/users/{user}/edit', [UserManagementController::class, 'edit'])
+    ->name('admin.users.edit');
+    Route::put('/admin/users/{user}', [UserManagementController::class, 'update'])
+    ->name('admin.users.update');
             
         // Renvoyer identifiants
         Route::post('/admin/users/{user}/resend-credentials', [UserManagementController::class, 'resendCredentials'])

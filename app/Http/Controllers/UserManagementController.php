@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\UserType;
+use App\Models\Agency;
 use App\Models\AdministratorUser;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -30,42 +32,58 @@ class UserManagementController extends Controller
         // Statistiques pour l'admin connecté
         $adminStats = AdministratorUser::getStatsForAdmin(Auth::id());
         
-        // NOUVEAU : Obtenir les rôles disponibles avec leurs informations
+        // Obtenir les rôles disponibles avec leurs informations
         $availableRoles = $this->getAvailableRoles();
         
-        return view('user.user-create', compact('adminStats', 'availableRoles'));
+        // NOUVEAU : Récupérer toutes les agences actives
+        $agencies = Agency::active()->orderBy('name')->get();
+        
+        return view('user.user-create', compact('adminStats', 'availableRoles', 'agencies'));
     }
 
     /**
-     * ✅ CRÉER UN NOUVEL UTILISATEUR - VERSION CORRIGÉE AVEC MAPPING DES RÔLES
+     * ✅ CRÉER UN NOUVEL UTILISATEUR - VERSION CORRIGÉE AVEC MAPPING DES RÔLES ET AGENCE
      * L'admin voit TOUJOURS le mot de passe temporaire
-     * AMÉLIORATION : Support complet des 4 types métier
+     * AMÉLIORATION : Support complet des 4 types métier et gestion des agences
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'email' => 'required|string|email|max:255|unique:users',
             'username' => 'required|string|max:255|unique:users',
             'mobile_number' => 'required|string|max:20',
-            'user_role' => 'required|string|in:ecran,conseiller,accueil', // RÔLES MÉTIER
+            'user_role' => 'required|string|in:ecran,conseiller,accueil',
+            'agency_id' => 'nullable|exists:agencies,id',
             'send_credentials' => 'boolean'
         ], [
             'email.unique' => 'Cette adresse email est déjà utilisée.',
-            'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
             'email.email' => 'Veuillez saisir une adresse email valide.',
+            'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
             'mobile_number.required' => 'Le numéro de téléphone est obligatoire.',
             'user_role.required' => 'Le poste de l\'utilisateur est obligatoire.',
             'user_role.in' => 'Le poste sélectionné n\'est pas valide.',
+            'agency_id.exists' => 'L\'agence sélectionnée n\'existe pas.'
         ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
 
         try {
             DB::beginTransaction();
 
-            // ✅ CORRECTION : Mapper le rôle vers le bon user_type_id
+            // Mapper le rôle vers le bon user_type_id
             $userTypeMapping = [
-                'ecran' => 2,       // Poste Ecran
-                'accueil' => 3,     // Poste Accueil  
-                'conseiller' => 4,  // Poste Conseiller
+                'ecran' => 2,
+                'accueil' => 3,
+                'conseiller' => 4,
             ];
 
             // Valider que le rôle est valide
@@ -76,19 +94,20 @@ class UserManagementController extends Controller
             // Générer un mot de passe temporaire sécurisé
             $temporaryPassword = $this->generateSecurePassword();
             
-            // ✅  Créer l'utilisateur avec le bon type
+            // Créer l'utilisateur avec le bon type et agence
             $currentAdmin = Auth::user();
-$inheritedCompany = $currentAdmin->company; // HÉRITAGE AUTOMATIQUE
+            $inheritedCompany = $currentAdmin->company;
 
-$user = User::create([
-    'email' => $request->email,
-    'username' => $request->username,
-    'mobile_number' => $request->mobile_number,
-    'company' => $inheritedCompany, 
-    'password' => Hash::make($temporaryPassword),
-    'user_type_id' => $userTypeMapping[$request->user_role],
-    'status_id' => 2,
-]);
+            $user = User::create([
+                'email' => $request->email,
+                'username' => $request->username,
+                'mobile_number' => $request->mobile_number,
+                'company' => $inheritedCompany,
+                'agency_id' => $request->agency_id,
+                'password' => Hash::make($temporaryPassword),
+                'user_type_id' => $userTypeMapping[$request->user_role],
+                'status_id' => 2,
+            ]);
 
             // Enregistrer la relation administrator_user avec informations détaillées
             $adminUserRecord = AdministratorUser::create([
@@ -97,7 +116,8 @@ $user = User::create([
                 'creation_method' => 'manual',
                 'creation_notes' => $this->formatUserRoleNote($request->user_role),
                 'password_reset_required' => true,
-                'password_reset_sent_at' => null
+                'password_reset_sent_at' => null,
+                'temporary_password' => $temporaryPassword
             ]);
 
             // Préparer les informations de connexion
@@ -105,23 +125,22 @@ $user = User::create([
                 'email' => $user->email,
                 'username' => $user->username,
                 'password' => $temporaryPassword,
-                'user_role' => $request->user_role, // ✅ NOUVEAU : Inclure le rôle
-                'user_type' => $user->getTypeName(), // ✅ NOUVEAU : Nom du type
-                'user_type_icon' => $user->getTypeIcon(), // ✅ NOUVEAU : Icône du type
-                'user_type_emoji' => $user->getTypeEmoji(), // ✅ NOUVEAU : Emoji du type
+                'user_role' => $request->user_role,
+                'user_type' => $user->getTypeName(),
+                'user_type_icon' => $user->getTypeIcon(),
+                'user_type_emoji' => $user->getTypeEmoji(),
                 'login_url' => route('login'),
-                'admin_creator' => Auth::user()->username
+                'admin_creator' => Auth::user()->username,
+                'agency' => $user->agency ? $user->agency->name : null
             ];
 
             // L'admin voit TOUJOURS le mot de passe
             $credentialsSent = false;
             
-            // Envoyer les identifiants si demandé (optionnel)
+            // Envoyer les identifiants si demandé
             if ($request->boolean('send_credentials', false)) {
                 try {
-                    // Ici vous pouvez ajouter l'envoi d'email si nécessaire
                     // Mail::to($user->email)->send(new UserCredentialsMail($userCredentials));
-                    
                     $adminUserRecord->markPasswordResetSent();
                     $credentialsSent = true;
                 } catch (\Exception $e) {
@@ -139,6 +158,7 @@ $user = User::create([
                 'user_type_id' => $user->user_type_id,
                 'user_role' => $request->user_role,
                 'user_type_name' => $user->getTypeName(),
+                'agency_id' => $request->agency_id,
                 'credentials_sent' => $credentialsSent
             ]);
 
@@ -160,15 +180,15 @@ $user = User::create([
                         'username' => $user->username,
                         'email' => $user->email,
                         'mobile_number' => $user->mobile_number,
-                        'type' => $user->getTypeName(), // ✅ Nom correct du type
-                        'type_icon' => $user->getTypeIcon(), // ✅ NOUVEAU
-                        'type_badge_color' => $user->getTypeBadgeColor(), // ✅ NOUVEAU
-                        'type_emoji' => $user->getTypeEmoji(), // ✅ NOUVEAU
-                        'user_role' => $request->user_role, // ✅ NOUVEAU
+                        'type' => $user->getTypeName(),
+                        'type_icon' => $user->getTypeIcon(),
+                        'type_badge_color' => $user->getTypeBadgeColor(),
+                        'type_emoji' => $user->getTypeEmoji(),
+                        'user_role' => $request->user_role,
+                        'agency' => $user->agency ? $user->agency->name : null,
                         'status' => 'Actif',
                         'status_badge_color' => $user->getStatusBadgeColor(),
                         'credentials_sent' => $credentialsSent,
-                        // L'ADMIN VOIT TOUJOURS LE MOT DE PASSE
                         'temporary_password' => $temporaryPassword,
                         'login_url' => route('login'),
                         'created_at' => $user->created_at->format('d/m/Y H:i'),
@@ -180,12 +200,14 @@ $user = User::create([
 
             $adminStats = AdministratorUser::getStatsForAdmin(Auth::id());
             $availableRoles = $this->getAvailableRoles();
+            $agencies = Agency::active()->orderBy('name')->get();
 
             return view('user.user-create', [
-               'adminStats' => $adminStats,
-               'availableRoles' => $availableRoles,
-               'newUser' => $user,
-               'temporaryPassword' => $temporaryPassword
+                'adminStats' => $adminStats,
+                'availableRoles' => $availableRoles,
+                'agencies' => $agencies,
+                'newUser' => $user,
+                'temporaryPassword' => $temporaryPassword
             ])->with('success', "Utilisateur '{$user->username}' ({$user->getTypeName()}) créé avec succès ! ✅");
        
         } catch (\Exception $e) {
@@ -195,6 +217,7 @@ $user = User::create([
                 'email' => $request->email,
                 'username' => $request->username,
                 'user_role' => $request->user_role,
+                'agency_id' => $request->agency_id,
                 'admin_id' => Auth::id(),
                 'error_trace' => $e->getTraceAsString()
             ]);
@@ -216,6 +239,177 @@ $user = User::create([
     }
 
     /**
+     * NOUVELLE MÉTHODE : Afficher le formulaire de modification
+     */
+    public function edit($id)
+    {
+        $user = User::findOrFail($id);
+        
+        // Vérifier que l'admin peut modifier cet utilisateur
+        if (!Auth::user()->isAdmin() || !Auth::user()->createdUsers()->where('user_id', $user->id)->exists()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+            abort(403, 'Accès non autorisé');
+        }
+        
+        // Récupérer toutes les agences actives
+        $agencies = Agency::active()->orderBy('name')->get();
+        $availableRoles = $this->getAvailableRoles();
+        
+        return view('User.user-edit', compact('user', 'agencies', 'availableRoles'));
+    }
+
+    /**
+     * NOUVELLE MÉTHODE : Mettre à jour un utilisateur
+     */
+    public function update(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        
+        // Vérifier que l'admin peut modifier cet utilisateur
+        if (!Auth::user()->isAdmin() || !Auth::user()->createdUsers()->where('user_id', $user->id)->exists()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+            abort(403, 'Accès non autorisé');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'username' => 'required|string|max:255|unique:users,username,' . $user->id,
+            'mobile_number' => 'required|string|max:20',
+            'user_role' => 'required|in:ecran,accueil,conseiller',
+            'agency_id' => 'nullable|exists:agencies,id',
+            'status' => 'required|in:active,inactive,suspended',
+        ], [
+            'email.required' => 'L\'email est obligatoire.',
+            'email.email' => 'L\'email doit être valide.',
+            'email.unique' => 'Cet email est déjà utilisé.',
+            'username.required' => 'Le nom est obligatoire.',
+            'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
+            'mobile_number.required' => 'Le téléphone est obligatoire.',
+            'user_role.required' => 'Le type d\'utilisateur est obligatoire.',
+            'user_role.in' => 'Type d\'utilisateur invalide.',
+            'agency_id.exists' => 'L\'agence sélectionnée n\'existe pas.',
+            'status.required' => 'Le statut est obligatoire.',
+        ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Mapper le rôle vers user_type_id
+            $userTypeMapping = [
+                'ecran' => 2,
+                'accueil' => 3,
+                'conseiller' => 4,
+            ];
+
+            // Mapper le statut vers status_id
+            $statusMapping = [
+                'active' => 2,
+                'inactive' => 1,
+                'suspended' => 3,
+            ];
+
+            // Mettre à jour l'utilisateur
+            $oldTypeName = $user->getTypeName();
+            $user->update([
+                'email' => $request->email,
+                'username' => $request->username,
+                'mobile_number' => $request->mobile_number,
+                'company' => $request->company,
+                'agency_id' => $request->agency_id,
+                'user_type_id' => $userTypeMapping[$request->user_role],
+                'status_id' => $statusMapping[$request->status],
+            ]);
+
+            // Mettre à jour les notes de création
+            $adminUserRecord = AdministratorUser::where('administrator_id', Auth::id())
+                ->where('user_id', $user->id)
+                ->first();
+            
+            if ($adminUserRecord) {
+                $adminUserRecord->update([
+                    'creation_notes' => $this->formatUserRoleNote($request->user_role) . " (Modifié de: {$oldTypeName})"
+                ]);
+            }
+
+            \Log::info("Utilisateur {$user->username} mis à jour par " . Auth::user()->username, [
+                'user_id' => $user->id,
+                'admin_id' => Auth::id(),
+                'user_type_id' => $user->user_type_id,
+                'status_id' => $user->status_id,
+                'agency_id' => $user->agency_id
+            ]);
+
+            DB::commit();
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Utilisateur {$user->username} modifié avec succès",
+                    'user' => [
+                        'id' => $user->id,
+                        'username' => $user->username,
+                        'email' => $user->email,
+                        'mobile_number' => $user->mobile_number,
+                        'type' => $user->getTypeName(),
+                        'type_icon' => $user->getTypeIcon(),
+                        'type_badge_color' => $user->getTypeBadgeColor(),
+                        'type_emoji' => $user->getTypeEmoji(),
+                        'user_role' => $request->user_role,
+                        'agency' => $user->agency ? $user->agency->name : null,
+                        'status' => $user->getStatusName(),
+                        'status_badge_color' => $user->getStatusBadgeColor(),
+                    ]
+                ]);
+            }
+
+            return redirect()->route('user.users-list')
+                ->with('success', "Utilisateur '{$user->username}' modifié avec succès !");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            \Log::error("Erreur mise à jour utilisateur: " . $e->getMessage(), [
+                'user_id' => $user->id,
+                'admin_id' => Auth::id(),
+                'error_trace' => $e->getTraceAsString()
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la mise à jour de l\'utilisateur',
+                    'error_details' => $e->getMessage()
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->with('error', 'Erreur lors de la mise à jour de l\'utilisateur')
+                ->withInput();
+        }
+    }
+
+    /**
      * Obtenir les utilisateurs créés par l'admin connecté
      */
     public function myCreatedUsers(Request $request)
@@ -223,7 +417,7 @@ $user = User::create([
         try {
             $admin = Auth::user();
             $users = $admin->createdUsers()
-                ->with(['user.userType', 'user.status'])
+                ->with(['user.userType', 'user.status', 'user.agency'])
                 ->paginate(10);
 
             if ($request->expectsJson()) {
@@ -241,6 +435,7 @@ $user = User::create([
                             'type_badge_color' => $user->getTypeBadgeColor(),
                             'type_emoji' => $user->getTypeEmoji(),
                             'user_role' => $user->getUserRole(),
+                            'agency' => $user->agency ? $user->agency->name : null,
                             'status' => $user->getStatusName(),
                             'status_badge_color' => $user->getStatusBadgeColor(),
                             'created_at' => $user->created_at->format('d/m/Y H:i'),
@@ -286,7 +481,7 @@ $user = User::create([
             $adminId = Auth::id();
             $stats = AdministratorUser::getStatsForAdmin($adminId);
             
-            // NOUVEAU : Statistiques par type pour cet admin
+            // Statistiques par type pour cet admin
             $statsByType = $this->getMyUserStatsByType($adminId);
             
             // Statistiques supplémentaires
@@ -300,6 +495,7 @@ $user = User::create([
                         'user' => $record->user ? $record->user->username : 'Utilisateur supprimé',
                         'user_type' => $record->user ? $record->user->getTypeName() : 'N/A',
                         'user_type_emoji' => $record->user ? $record->user->getTypeEmoji() : '❓',
+                        'agency' => $record->user && $record->user->agency ? $record->user->agency->name : 'N/A',
                         'created_at' => $record->created_at->diffForHumans(),
                         'status' => $record->user ? $record->user->getStatusName() : 'N/A'
                     ];
@@ -356,7 +552,10 @@ $user = User::create([
                 ->first();
             
             if ($adminUserRecord) {
-                $adminUserRecord->update(['password_reset_required' => true]);
+                $adminUserRecord->update([
+                    'password_reset_required' => true,
+                    'temporary_password' => $newPassword
+                ]);
             }
 
             // Préparer les nouvelles informations
@@ -367,6 +566,7 @@ $user = User::create([
                 'user_type' => $user->getTypeName(),
                 'user_type_emoji' => $user->getTypeEmoji(),
                 'user_role' => $user->getUserRole(),
+                'agency' => $user->agency ? $user->agency->name : null,
                 'login_url' => route('login'),
                 'admin_creator' => Auth::user()->username
             ];
@@ -397,7 +597,7 @@ $user = User::create([
     }
 
     /**
-     * NOUVEAU : Changer le type d'un utilisateur
+     * Changer le type d'un utilisateur
      */
     public function changeUserType(User $user, Request $request)
     {
@@ -464,6 +664,7 @@ $user = User::create([
                     'type_badge_color' => $user->getTypeBadgeColor(),
                     'type_emoji' => $user->getTypeEmoji(),
                     'user_role' => $user->getUserRole(),
+                    'agency' => $user->agency ? $user->agency->name : null,
                     'type_info' => $user->getTypeInfo()
                 ]
             ]);
@@ -516,7 +717,7 @@ $user = User::create([
     }
 
     /**
-     * NOUVEAU : Obtenir la liste des rôles disponibles avec informations complètes
+     * Obtenir la liste des rôles disponibles avec informations complètes
      */
     private function getAvailableRoles(): array
     {
@@ -549,17 +750,17 @@ $user = User::create([
     }
 
     /**
-     * NOUVEAU : Obtenir les statistiques par type pour l'admin connecté
+     * Obtenir les statistiques par type pour l'admin connecté
      */
     private function getMyUserStatsByType(int $adminId): array
     {
         $myUserIds = AdministratorUser::where('administrator_id', $adminId)->pluck('user_id')->toArray();
-        $myUserIds[] = $adminId; // Inclure l'admin lui-même
+        $myUserIds[] = $adminId;
 
         $stats = [];
         $availableRoles = $this->getAvailableRoles();
 
-        // Statistiques pour admin (lui-même)
+        // Statistiques pour admin
         $stats['admin'] = [
             'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
             'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 2)->count(),
@@ -591,7 +792,7 @@ $user = User::create([
     }
 
     /**
-     * NOUVEAU : Obtenir les informations d'un rôle spécifique
+     * Obtenir les informations d'un rôle spécifique
      */
     public function getRoleInfo(string $role)
     {
@@ -600,7 +801,7 @@ $user = User::create([
     }
 
     /**
-     * NOUVEAU : API pour obtenir les rôles disponibles
+     * API pour obtenir les rôles disponibles
      */
     public function getAvailableRolesApi(Request $request)
     {
@@ -628,7 +829,7 @@ $user = User::create([
     }
 
     /**
-     * NOUVEAU : Valider un rôle utilisateur
+     * Valider un rôle utilisateur
      */
     private function validateUserRole(string $role): bool
     {
@@ -637,17 +838,15 @@ $user = User::create([
     }
 
     /**
-     * NOUVEAU : Obtenir le mapping complet rôle → type_id
+     * Obtenir le mapping complet rôle → type_id
      */
     public function getUserTypeMapping(): array
     {
         return [
-            'admin' => 1,       // Administrateur
-            'ecran' => 2,       // Poste Ecran
-            'accueil' => 3,     // Poste Accueil
-            'conseiller' => 4,  // Poste Conseiller
+            'admin' => 1,
+            'ecran' => 2,
+            'accueil' => 3,
+            'conseiller' => 4,
         ];
     }
-
 }
-

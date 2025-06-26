@@ -313,6 +313,42 @@
                            Sélectionnez le poste de travail de cet utilisateur
                       </small>
                    </div>
+                   <!-- NOUVEAU CHAMP : Agence -->
+<div class="form-group">
+    <label for="agency_id">Agence <small class="text-muted">(optionnel)</small></label>
+    <div class="input-group mb-3">
+        <div class="input-group-prepend">
+            <span class="input-group-text bg-light">
+                <i data-feather="home" class="icon-xs"></i>
+            </span>
+        </div>
+        <select class="form-control @error('agency_id') is-invalid @enderror" 
+                name="agency_id" 
+                id="agency_id">
+            <option value="">-- Aucune agence assignée --</option>
+            @forelse($agencies as $agency)
+                <option value="{{ $agency->id }}" {{ old('agency_id') == $agency->id ? 'selected' : '' }}>
+                    {{ $agency->name }} - {{ $agency->city }}
+                </option>
+            @empty
+                <option value="" disabled>Aucune agence disponible</option>
+            @endforelse
+        </select>
+        @error('agency_id')
+        <span class="invalid-feedback" role="alert">
+            <strong>{{ $message }}</strong>
+        </span>
+        @enderror
+    </div>
+    <small class="text-muted">
+        <i data-feather="info" class="icon-xs mr-1"></i>
+        @if($agencies->isEmpty())
+            Aucune agence n'a été créée. Vous pourrez assigner une agence plus tard.
+        @else
+            Sélectionnez l'agence où travaillera cet utilisateur
+        @endif
+    </small>
+</div>
 
                                     <!-- Informations automatiques -->
                                     <div class="form-group">

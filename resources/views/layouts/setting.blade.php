@@ -33,7 +33,7 @@
                 </li> 
                 <li class="creat-btn">
                     <div class="nav-link">
-                        <a class="btn btn-sm btn-soft-primary" href="{{ route('admin.users.create') }}" role="button">
+                        <a class="btn btn-sm btn-soft-primary" href="{{ route('User.user-create') }}" role="button">
                             <i class="fas fa-plus mr-2"></i>Nouvel Utilisateur
                         </a>
                     </div>                                

@@ -71,7 +71,7 @@
                 <!-- AMÉLIORÉ: Bouton Dashboard → Nouveau utilisateur -->
                 <li class="creat-btn">
                     <div class="nav-link">
-                        <a class="btn btn-sm btn-soft-success waves-effect" href="{{ route('admin.users.create') }}" role="button">
+                        <a class="btn btn-sm btn-soft-success waves-effect" href="{{ route('User.user-create') }}" role="button">
                             <i class="fas fa-user-plus mr-2"></i>Nouveau utilisateur
                         </a>
                     </div>                                
@@ -288,6 +288,7 @@
                 </div>
             </div><!--end row-->
 
+            
             <!-- Liste des Utilisateurs -->
             <div class="row">
                 <div class="col-lg-12">
@@ -370,7 +371,13 @@
                                                     <small class="text-muted">📱 {{ $user->mobile_number }}</small>
                                                 </td>
                                                 <td>
-                                                    <span class="badge badge-light-info">{{ $user->company ?? 'Non renseigné' }}</span>
+                                                    <span class="badge badge-light-info px-3 py-1">{{ $user->company ?? 'Non renseigné' }}</span>
+                                                      @if($user->agency)
+                                                         <br>
+                                                       <small class="text-muted">
+                                                           <i data-feather="home" class="icon-xs"></i> {{ $user->agency->name }}
+                                                        </small>
+                                                     @endif
                                                 </td>
                                                 <td>
                                                     @if($user->user_type_id == 1 || $user->isAdmin())
@@ -415,38 +422,45 @@
                                                     <small class="text-muted">{{ $user->created_at->format('H:i') }}</small>
                                                 </td>
                                                 <td>
-                                                    <div class="btn-group btn-group-sm" role="group">
-                                                        <!-- ACTIONS SELON LE STATUT -->
-                                                        @if($user->isInactive())
-                                                            <button class="btn btn-soft-success waves-effect" title="Activer" 
-                                                                    onclick="showActivateUserModal({{ $user->id }}, '{{ $user->username }}')">
-                                                                <i data-feather="user-check" class="icon-xs"></i>
-                                                            </button>
-                                                        @elseif($user->isActive() && !$user->isAdmin())
-                                                            <button class="btn btn-soft-warning waves-effect" title="Suspendre" 
-                                                                    onclick="showSuspendUserModal({{ $user->id }}, '{{ $user->username }}')">
-                                                                <i data-feather="user-x" class="icon-xs"></i>
-                                                            </button>
-                                                        @elseif($user->isSuspended())
-                                                            <button class="btn btn-soft-success waves-effect" title="Réactiver" 
-                                                                    onclick="showReactivateUserModal({{ $user->id }}, '{{ $user->username }}')">
-                                                                <i data-feather="user-check" class="icon-xs"></i>
-                                                            </button>
-                                                        @endif
-                                                        
-                                                        <button type="button" class="btn btn-soft-info waves-effect" title="Détails" 
-                                                                onclick="showUserDetails({{ $user->id }})">
-                                                            <i data-feather="eye" class="icon-xs"></i>
-                                                        </button>
-                                                        
-                                                        @if(!$user->isAdmin() || (\App\Models\User::where('user_type_id', 1)->where('status_id', 2)->count() > 1))
-                                                        <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
-                                                                onclick="showDeleteUserModal({{ $user->id }}, '{{ $user->username }}')">
-                                                            <i data-feather="trash-2" class="icon-xs"></i>
-                                                        </button>
-                                                        @endif
-                                                    </div>
-                                                </td>
+    <div class="btn-group btn-group-sm" role="group">
+        <!-- ACTIONS SELON LE STATUT -->
+        @if($user->isInactive())
+            <button class="btn btn-soft-success waves-effect" title="Activer" 
+                    onclick="showActivateUserModal({{ $user->id }}, '{{ $user->username }}')">
+                <i data-feather="user-check" class="icon-xs"></i>
+            </button>
+        @elseif($user->isActive() && !$user->isAdmin())
+            <button class="btn btn-soft-warning waves-effect" title="Suspendre" 
+                    onclick="showSuspendUserModal({{ $user->id }}, '{{ $user->username }}')">
+                <i data-feather="user-x" class="icon-xs"></i>
+            </button>
+        @elseif($user->isSuspended())
+            <button class="btn btn-soft-success waves-effect" title="Réactiver" 
+                    onclick="showReactivateUserModal({{ $user->id }}, '{{ $user->username }}')">
+                <i data-feather="user-check" class="icon-xs"></i>
+            </button>
+        @endif
+        
+        <button type="button" class="btn btn-soft-info waves-effect" title="Détails" 
+                onclick="showUserDetails({{ $user->id }})">
+            <i data-feather="eye" class="icon-xs"></i>
+        </button>
+        
+        <!-- NOUVEAU BOUTON MODIFIER -->
+        <a href="{{ route('admin.users.edit', $user->id) }}" 
+           class="btn btn-soft-primary waves-effect" 
+           title="Modifier">
+            <i data-feather="edit-2" class="icon-xs"></i>
+        </a>
+        
+        @if(!$user->isAdmin() || (\App\Models\User::where('user_type_id', 1)->where('status_id', 2)->count() > 1))
+        <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
+                onclick="showDeleteUserModal({{ $user->id }}, '{{ $user->username }}')">
+            <i data-feather="trash-2" class="icon-xs"></i>
+        </button>
+        @endif
+    </div>
+</td>
                                             </tr><!--end tr-->
                                             @endforeach               
                                         </tbody>
@@ -487,7 +501,7 @@
         </div><!--end card-body--> 
     </div><!--end card--> 
 </div> <!--end col-->                               
-</div><!--end row-->
+            </div><!--end row-->
 
 </div><!-- container -->
 
@@ -500,10 +514,10 @@
 <!-- end page-wrapper -->
 
 <!-- ==================================================================================== -->
-<!-- MODALES PROFESSIONNELLES - ✅ CORRIGÉES -->
+<!-- MODALES PROFESSIONNELLES  -->
 <!-- ==================================================================================== -->
 
-<!-- ✅ CORRIGÉ : Modal Confirmation Universelle avec z-index fixé -->
+<!--  Modal Confirmation Universelle avec z-index fixé -->
 <div class="modal fade" id="confirmationModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -540,7 +554,7 @@
     </div>
 </div>
 
-<!-- ✅ CORRIGÉ : Modal Nouveau Mot de Passe avec scroll et taille adaptée -->
+<!--  Modal Nouveau Mot de Passe avec scroll et taille adaptée -->
 <div class="modal fade" id="newPasswordModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
         <div class="modal-content modal-password-content">
@@ -558,7 +572,7 @@
                     <span>&times;</span>
                 </button>
             </div>
-            <!-- ✅ CORRIGÉ : Corps avec scroll activé -->
+            <!--  Corps avec scroll activé -->
             <div class="modal-body modal-password-body p-0">
                 <!-- En-tête utilisateur -->
                 <div class="user-header-section bg-light border-bottom">
@@ -645,7 +659,7 @@
                                                     <code class="password-display" id="newPasswordDisplay">Chargement...</code>
                                                 </div>
                                                 <div class="password-copy-btn">
-                                                    <!-- ✅ CORRIGÉ : Protection contre double clic + positionnement -->
+                                                    <!--  Protection contre double clic + positionnement -->
                                                     <button class="btn btn-sm btn-outline-primary copy-password-btn" onclick="copyNewPassword(this)" title="Copier le mot de passe">
                                                         <i data-feather="copy" class="icon-xs"></i>
                                                     </button>
@@ -654,7 +668,7 @@
                                         </div>
                                     </div>
                                     <div class="mt-3">
-                                        <!-- ✅ CORRIGÉ : Protection contre double clic -->
+                                        <!--  Protection contre double clic -->
                                         <button class="btn btn-success btn-sm btn-block copy-all-btn" onclick="copyAllNewCredentials(this)">
                                             <i data-feather="clipboard" class="icon-xs mr-1"></i>Copier tous les identifiants
                                         </button>
@@ -690,7 +704,7 @@
                     </div>
                 </div>
             </div>
-            <!-- ✅ CORRIGÉ : Footer sticky bien positionné -->
+            <!--  Footer sticky bien positionné -->
             <div class="modal-footer modal-password-footer border-top bg-light">
                 <div class="d-flex justify-content-between w-100 align-items-center flex-wrap">
                     <div class="footer-info mb-2 mb-md-0">
@@ -713,9 +727,9 @@
     </div>
 </div>
 
-<!-- ✅ CORRIGÉ : Modal Détails Utilisateur - Taille, centrage et footer améliorés -->
+<!--  Modal Détails Utilisateur - Taille, centrage et footer améliorés -->
 <div class="modal fade" id="userDetailsModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
-    <!-- ✅ CORRIGÉ : Meilleure taille et centrage -->
+    <!--  Meilleure taille et centrage -->
     <div class="modal-dialog modal-enhanced modal-dialog-centered modal-dialog-scrollable" role="document">
         <div class="modal-content modal-content-enhanced">
             <!-- En-tête du modal -->
@@ -742,7 +756,7 @@
                 </div>
             </div>
 
-            <!-- ✅ CORRIGÉ : Corps du modal avec hauteur optimisée -->
+            <!--  Corps du modal avec hauteur optimisée -->
             <div class="modal-body modal-body-enhanced p-0" id="userDetailsContent">
                 <!-- État de chargement -->
                 <div class="loading-state text-center py-5" id="loadingState">
@@ -962,7 +976,7 @@
                                                 <i data-feather="key" class="icon-sm mr-2"></i>Actions de Sécurité
                                             </h6>
                                             <div class="security-actions">
-                                                <!-- ✅ NOUVEAU BOUTON FONCTIONNEL -->
+                                                <!--  BOUTON FONCTIONNEL -->
                                                 <button class="btn btn-outline-warning btn-sm btn-block mb-2" onclick="resetUserPassword()">
                                                     <i data-feather="key" class="icon-xs mr-1"></i>Réinitialiser mot de passe
                                                 </button>
@@ -1034,7 +1048,7 @@
                 </div>
             </div>
 
-            <!-- ✅ CORRIGÉ : Footer bien positionné et responsive -->
+            <!--  Footer bien positionné et responsive -->
             <div class="modal-footer modal-footer-enhanced border-top bg-light">
                 <div class="d-flex justify-content-between w-100 align-items-center flex-wrap">
                     <div class="footer-left mb-2 mb-md-0">
@@ -1074,7 +1088,7 @@
     cursor: default;
 }
 
-/* NOUVEAUX STYLES POUR LES CARTES CLIQUABLES */
+/*  STYLES POUR LES CARTES CLIQUABLES */
 .clickable-card {
     cursor: pointer !important;
     transition: all 0.3s ease;
@@ -1099,7 +1113,7 @@
     box-shadow: 0 6px 20px rgba(33, 150, 243, 0.3);
 }
 
-/* NOUVEAU : Style uniforme pour les badges de type utilisateur */
+/*  Style uniforme pour les badges de type utilisateur */
 .badge-custom-type {
     background-color: #12a4ed !important;
     color: white !important;
@@ -1114,10 +1128,10 @@
 }
 
 /* ==================================================================================== */
-/* ✅ CORRECTIONS MAJEURES POUR LES MODALES */
+/*  CORRECTIONS MAJEURES POUR LES MODALES */
 /* ==================================================================================== */
 
-/* ✅ Z-INDEX HIÉRARCHIQUE CORRIGÉ */
+/*  Z-INDEX HIÉRARCHIQUE  */
 #userDetailsModal {
     z-index: 1050 !important; /* Modal de base */
 }
@@ -1130,7 +1144,7 @@
     z-index: 1055 !important; /* Modal intermédiaire */
 }
 
-/* ✅ FORCER LE SCROLL POUR MODAL MOT DE PASSE */
+/*  FORCER LE SCROLL POUR MODAL MOT DE PASSE */
 #newPasswordModal .modal-dialog-scrollable {
     height: calc(100% - 3.5rem);
 }
@@ -1141,7 +1155,7 @@
     flex-direction: column;
 }
 
-/* ✅ MODAL DÉTAILS AMÉLIORÉE - TAILLE ET CENTRAGE */
+/*  MODAL DÉTAILS AMÉLIORÉE - TAILLE ET CENTRAGE */
 .modal-enhanced {
     max-width: 90vw !important;
     width: 90vw !important;
@@ -1166,7 +1180,7 @@
     padding: 0 !important;
 }
 
-/* ✅ FOOTER MODAL DÉTAILS BIEN POSITIONNÉ */
+/*  FOOTER MODAL DÉTAILS BIEN POSITIONNÉ */
 .modal-footer-enhanced {
     position: sticky !important;
     bottom: 0 !important;
@@ -1181,7 +1195,7 @@
     flex-shrink: 0 !important;
 }
 
-/* ✅ NAVIGATION ONGLETS AMÉLIORÉE */
+/*  NAVIGATION ONGLETS AMÉLIORÉE */
 .nav-pills-enhanced {
     background: #f8f9fa;
     padding: 10px;
@@ -1292,6 +1306,8 @@
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
+
+
 .btn-rounded:active {
     transform: translateY(0);
 }
@@ -1336,7 +1352,7 @@
 }
 
 /* ==================================================================================== */
-/* ✅ STYLES SPÉCIFIQUES MODAL NOUVEAU MOT DE PASSE - CORRIGÉE POUR SCROLL */
+/*  STYLES SPÉCIFIQUES MODAL NOUVEAU MOT DE PASSE - CORRIGÉE POUR SCROLL */
 /* ==================================================================================== */
 
 /* Modal nouveau mot de passe - Taille et scroll */
@@ -1392,7 +1408,7 @@
     background: #a8a8a8;
 }
 
-/* ✅ RESPONSIVE MODAL MOT DE PASSE */
+/*  RESPONSIVE MODAL MOT DE PASSE */
 @media (max-width: 992px) {
     .modal-password-content {
         max-height: 95vh !important;
@@ -1463,7 +1479,7 @@
     background: linear-gradient(135deg, #48cab2 0%, #2ecc71 100%) !important;
 }
 
-/* ✅ CORRIGÉ : Styles pour éviter le chevauchement du mot de passe */
+/*  Styles pour éviter le chevauchement du mot de passe */
 .password-content {
     width: 100%;
 }
@@ -1532,7 +1548,7 @@
     transform: translateY(-2px);
 }
 
-/* ✅ RESPONSIVE POUR MOT DE PASSE */
+/*  RESPONSIVE POUR MOT DE PASSE */
 @media (max-width: 576px) {
     .password-display-section {
         flex-direction: column;
@@ -1772,7 +1788,7 @@
     margin-bottom: 15px;
 }
 
-/* ✅ RESPONSIVE AMÉLIORÉ POUR MODALES */
+/*  RESPONSIVE AMÉLIORÉ POUR MODALES */
 @media (max-width: 1200px) {
     .modal-enhanced {
         max-width: 95vw !important;
@@ -1991,7 +2007,7 @@
     }
 }
 
-/* ✅ PROTECTION CONTRE LES DOUBLES CLICS */
+/*  PROTECTION CONTRE LES DOUBLES CLICS */
 .copy-password-btn.btn-copying,
 .copy-all-btn.btn-copying {
     pointer-events: none !important;
@@ -2007,9 +2023,9 @@ let lastUpdateTimestamp = Date.now();
 let isSelectAllActive = false;
 let currentAction = null; // Pour stocker l'action en cours
 let currentUserId = null; // Pour stocker l'ID de l'utilisateur affiché dans le modal
-let newPasswordData = null; // 🆕 Pour stocker les données du nouveau mot de passe
+let newPasswordData = null; //  Pour stocker les données du nouveau mot de passe
 
-// ✅ CORRECTION : Protection contre les appels multiples
+//  Protection contre les appels multiples
 let copyInProgress = false;
 let copyAllInProgress = false;
 
@@ -2038,7 +2054,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // ✅ CORRECTION : S'assurer que la modal de nouveau mot de passe permet le scroll
+    //  S'assurer que la modal de nouveau mot de passe permet le scroll
     $('#newPasswordModal').on('shown.bs.modal', function() {
         // Forcer l'activation du scroll
         const modalBody = this.querySelector('.modal-password-body');
@@ -2051,17 +2067,17 @@ document.addEventListener('DOMContentLoaded', function() {
             modalBody.style.overscrollBehavior = 'contain';
         }
         
-        console.log('✅ Modal nouveau mot de passe - Scroll activé');
+        console.log(' Modal nouveau mot de passe - Scroll activé');
     });
 
-    // ✅ CORRECTION : Gestion des modales avec z-index
+    //  Gestion des modales avec z-index
     setupModalHierarchy();
     
-    // ✅ AMÉLIORATION : Scroll tactile et trackpad
+    //  Scroll tactile et trackpad
     enhanceModalScroll();
 });
 
-// ✅ NOUVELLE FONCTION : Améliorer le scroll tactile et trackpad
+// ✅  Améliorer le scroll tactile et trackpad
 function enhanceModalScroll() {
     // Activer le scroll fluide pour toutes les modales
     document.querySelectorAll('.modal-body, .modal-password-body').forEach(modalBody => {
@@ -2096,10 +2112,10 @@ function enhanceModalScroll() {
         }, { passive: false });
     });
     
-    console.log('✅ Scroll amélioré pour toutes les modales');
+    console.log(' Scroll amélioré pour toutes les modales');
 }
 
-// ✅ NOUVELLE FONCTION : Gestion hiérarchique des modales
+//  Gestion hiérarchique des modales
 function setupModalHierarchy() {
     // Gérer l'ordre d'affichage des modales
     $('#userDetailsModal').on('show.bs.modal', function() {
@@ -2114,7 +2130,7 @@ function setupModalHierarchy() {
         $(this).css('z-index', 1055);
     });
 
-    // ✅ CORRECTION : S'assurer que la modal de confirmation apparaît au-dessus
+    // S'assurer que la modal de confirmation apparaît au-dessus
     $('#confirmationModal').on('shown.bs.modal', function() {
         $(this).find('.modal-dialog').addClass('modal-dialog-top');
     });
@@ -2182,7 +2198,7 @@ function showConfirmationModal(config) {
         feather.replace();
     }
 
-    // ✅ CORRECTION : S'assurer que la modal apparaît au-dessus
+    //  S'assurer que la modal apparaît au-dessus
     $('#confirmationModal').modal('show');
     setTimeout(() => {
         $('#confirmationModal').css('z-index', 1060);
@@ -2213,11 +2229,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ==================================================================================== 
-// 🆕 NOUVELLE FONCTION : RÉINITIALISATION MOT DE PASSE DEPUIS MODAL DÉTAILS
+//  RÉINITIALISATION MOT DE PASSE DEPUIS MODAL DÉTAILS
 // ==================================================================================== 
 
 /**
- * 🆕 Réinitialiser le mot de passe de l'utilisateur (NOUVELLE FONCTIONNALITÉ)
+ *  Réinitialiser le mot de passe de l'utilisateur (NOUVELLE FONCTIONNALITÉ)
  * Appelée depuis l'onglet "Sécurité" du modal de détails utilisateur
  */
 function resetUserPassword() {
@@ -2252,16 +2268,16 @@ function resetUserPassword() {
 }
 
 /**
- * 🆕 Exécuter la réinitialisation du mot de passe
+ * Exécuter la réinitialisation du mot de passe
  */
 function executePasswordReset(userId, userName) {
     setTimeout(() => {
         $('#confirmationModal').modal('hide');
         showLoading();
 
-        console.log('🔐 Réinitialisation mot de passe pour utilisateur ID:', userId);
+        console.log(' Réinitialisation mot de passe pour utilisateur ID:', userId);
 
-        // 🆕 APPEL AJAX VERS LA NOUVELLE ROUTE
+        //  APPEL AJAX VERS LA NOUVELLE ROUTE
         fetch(`/admin/users/${userId}/reset-password`, {
             method: 'POST',
             headers: {
@@ -2281,7 +2297,7 @@ function executePasswordReset(userId, userName) {
                 // Afficher le toast de succès
                 showToast('Succès', data.message || `Mot de passe réinitialisé pour ${userName}`, 'success');
 
-                // 🆕 AFFICHER LA MODAL AVEC LE NOUVEAU MOT DE PASSE
+                //  AFFICHER LA MODAL AVEC LE NOUVEAU MOT DE PASSE
                 showNewPasswordModal(data);
 
                 // Mettre à jour l'activité de sécurité dans le modal de détails si ouvert
@@ -2302,11 +2318,11 @@ function executePasswordReset(userId, userName) {
 }
 
 // ==================================================================================== 
-// 🆕 MODAL POUR AFFICHAGE DU NOUVEAU MOT DE PASSE
+//  MODAL POUR AFFICHAGE DU NOUVEAU MOT DE PASSE
 // ==================================================================================== 
 
 /**
- * 🆕 Afficher la modal avec le nouveau mot de passe généré
+ *  Afficher la modal avec le nouveau mot de passe généré
  */
 function showNewPasswordModal(data) {
     console.log('🔐 Affichage modal nouveau mot de passe:', data);
@@ -2330,7 +2346,7 @@ function showNewPasswordModal(data) {
     document.getElementById('resetByAdmin').textContent = data.reset_info?.reset_by || 'Administrateur';
     document.getElementById('resetAtDate').textContent = data.reset_info?.reset_at || new Date().toLocaleString('fr-FR');
 
-    // ✅ CORRECTION : Réinitialiser les états des boutons
+    //  Réinitialiser les états des boutons
     copyInProgress = false;
     copyAllInProgress = false;
     
@@ -2349,7 +2365,7 @@ function showNewPasswordModal(data) {
     // Afficher la modal
     $('#newPasswordModal').modal('show');
     
-    // ✅ AMÉLIORATION : Forcer le bon dimensionnement après affichage
+    //  Forcer le bon dimensionnement après affichage
     $('#newPasswordModal').on('shown.bs.modal', function() {
         // Ajuster la hauteur selon l'écran
         const modalContent = this.querySelector('.modal-password-content');
@@ -2378,10 +2394,10 @@ function showNewPasswordModal(data) {
 }
 
 /**
- * ✅ CORRIGÉ : Copier le nouveau mot de passe avec protection double clic
+ *  Copier le nouveau mot de passe avec protection double clic
  */
 function copyNewPassword(buttonElement) {
-    // ✅ Empêcher les appels multiples
+    //  Empêcher les appels multiples
     if (copyInProgress) {
         console.log('🔒 Copie déjà en cours, ignorant...');
         return;
@@ -2683,7 +2699,7 @@ function showReactivateUserModal(userId, userName) {
  * Afficher la modal de création d'utilisateur
  */
 function showCreateUserModal() {
-    window.location.href = "{{ route('admin.users.create') }}";
+    window.location.href = "{{ route('User.user-create') }}";
 }
 
 /**
