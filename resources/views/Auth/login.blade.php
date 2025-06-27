@@ -39,6 +39,24 @@
         .password-toggle-btn:focus {
             outline: none;
         }
+
+        /*  SUPPRIMÉ : Les styles qui interfèrent avec Bootstrap */
+        /*  GARDÉ : Seulement la transition fluide pour les onglets */
+        .tab-content .tab-pane {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        /*  Style pour les liens de bascule */
+        .tab-switch-link {
+            cursor: pointer;
+            transition: color 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .tab-switch-link:hover {
+            color: #0056b3 !important;
+            text-decoration: underline;
+        }
     </style>
 </head>
 
@@ -79,17 +97,19 @@
                                 </div>
                                 @endif
                                 
+                                <!--  ONGLETS BOOTSTRAP -->
                                 <ul class="nav-border nav nav-pills" role="tablist">
                                     <li class="nav-item">
-                                        <a class="nav-link active font-weight-semibold" data-toggle="tab" href="#LogIn_Tab" role="tab">Connexion</a>
+                                        <a class="nav-link active font-weight-semibold" data-toggle="tab" href="#LogIn_Tab" role="tab" aria-controls="LogIn_Tab" aria-selected="true">Connexion</a>
                                     </li>
                                     <li class="nav-item">
-                                        <a class="nav-link font-weight-semibold" data-toggle="tab" href="#Register_Tab" role="tab">Inscription</a>
+                                        <a class="nav-link font-weight-semibold" data-toggle="tab" href="#Register_Tab" role="tab" aria-controls="Register_Tab" aria-selected="false">Inscription</a>
                                     </li>
                                 </ul>
+                                
                                 <!-- Tab panes -->
                                 <div class="tab-content">
-                                    <div class="tab-pane active p-3 pt-3" id="LogIn_Tab" role="tabpanel">
+                                    <div class="tab-pane active p-3 pt-3" id="LogIn_Tab" role="tabpanel" aria-labelledby="LogIn_Tab">
                                         <form method="POST" action="{{ route('login.post') }}" class="form-horizontal auth-form my-4">
                                             @csrf
 
@@ -128,7 +148,6 @@
                                                     </div>
                                                 </div>
                                                 <div class="col-sm-6 text-right">
-                                                    <!-- AMÉLIORATION 4 : LIEN FONCTIONNEL vers forgot-password -->
                                                     <a href="{{ route('password.forgot') }}" class="text-muted font-13">
                                                         <i class="dripicons-lock"></i> Mot de passe oublié?
                                                     </a>
@@ -142,10 +161,13 @@
                                             </div>
                                         </form>
                                         <div class="m-3 text-center text-muted">
-                                                <p class="">Vous n'avez pas encore de compte ?  <a href="#" onclick="switchToRegister()" class="text-primary ml-2">S'inscrire</a></p>
+                                            <!--  Lien avec JavaScript proper -->
+                                            <p class="">Vous n'avez pas encore de compte ? 
+                                                <span class="tab-switch-link text-primary ml-2" onclick="switchToRegister(event)">S'inscrire</span>
+                                            </p>
                                         </div>
                                     </div>
-                                    <div class="tab-pane px-3 pt-3" id="Register_Tab" role="tabpanel">
+                                    <div class="tab-pane px-3 pt-3" id="Register_Tab" role="tabpanel" aria-labelledby="Register_Tab">
                                         <form method="POST" action="{{ route('register.post') }}" class="form-horizontal auth-form my-4">
                                             @csrf
 
@@ -185,7 +207,6 @@
                                                 </div>
                                             </div>
 
-                                            <!-- CHAMP ENTREPRISE (conservé pour inscription admin) -->
                                             <div class="form-group">
                                                 <label for="company">Entreprise</label>
                                                 <div class="input-group mb-3">
@@ -238,7 +259,10 @@
                                                 </div>
                                             </div>
                                         </form>
-                                        <p class="mb-0 text-muted">Vous avez déjà un compte ?<a href="#" onclick="switchToLogin()" class="text-primary ml-2">Se connecter</a></p>                                                    
+                                        <!--  Lien avec JavaScript proper -->
+                                        <p class="mb-0 text-muted">Vous avez déjà un compte ? 
+                                            <span class="tab-switch-link text-primary ml-2" onclick="switchToLogin(event)">Se connecter</span>
+                                        </p>                                                    
                                     </div>
                                 </div>
                             </div>
@@ -261,7 +285,7 @@
     <script src="{{ asset('frontend/assets/js/simplebar.min.js') }}"></script>
 
     <script>
-        // Fonction pour basculer l'affichage du mot de passe
+        //  Fonction pour basculer l'affichage du mot de passe
         function togglePassword(inputId, button) {
             const input = document.getElementById(inputId);
             const icon = document.getElementById('toggleIcon-' + inputId);
@@ -277,21 +301,49 @@
             }
         }
 
-        // Fonctions pour changer d'onglet
-        function switchToRegister() {
-            $('#Register_Tab').tab('show');
+        //  Fonctions pour changer d'onglet avec le VRAI système Bootstrap
+        function switchToRegister(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+            }
+            
+            // Utiliser la méthode Bootstrap MAIS empêcher le scroll
+            const currentScroll = window.pageYOffset;
+            $('a[href="#Register_Tab"]').tab('show');
+            window.scrollTo(0, currentScroll);
         }
 
-        function switchToLogin() {
-            $('#LogIn_Tab').tab('show');
+        function switchToLogin(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+            }
+            
+            // Utiliser la méthode Bootstrap MAIS empêcher le scroll
+            const currentScroll = window.pageYOffset;
+            $('a[href="#LogIn_Tab"]').tab('show');
+            window.scrollTo(0, currentScroll);
         }
 
-        // Code pour activer l'onglet approprié si des erreurs de validation sont présentes
+        
         $(document).ready(function() {
+            // Empêcher le scroll automatique sur les changements d'onglets
+            $('a[data-toggle="tab"]').on('show.bs.tab', function (e) {
+                const currentScroll = window.pageYOffset;
+                setTimeout(() => {
+                    window.scrollTo(0, currentScroll);
+                }, 0);
+            });
+
+            // Activer l'onglet inscription si erreurs d'inscription
             @if ($errors->has('username') || $errors->has('company') || $errors->has('mobile_number'))
-                $('#Register_Tab').tab('show');
+                $('a[href="#Register_Tab"]').tab('show');
             @else
-                $('#LogIn_Tab').tab('show');
+                // Sinon, s'assurer que l'onglet connexion est actif
+                $('a[href="#LogIn_Tab"]').tab('show');
             @endif
         });
     </script>

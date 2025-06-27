@@ -191,11 +191,11 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->group(function () {
          
         // Mes utilisateurs créés
         Route::get('/admin/users/my-created', [UserManagementController::class, 'myCreatedUsers'])
-            ->name('admin.users.my-created');
-         Route::get('/admin/users/{user}/edit', [UserManagementController::class, 'edit'])
-    ->name('admin.users.edit');
+            ->name('User.user.my-created');
+         Route::get('/admin/user/{user}/edit', [UserManagementController::class, 'edit'])
+    ->name('User.user-edit');
     Route::put('/admin/users/{user}', [UserManagementController::class, 'update'])
-    ->name('admin.users.update');
+    ->name('User.user.update');
             
         // Renvoyer identifiants
         Route::post('/admin/users/{user}/resend-credentials', [UserManagementController::class, 'resendCredentials'])

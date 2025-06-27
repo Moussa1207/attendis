@@ -237,7 +237,7 @@
                         </div><!--end card-header-->
                         <div class="card-body">
                             <div class="tab-pane px-3 pt-3" id="Create_User_Tab" role="tabpanel">
-                                <form method="POST" action="{{ route('admin.users.store') }}" class="form-horizontal auth-form my-4" id="createUserForm">
+                                <form method="POST" action="{{ route('User.user.store') }}" class="form-horizontal auth-form my-4" id="createUserForm">
                                     @csrf
 
                                     <div class="form-group">
@@ -290,7 +290,7 @@
                                 name="user_role" 
                                 id="user_role" 
                                 required>
-            <option value="">-- Sélectionnez le type --</option>
+            <option value=""> Sélectionnez le type </option>
             <option value="ecran" {{ old('user_role') == 'ecran' ? 'selected' : '' }}>
                 🖥️ Ecran
             </option>
@@ -325,7 +325,7 @@
         <select class="form-control @error('agency_id') is-invalid @enderror" 
                 name="agency_id" 
                 id="agency_id">
-            <option value="">-- Aucune agence assignée --</option>
+            <option value="">Sélectionnez l'agence</option>
             @forelse($agencies as $agency)
                 <option value="{{ $agency->id }}" {{ old('agency_id') == $agency->id ? 'selected' : '' }}>
                     {{ $agency->name }} - {{ $agency->city }}

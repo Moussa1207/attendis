@@ -149,7 +149,7 @@ class DashboardController extends Controller
         }
 
         try {
-            // Statistiques personnelles pour l'utilisateur (cohérent avec app-users.blade.php)
+            // Statistiques personnelles pour l'utilisateur (cohérent avec app-users)
             $userStats = [
                 'days_since_creation' => $user->created_at->diffInDays(now()),
                 'account_age_formatted' => $user->created_at->diffForHumans(),
@@ -180,6 +180,11 @@ class DashboardController extends Controller
      * Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
      * AMÉLIORATION 2 : ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
      */
+    /**
+     * Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
+     * AMÉLIORATION 2 : ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
+     *  Ajout de $myCreatedUserIds pour la vue
+     */
     public function usersList(Request $request)
     {
         if (!Auth::user()->isAdmin()) {
@@ -195,8 +200,11 @@ class DashboardController extends Controller
             // Ajouter l'admin lui-même à la liste (pour qu'il se voie)
             $createdByMe[] = $currentAdminId;
             
+            // ✅ NOUVEAU : Variable pour la vue (condition du bouton Modifier)
+            $myCreatedUserIds = $createdByMe;
+            
             // Query de base LIMITÉE aux utilisateurs de cet admin
-            $query = User::with(['userType', 'status', 'createdBy.administrator'])
+            $query = User::with(['userType', 'status', 'agency', 'createdBy.administrator'])
                          ->whereIn('id', $createdByMe);
 
             // Filtrage par recherche (dans SES utilisateurs seulement)
@@ -220,29 +228,28 @@ class DashboardController extends Controller
             // Filtrage par type (dans SES utilisateurs seulement) 
             // IMPORTANT : Exclure les autres admins du type "admin"
             if ($request->filled('type')) {
-    $typeMapping = [
-        'admin' => 1,       // Administrateur
-        'ecran' => 2,       // Poste Ecran  
-        'accueil' => 3,     // Poste Accueil
-        'conseiller' => 4,  // Poste Conseiller
-        'user' => [2, 3, 4] // Tous les utilisateurs normaux
-    ];
-    
-    $requestedType = $request->type;
-    
-    if ($requestedType === 'admin') {
-        // Montrer seulement lui-même s'il est admin
-        $query->where('id', $currentAdminId)->where('user_type_id', 1);
-    } elseif ($requestedType === 'user') {
-        // Montrer tous ses utilisateurs normaux créés (écran, accueil, conseiller)
-        $query->whereIn('user_type_id', [2, 3, 4]);
-    } elseif (isset($typeMapping[$requestedType])) {
-        // Filtrer par type spécifique
-        $typeId = $typeMapping[$requestedType];
-        $query->where('user_type_id', $typeId);
-    }
-   }
-
+                $typeMapping = [
+                    'admin' => 1,       // Administrateur
+                    'ecran' => 2,       // Poste Ecran  
+                    'accueil' => 3,     // Poste Accueil
+                    'conseiller' => 4,  // Poste Conseiller
+                    'user' => [2, 3, 4] // Tous les utilisateurs normaux
+                ];
+                
+                $requestedType = $request->type;
+                
+                if ($requestedType === 'admin') {
+                    // Montrer seulement lui-même s'il est admin
+                    $query->where('id', $currentAdminId)->where('user_type_id', 1);
+                } elseif ($requestedType === 'user') {
+                    // Montrer tous ses utilisateurs normaux créés (écran, accueil, conseiller)
+                    $query->whereIn('user_type_id', [2, 3, 4]);
+                } elseif (isset($typeMapping[$requestedType])) {
+                    // Filtrer par type spécifique
+                    $typeId = $typeMapping[$requestedType];
+                    $query->where('user_type_id', $typeId);
+                }
+            }
 
             $users = $query->orderBy('created_at', 'desc')->paginate(15);
 
@@ -254,7 +261,8 @@ class DashboardController extends Controller
                 return $user;
             });
 
-            return view('user.users-list', compact('users'));
+            //  Passer $myCreatedUserIds à la vue pour conditionner le bouton Modifier
+            return view('user.users-list', compact('users', 'myCreatedUserIds'));
 
         } catch (\Exception $e) {
             \Log::error('Users list error', [
@@ -268,7 +276,7 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // ACTIONS SUR LES UTILISATEURS (Pour users-list.blade.php)
+    // ACTIONS SUR LES UTILISATEURS ( users-list)
     // ===============================================
 
     /**
@@ -877,7 +885,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Obtenir les détails d'un utilisateur (AJAX - ADMINS)
+     *  Obtenir les détails d'un utilisateur (AJAX - ADMINS)
      * Toutes les données sont maintenant correctement formatées
      */
     public function getUserDetails(User $user, Request $request)
@@ -892,7 +900,7 @@ class DashboardController extends Controller
         try {
             $user->load(['userType', 'status', 'createdBy.administrator']);
             
-            // ✅ CORRIGÉ : Calculs et formatage corrects
+            //  Calculs et formatage corrects
             $createdAt = $user->created_at;
             $updatedAt = $user->updated_at;
             $now = now();
@@ -911,32 +919,32 @@ class DashboardController extends Controller
             $loginAttempts = $user->failed_login_attempts ?? 0;
             
             $userDetails = [
-                // ✅ CORRIGÉ : Informations de base
+                //  Informations de base
                 'id' => $user->id,
                 'username' => $user->username,
                 'email' => $user->email,
                 'mobile_number' => $user->mobile_number,
-                'company' => $user->company ?? 'Non renseigné', // ✅ CORRIGÉ
+                'company' => $user->company ?? 'Non renseigné', 
                 
-                // ✅ CORRIGÉ : Type et statut
-                'type' => $user->getTypeName(), // ✅ CORRIGÉ : Plus de "utilisateur"
+                //  Type et statut
+                'type' => $user->getTypeName(), //  Plus de "utilisateur"
                 'type_icon' => $user->getTypeIcon(),
-                'status' => $user->getStatusName(), // ✅ CORRIGÉ : Plus d'"inconnu"
+                'status' => $user->getStatusName(), //  Plus d'"inconnu"
                 'status_badge_color' => $user->getStatusBadgeColor(),
                 'user_type_id' => $user->user_type_id,
                 'status_id' => $user->status_id,
                 
-                // ✅ CORRIGÉ : Dates formatées correctement
-                'created_at' => $createdAt->format('d/m/Y à H:i'), // ✅ CORRIGÉ : Plus d'"Invalide Date"
+                //  Dates formatées correctement
+                'created_at' => $createdAt->format('d/m/Y à H:i'), //  Plus d'"Invalide Date"
                 'created_at_iso' => $createdAt->toISOString(),
-                'updated_at' => $updatedAt->format('d/m/Y à H:i'), // ✅ CORRIGÉ : Vraie date de modification
+                'updated_at' => $updatedAt->format('d/m/Y à H:i'), //  Vraie date de modification
                 'updated_at_iso' => $updatedAt->toISOString(),
                 
-                // ✅ CORRIGÉ : Temps d'existence calculé
-                'account_age_days' => $accountAgeDays, // ✅ CORRIGÉ : Calculé depuis created_at
-                'account_age_formatted' => $accountAgeFormatted, // ✅ CORRIGÉ : Format lisible
+                //  Temps d'existence calculé
+                'account_age_days' => $accountAgeDays, //  Calculé depuis created_at
+                'account_age_formatted' => $accountAgeFormatted, //  Format lisible
                 
-                // ✅ CORRIGÉ : Informations de création
+                //  Informations de création
                 'creation_info' => $user->getCreationInfo(),
                 'last_activity' => $updatedAt->format('d/m/Y à H:i'),
                 
@@ -947,9 +955,9 @@ class DashboardController extends Controller
                 'can_be_suspended' => $user->canBeSuspended(),
                 'can_be_deleted' => $user->canBeDeleted(),
                 
-                // ✅ CORRIGÉ : Sécurité et connexions
-                'last_password_change' => $passwordChangeFormatted, // ✅ CORRIGÉ : Dynamique
-                'failed_login_attempts' => $loginAttempts, // ✅ CORRIGÉ : Dynamique
+                //  Sécurité et connexions
+                'last_password_change' => $passwordChangeFormatted, //  Dynamique
+                'failed_login_attempts' => $loginAttempts, //  Dynamique
                 'last_login_at' => $user->last_login_at ? $user->last_login_at->format('d/m/Y à H:i') : 'Jamais connecté',
                 
                 // Formatage pour l'affichage JavaScript
@@ -1187,7 +1195,7 @@ class DashboardController extends Controller
             // Générer un nouveau mot de passe temporaire sécurisé (même logique que UserManagementController)
             $newPassword = $this->generateSecureTemporaryPassword();
             
-            // Mettre à jour le mot de passe en base + ✅ CORRIGÉ : Mettre à jour last_password_change
+            // Mettre à jour le mot de passe en base +  Mettre à jour last_password_change
             $user->update([
                 'password' => Hash::make($newPassword),
                 'last_password_change' => now()

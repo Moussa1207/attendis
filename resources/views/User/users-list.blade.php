@@ -446,12 +446,14 @@
             <i data-feather="eye" class="icon-xs"></i>
         </button>
         
-        <!-- NOUVEAU BOUTON MODIFIER -->
-        <a href="{{ route('admin.users.edit', $user->id) }}" 
+        {{-- ✅ AMÉLIORATION : Bouton "Modifier" conditionné pour les utilisateurs non-admin créés par l'admin connecté --}}
+        @if(!$user->isAdmin() && in_array($user->id, $myCreatedUserIds))
+        <a href="{{ route('User.user-edit', $user->id) }}" 
            class="btn btn-soft-primary waves-effect" 
-           title="Modifier">
+           title="Modifier (utilisateur que vous avez créé)">
             <i data-feather="edit-2" class="icon-xs"></i>
         </a>
+        @endif
         
         @if(!$user->isAdmin() || (\App\Models\User::where('user_type_id', 1)->where('status_id', 2)->count() > 1))
         <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 

@@ -52,7 +52,7 @@ class UserManagementController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'username' => 'required|string|max:255|unique:users',
             'mobile_number' => 'required|string|max:20',
-            'user_role' => 'required|string|in:ecran,conseiller,accueil',
+            'user_role' => 'required|string|in:admin,ecran,conseiller,accueil',
             'agency_id' => 'nullable|exists:agencies,id',
             'send_credentials' => 'boolean'
         ], [
@@ -81,6 +81,7 @@ class UserManagementController extends Controller
 
             // Mapper le rôle vers le bon user_type_id
             $userTypeMapping = [
+                'admin' => 1,
                 'ecran' => 2,
                 'accueil' => 3,
                 'conseiller' => 4,
@@ -239,84 +240,156 @@ class UserManagementController extends Controller
     }
 
     /**
-     * NOUVELLE MÉTHODE : Afficher le formulaire de modification
+     * ✅ CORRIGÉ : Afficher le formulaire de modification
+     * FIX : Logique d'autorisation simplifiée pour les admins
      */
-    public function edit($id)
+    public function edit($id, Request $request = null)
     {
-        $user = User::findOrFail($id);
-        
-        // Vérifier que l'admin peut modifier cet utilisateur
-        if (!Auth::user()->isAdmin() || !Auth::user()->createdUsers()->where('user_id', $user->id)->exists()) {
-            if ($request->expectsJson()) {
+        try {
+            $user = User::findOrFail($id);
+            $currentAdmin = Auth::user();
+            
+            // ✅ NOUVEAU : Autorisation simplifiée pour les admins
+            if (!$currentAdmin->isAdmin()) {
+                if ($request && $request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Seuls les administrateurs peuvent modifier les utilisateurs'
+                    ], 403);
+                }
+                abort(403, 'Seuls les administrateurs peuvent modifier les utilisateurs');
+            }
+
+            // ✅ PROTECTION : Empêcher la modification d'un autre admin (sauf super-admin)
+            if ($user->isAdmin() && $user->id !== $currentAdmin->id) {
+                // Vérifier si l'admin connecté peut modifier d'autres admins
+                
+                // Si l'admin connecté n'a pas créé cet admin, bloquer
+                if (!$currentAdmin->createdUsers()->where('user_id', $user->id)->exists()) {
+                    if ($request && $request->expectsJson()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Vous ne pouvez pas modifier un autre administrateur'
+                        ], 403);
+                    }
+                    
+                    return redirect()->route('user.users-list')
+                        ->with('error', 'Vous ne pouvez pas modifier un autre administrateur');
+                }
+            }
+            
+            // ✅ LOG : Enregistrer l'accès pour debugging
+            \Log::info("Admin {$currentAdmin->username} accède à la modification de l'utilisateur {$user->username}", [
+                'admin_id' => $currentAdmin->id,
+                'target_user_id' => $user->id,
+                'target_user_type' => $user->getTypeName(),
+                'is_target_admin' => $user->isAdmin()
+            ]);
+            
+            // ✅ CORRIGÉ : Récupérer les agences pour permettre la modification
+            $agencies = Agency::active()->orderBy('name')->get();
+            $availableRoles = $this->getAvailableRoles();
+            
+            return view('User.user-edit', compact('user', 'agencies', 'availableRoles'));
+            
+        } catch (\Exception $e) {
+            \Log::error("Erreur lors de l'accès à la modification d'utilisateur", [
+                'admin_id' => Auth::id(),
+                'target_user_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            if ($request && $request->expectsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé'
-                ], 403);
+                    'message' => 'Erreur lors de l\'accès à la modification'
+                ], 500);
             }
-            abort(403, 'Accès non autorisé');
+            
+            return redirect()->route('user.users-list')
+                ->with('error', 'Erreur lors de l\'accès à la modification de l\'utilisateur');
         }
-        
-        // Récupérer toutes les agences actives
-        $agencies = Agency::active()->orderBy('name')->get();
-        $availableRoles = $this->getAvailableRoles();
-        
-        return view('User.user-edit', compact('user', 'agencies', 'availableRoles'));
     }
 
     /**
-     * NOUVELLE MÉTHODE : Mettre à jour un utilisateur
+     * ✅ CORRIGÉ : Mettre à jour un utilisateur
+     * AMÉLIORATION : Autorisation simplifiée pour les admins
      */
     public function update(Request $request, $id)
     {
-        $user = User::findOrFail($id);
-        
-        // Vérifier que l'admin peut modifier cet utilisateur
-        if (!Auth::user()->isAdmin() || !Auth::user()->createdUsers()->where('user_id', $user->id)->exists()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-            abort(403, 'Accès non autorisé');
-        }
-
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'username' => 'required|string|max:255|unique:users,username,' . $user->id,
-            'mobile_number' => 'required|string|max:20',
-            'user_role' => 'required|in:ecran,accueil,conseiller',
-            'agency_id' => 'nullable|exists:agencies,id',
-            'status' => 'required|in:active,inactive,suspended',
-        ], [
-            'email.required' => 'L\'email est obligatoire.',
-            'email.email' => 'L\'email doit être valide.',
-            'email.unique' => 'Cet email est déjà utilisé.',
-            'username.required' => 'Le nom est obligatoire.',
-            'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
-            'mobile_number.required' => 'Le téléphone est obligatoire.',
-            'user_role.required' => 'Le type d\'utilisateur est obligatoire.',
-            'user_role.in' => 'Type d\'utilisateur invalide.',
-            'agency_id.exists' => 'L\'agence sélectionnée n\'existe pas.',
-            'status.required' => 'Le statut est obligatoire.',
-        ]);
-
-        if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur de validation',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-            return redirect()->back()->withErrors($validator)->withInput();
-        }
-
         try {
+            $user = User::findOrFail($id);
+            
+            // ✅ NOUVEAU : Autorisation simplifiée pour les admins
+            if (!Auth::user()->isAdmin()) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Seuls les administrateurs peuvent modifier les utilisateurs'
+                    ], 403);
+                }
+                abort(403, 'Seuls les administrateurs peuvent modifier les utilisateurs');
+            }
+
+            // ✅ PROTECTION : Empêcher la modification d'un autre admin (sauf si créé par lui)
+            if ($user->isAdmin() && $user->id !== Auth::id()) {
+                $currentAdmin = Auth::user();
+                
+                if (!$currentAdmin->createdUsers()->where('user_id', $user->id)->exists()) {
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Vous ne pouvez pas modifier un autre administrateur'
+                        ], 403);
+                    }
+                    
+                    return redirect()->route('user.users-list')
+                        ->with('error', 'Vous ne pouvez pas modifier un autre administrateur');
+                }
+            }
+
+            // ✅ NOUVEAU : Validation adaptée pour les admins
+            // Gérer le cas où user_role n'est pas modifié (utiliser new_user_role si fourni)
+            $userRole = $request->input('new_user_role', $request->input('user_role'));
+            
+            $validator = Validator::make(array_merge($request->all(), ['user_role' => $userRole]), [
+                'email' => 'required|email|unique:users,email,' . $user->id,
+                'username' => 'required|string|max:255|unique:users,username,' . $user->id,
+                'mobile_number' => 'required|string|max:20',
+                'user_role' => 'required|in:ecran,accueil,conseiller,admin',
+                'company' => 'nullable|string|max:255',
+                'status' => 'required|in:active,inactive,suspended',
+                'agency_id' => 'nullable|exists:agencies,id',
+            ], [
+                'email.required' => 'L\'email est obligatoire.',
+                'email.email' => 'L\'email doit être valide.',
+                'email.unique' => 'Cet email est déjà utilisé.',
+                'username.required' => 'Le nom est obligatoire.',
+                'username.unique' => 'Ce nom d\'utilisateur est déjà pris.',
+                'mobile_number.required' => 'Le téléphone est obligatoire.',
+                'user_role.required' => 'Le type d\'utilisateur est obligatoire.',
+                'user_role.in' => 'Type d\'utilisateur invalide.',
+                'status.required' => 'Le statut est obligatoire.',
+                'agency_id.exists' => 'L\'agence sélectionnée n\'existe pas.',
+            ]);
+
+            if ($validator->fails()) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur de validation',
+                        'errors' => $validator->errors()
+                    ], 422);
+                }
+                return redirect()->back()->withErrors($validator)->withInput();
+            }
+
             DB::beginTransaction();
 
             // Mapper le rôle vers user_type_id
             $userTypeMapping = [
+                'admin' => 1,
                 'ecran' => 2,
                 'accueil' => 3,
                 'conseiller' => 4,
@@ -329,26 +402,41 @@ class UserManagementController extends Controller
                 'suspended' => 3,
             ];
 
-            // Mettre à jour l'utilisateur
+            // Mettre à jour l'utilisateur (avec agence optionnelle)
             $oldTypeName = $user->getTypeName();
+            
+            // ✅ PROTECTION : Ne pas changer le type d'un admin
+            $newUserTypeId = $user->isAdmin() ? 1 : $userTypeMapping[$userRole];
+            
             $user->update([
                 'email' => $request->email,
                 'username' => $request->username,
                 'mobile_number' => $request->mobile_number,
                 'company' => $request->company,
-                'agency_id' => $request->agency_id,
-                'user_type_id' => $userTypeMapping[$request->user_role],
+                'user_type_id' => $newUserTypeId,
                 'status_id' => $statusMapping[$request->status],
+                'agency_id' => $request->agency_id, // ✅ AJOUTÉ : Mise à jour de l'agence
             ]);
 
-            // Mettre à jour les notes de création
+            // ✅ NOUVEAU : Créer/Mettre à jour la relation administrator_user si elle n'existe pas
             $adminUserRecord = AdministratorUser::where('administrator_id', Auth::id())
                 ->where('user_id', $user->id)
                 ->first();
             
             if ($adminUserRecord) {
                 $adminUserRecord->update([
-                    'creation_notes' => $this->formatUserRoleNote($request->user_role) . " (Modifié de: {$oldTypeName})"
+                    'creation_notes' => $this->formatUserRoleNote($userRole) . " (Modifié de: {$oldTypeName})"
+                ]);
+            } else {
+                // Créer la relation si elle n'existe pas (pour les utilisateurs existants)
+                AdministratorUser::create([
+                    'administrator_id' => Auth::id(),
+                    'user_id' => $user->id,
+                    'creation_method' => 'edit',
+                    'creation_notes' => $this->formatUserRoleNote($userRole) . " (Modifié de: {$oldTypeName} - Pris en charge)",
+                    'password_reset_required' => false,
+                    'password_reset_sent_at' => null,
+                    'temporary_password' => null
                 ]);
             }
 
@@ -357,7 +445,9 @@ class UserManagementController extends Controller
                 'admin_id' => Auth::id(),
                 'user_type_id' => $user->user_type_id,
                 'status_id' => $user->status_id,
-                'agency_id' => $user->agency_id
+                'agency_id' => $user->agency_id,
+                'old_type' => $oldTypeName,
+                'new_type' => $user->getTypeName()
             ]);
 
             DB::commit();
@@ -375,8 +465,9 @@ class UserManagementController extends Controller
                         'type_icon' => $user->getTypeIcon(),
                         'type_badge_color' => $user->getTypeBadgeColor(),
                         'type_emoji' => $user->getTypeEmoji(),
-                        'user_role' => $request->user_role,
+                        'user_role' => $userRole,
                         'agency' => $user->agency ? $user->agency->name : null,
+                        'agency_id' => $user->agency_id,
                         'status' => $user->getStatusName(),
                         'status_badge_color' => $user->getStatusBadgeColor(),
                     ]
@@ -390,7 +481,7 @@ class UserManagementController extends Controller
             DB::rollBack();
             
             \Log::error("Erreur mise à jour utilisateur: " . $e->getMessage(), [
-                'user_id' => $user->id,
+                'user_id' => $id,
                 'admin_id' => Auth::id(),
                 'error_trace' => $e->getTraceAsString()
             ]);
@@ -602,7 +693,7 @@ class UserManagementController extends Controller
     public function changeUserType(User $user, Request $request)
     {
         $request->validate([
-            'new_role' => 'required|string|in:ecran,accueil,conseiller'
+            'new_role' => 'required|string|in:admin,ecran,accueil,conseiller'
         ]);
 
         try {
@@ -614,15 +705,16 @@ class UserManagementController extends Controller
                 ], 403);
             }
 
-            // Vérifier qu'on ne change pas un admin (sécurité)
-            if ($user->isAdmin()) {
+            // Vérifier qu'on ne change pas un admin en autre chose (sécurité)
+            if ($user->isAdmin() && $request->new_role !== 'admin') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Impossible de changer le type d\'un administrateur.'
+                    'message' => 'Impossible de retirer les privilèges administrateur.'
                 ], 400);
             }
 
             $userTypeMapping = [
+                'admin' => 1,
                 'ecran' => 2,
                 'accueil' => 3,
                 'conseiller' => 4,
@@ -708,6 +800,7 @@ class UserManagementController extends Controller
     private function formatUserRoleNote($role): string
     {
         $roleLabels = [
+            'admin' => 'Administrateur - Gestion complète du système',
             'ecran' => 'Poste Ecran - Interface utilisateur pour affichage et consultation des données',
             'conseiller' => 'Poste Conseiller - Support et assistance client',
             'accueil' => 'Poste Accueil - Réception et orientation des visiteurs'
@@ -722,6 +815,14 @@ class UserManagementController extends Controller
     private function getAvailableRoles(): array
     {
         return [
+            'admin' => [
+                'name' => 'Administrateur',
+                'description' => 'Gestion complète du système et des utilisateurs',
+                'icon' => 'shield',
+                'badge_color' => 'primary',
+                'emoji' => '🛡️',
+                'user_type_id' => 1
+            ],
             'ecran' => [
                 'name' => 'Poste Ecran',
                 'description' => 'Interface utilisateur pour affichage et consultation des données',

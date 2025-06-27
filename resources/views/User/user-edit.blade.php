@@ -79,6 +79,16 @@
             </div>
             @endif
 
+            @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i data-feather="x-circle" class="mr-2"></i>
+                {{ session('error') }}
+                <button type="button" class="close" data-dismiss="alert">
+                    <span>&times;</span>
+                </button>
+            </div>
+            @endif
+
             <!-- Informations importantes -->
             <div class="row">
                 <div class="col-lg-12">
@@ -92,7 +102,7 @@
                                     <h6 class="text-warning mb-1 font-weight-semibold">Informations de modification</h6>
                                     <p class="text-muted mb-0">
                                         • Vous modifiez l'utilisateur : <strong>{{ $user->username }}</strong><br>
-                                        • Vous pouvez <strong>changer son type</strong>, son <strong>statut</strong> et son <strong>agence</strong><br>
+                                        • Vous pouvez <strong>changer son type</strong>, son <strong>statut</strong> et ses <strong>informations</strong><br>
                                         • Les changements sont <strong>appliqués immédiatement</strong><br>
                                         • Le mot de passe n'est <strong>pas modifié</strong> ici
                                     </p>
@@ -123,7 +133,7 @@
                             </div>                                  
                         </div>
                         <div class="card-body">
-                            <form method="POST" action="{{ route('admin.users.update', $user->id) }}" class="form-horizontal">
+                            <form method="POST" action="{{ route('User.user.update', $user->id) }}" class="form-horizontal">
                                 @csrf
                                 @method('PUT')
 
@@ -203,34 +213,62 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="form-group">
-                                            <label for="user_role">Type d'utilisateur</label>
+                                            <label for="user_type_display">Type d'utilisateur</label>
                                             <div class="input-group mb-3">
                                                 <div class="input-group-prepend">
                                                     <span class="input-group-text bg-light">
                                                         <i data-feather="shield" class="icon-xs"></i>
                                                     </span>
                                                 </div>
-                                                <select class="form-control @error('user_role') is-invalid @enderror" 
-                                                        name="user_role" id="user_role" required>
-                                                    @if($user->isAdmin())
-                                                        <option value="admin" selected>🛡️ Administrateur</option>
-                                                    @endif
+                                                <!-- ✅ CORRIGÉ : Affichage en lecture seule du type -->
+                                                <input type="text" 
+                                                       class="form-control bg-light" 
+                                                       id="user_type_display" 
+                                                       value="{{ $user->isAdmin() ? '🛡️ Administrateur' : ($user->user_type_id == 2 ? '🖥️ Ecran' : ($user->user_type_id == 3 ? '🏢 Accueil' : ($user->user_type_id == 4 ? '👥 Conseiller' : '👤 Utilisateur'))) }}" 
+                                                       readonly>
+                                                
+                                                <!-- Champ caché pour envoyer le type actuel -->
+                                                <input type="hidden" name="user_role" value="{{ $user->user_type_id == 2 ? 'ecran' : ($user->user_type_id == 3 ? 'accueil' : ($user->user_type_id == 4 ? 'conseiller' : 'admin')) }}">
+                                            </div>
+                                            <small class="text-muted">
+                                                <i data-feather="info" class="icon-xs mr-1"></i>
+                                                Le type d'utilisateur est défini lors de la création. 
+                                                @if(!$user->isAdmin())
+                                                <a href="#" class="text-primary" onclick="toggleUserTypeEdit()">Cliquez ici pour le modifier</a>
+                                                @endif
+                                            </small>
+                                            
+                                            @if(!$user->isAdmin())
+                                            <!-- ✅ NOUVEAU : Section modification de type (masquée par défaut) -->
+                                            <div id="user_type_edit_section" style="display: none;" class="mt-3 p-3 border border-warning rounded bg-light">
+                                                <div class="d-flex align-items-center mb-2">
+                                                    <i data-feather="alert-triangle" class="icon-xs text-warning mr-2"></i>
+                                                    <strong class="text-warning">Modification du type d'utilisateur</strong>
+                                                </div>
+                                                <p class="text-muted mb-3">
+                                                    <strong>Attention :</strong> Changer le type d'utilisateur peut affecter ses permissions et accès.
+                                                </p>
+                                                <select class="form-control" name="new_user_role" id="new_user_role">
                                                     <option value="ecran" {{ $user->user_type_id == 2 ? 'selected' : '' }}>
-                                                        🖥️ Ecran
+                                                        🖥️ Ecran 
                                                     </option>
                                                     <option value="accueil" {{ $user->user_type_id == 3 ? 'selected' : '' }}>
-                                                        🏢 Accueil
+                                                        🏢 Accueil 
                                                     </option>
                                                     <option value="conseiller" {{ $user->user_type_id == 4 ? 'selected' : '' }}>
-                                                        👥 Conseiller
+                                                        👥 Conseiller 
                                                     </option>
                                                 </select>
-                                                @error('user_role')
-                                                <span class="invalid-feedback" role="alert">
-                                                    <strong>{{ $message }}</strong>
-                                                </span>
-                                                @enderror
+                                                <div class="mt-2">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary mr-2" onclick="cancelUserTypeEdit()">
+                                                        <i data-feather="x" class="icon-xs mr-1"></i>Annuler
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-warning" onclick="confirmUserTypeEdit()">
+                                                        <i data-feather="check" class="icon-xs mr-1"></i>Confirmer le changement
+                                                    </button>
+                                                </div>
                                             </div>
+                                            @endif
                                         </div>
                                     </div>
 
@@ -265,9 +303,12 @@
                                     </div>
                                 </div>
 
-                                <!-- NOUVEAU CHAMP : Agence -->
+                                <!-- ✅ AJOUTÉ : Champ Agence (optionnel) -->
                                 <div class="form-group">
-                                    <label for="agency_id">Agence <small class="text-muted">(optionnel)</small></label>
+                                    <label for="agency_id">
+                                        <i data-feather="home" class="icon-xs mr-1"></i>
+                                        Agence assignée <small class="text-muted">(optionnel)</small>
+                                    </label>
                                     <div class="input-group mb-3">
                                         <div class="input-group-prepend">
                                             <span class="input-group-text bg-light">
@@ -276,7 +317,7 @@
                                         </div>
                                         <select class="form-control @error('agency_id') is-invalid @enderror" 
                                                 name="agency_id" id="agency_id">
-                                            <option value="">-- Aucune agence assignée --</option>
+                                            <option value=""> Aucune agence</option>
                                             @forelse($agencies as $agency)
                                                 <option value="{{ $agency->id }}" 
                                                         {{ old('agency_id', $user->agency_id) == $agency->id ? 'selected' : '' }}>
@@ -294,13 +335,20 @@
                                     </div>
                                     <small class="text-muted">
                                         <i data-feather="info" class="icon-xs mr-1"></i>
-                                        @if($agencies->isEmpty())
-                                            Aucune agence n'a été créée.
+                                        @if($user->agency)
+                                            Actuellement assigné à : <strong class="text-primary">{{ $user->agency->name }}</strong>
                                         @else
-                                            Sélectionnez l'agence où travaille cet utilisateur
+                                            Aucune agence actuellement assignée
+                                        @endif
+                                        @if($agencies->isEmpty())
+                                            <br>⚠️ Aucune agence disponible dans le système.
+                                        @else
+                                            <br>Sélectionnez l'agence où travaille cet utilisateur
                                         @endif
                                     </small>
                                 </div>
+
+                                <!-- ✅ SUPPRIMÉ : Le champ agence n'est plus nécessaire pour les admins -->
 
                                 <!-- Informations de création -->
                                 <div class="form-group">
@@ -394,5 +442,77 @@ document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
     }
 });
+
+// ✅ NOUVEAU : Gestion de la modification du type d'utilisateur
+function toggleUserTypeEdit() {
+    const editSection = document.getElementById('user_type_edit_section');
+    const currentDisplay = editSection.style.display;
+    
+    if (currentDisplay === 'none' || currentDisplay === '') {
+        editSection.style.display = 'block';
+        editSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        editSection.style.display = 'none';
+    }
+}
+
+function cancelUserTypeEdit() {
+    const editSection = document.getElementById('user_type_edit_section');
+    editSection.style.display = 'none';
+    
+    // Remettre la valeur par défaut
+    const select = document.getElementById('new_user_role');
+    const hiddenInput = document.querySelector('input[name="user_role"]');
+    select.value = hiddenInput.value;
+}
+
+function confirmUserTypeEdit() {
+    const newRole = document.getElementById('new_user_role').value;
+    const hiddenInput = document.querySelector('input[name="user_role"]');
+    const displayInput = document.getElementById('user_type_display');
+    
+    // Confirmer le changement
+    if (confirm('Êtes-vous sûr de vouloir changer le type de cet utilisateur ?')) {
+        // Mettre à jour les valeurs
+        hiddenInput.value = newRole;
+        
+        // Mettre à jour l'affichage
+        const roleLabels = {
+            'ecran': '🖥️ Ecran',
+            'accueil': '🏢 Accueil', 
+            'conseiller': '👥 Conseiller'
+        };
+        
+        displayInput.value = roleLabels[newRole] || newRole;
+        
+        // Masquer la section d'édition
+        document.getElementById('user_type_edit_section').style.display = 'none';
+        
+        // Afficher un message de confirmation
+        showNotification('Type d\'utilisateur modifié. N\'oubliez pas de sauvegarder !', 'warning');
+    }
+}
+
+// ✅ FONCTION UTILITAIRE : Afficher une notification
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="close" onclick="this.parentElement.remove();">
+            <span>&times;</span>
+        </button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-suppression après 5 secondes
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
+}
 </script>
 @endsection
