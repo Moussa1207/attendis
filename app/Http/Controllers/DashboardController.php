@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\UserType;
 use App\Models\Status;
 use App\Models\AdministratorUser;
+use App\Models\Agency;
+use App\Models\Service;
 use Illuminate\Support\Facades\Hash; 
 use Illuminate\Support\Facades\Log;  
 use Illuminate\Support\Facades\Auth;
@@ -53,8 +55,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * Dashboard admin avec statistiques ISOLÉES
-     * AMÉLIORATION 2 : Chaque admin ne voit que SES statistiques d'utilisateurs créés
+     * ✅ CORRIGÉ : Dashboard admin avec statistiques ISOLÉES
+     * Chaque admin ne voit que SES statistiques d'utilisateurs créés
      */
     public function adminDashboard()
     {
@@ -67,8 +69,10 @@ class DashboardController extends Controller
         try {
             $currentAdminId = Auth::id();
             
-            // AMÉLIORATION 2 : ISOLATION - Récupérer UNIQUEMENT les utilisateurs créés par cet admin
-            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            // 🔒 ISOLATION CORRECTE - Récupérer UNIQUEMENT les utilisateurs créés par cet admin
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
+                                         ->pluck('user_id')
+                                         ->toArray();
             $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
             
             // Statistiques ISOLÉES pour cet admin uniquement
@@ -77,29 +81,30 @@ class DashboardController extends Controller
                 'active_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count(),
                 'inactive_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
                 'suspended_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
-                'admin_users' => 1, // Seulement lui-même (isolé des autres admins)
-                'normal_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                'admin_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
+                'ecran_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                'accueil_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
+                'conseiller_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
                 'recent_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
                 'users_created_today' => User::whereIn('id', $myUserIds)->whereDate('created_at', today())->count(),
                 'users_created_this_week' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfWeek())->count(),
                 'users_created_this_month' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfMonth())->count(),
+                
+                // 🔒 Mes agences et services
+                'my_agencies' => Agency::where('created_by', $currentAdminId)->count(),
+                'my_active_agencies' => Agency::where('created_by', $currentAdminId)->where('status', 'active')->count(),
+                'my_services' => Service::where('created_by', $currentAdminId)->count(),
+                'my_active_services' => Service::where('created_by', $currentAdminId)->where('statut', 'actif')->count(),
             ];
 
             // Statistiques personnelles pour l'admin connecté (SES créations)
             $personalStats = [
-                'users_created_by_me' => Auth::user()->createdUsers()->count(),
-                'active_users_created_by_me' => Auth::user()->createdUsers()
-                    ->whereHas('user', function($query) {
-                        $query->where('status_id', 2);
-                    })->count(),
-                'users_created_by_me_today' => Auth::user()->createdUsers()
-                    ->whereHas('user', function($query) {
-                        $query->whereDate('created_at', today());
-                    })->count(),
-                'users_created_by_me_this_week' => Auth::user()->createdUsers()
-                    ->whereHas('user', function($query) {
-                        $query->where('created_at', '>=', now()->startOfWeek());
-                    })->count(),
+                'users_created_by_me' => AdministratorUser::where('administrator_id', $currentAdminId)->count(),
+                'active_users_created_by_me' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count() - 1, // -1 pour l'admin
+                'users_created_by_me_today' => User::whereIn('id', $myUserIds)->whereDate('created_at', today())->count(),
+                'users_created_by_me_this_week' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfWeek())->count(),
+                'agencies_created_by_me' => Agency::where('created_by', $currentAdminId)->count(),
+                'services_created_by_me' => Service::where('created_by', $currentAdminId)->count(),
             ];
 
             // Activité récente ISOLÉE (SES utilisateurs seulement)
@@ -173,114 +178,181 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // GESTION DES UTILISATEURS (Pour users-list.blade.php)
+    // 🔒 VÉRIFICATION D'AUTORISATION
     // ===============================================
 
     /**
-     * Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
-     * AMÉLIORATION 2 : ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
+     * 🔒 Vérifier que l'admin connecté a créé cet utilisateur
      */
+    private function checkUserOwnership(User $user): bool
+    {
+        $currentAdmin = Auth::user();
+        
+        // L'admin peut toujours se modifier lui-même
+        if ($user->id === $currentAdmin->id) {
+            return true;
+        }
+        
+        // Vérifier via la table administrator_user
+        return AdministratorUser::where('administrator_id', $currentAdmin->id)
+                               ->where('user_id', $user->id)
+                               ->exists();
+    }
+
+    // ===============================================
+    // GESTION DES UTILISATEURS (Pour users-list)
+    // ===============================================
+
     /**
-     * Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
-     * AMÉLIORATION 2 : ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
-     *  Ajout de $myCreatedUserIds pour la vue
+     * ✅ CORRIGÉ : Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
+     * ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
      */
     public function usersList(Request $request)
     {
-        if (!Auth::user()->isAdmin()) {
-            abort(403, 'Accès non autorisé');
-        }
-
         try {
-            $currentAdminId = Auth::id();
+            $currentAdmin = Auth::user();
             
-            // AMÉLIORATION 2 : ISOLATION - Récupérer UNIQUEMENT les utilisateurs créés par cet admin
-            $createdByMe = Auth::user()->createdUsers()->pluck('user_id')->toArray();
-            
-            // Ajouter l'admin lui-même à la liste (pour qu'il se voie)
-            $createdByMe[] = $currentAdminId;
-            
-            // ✅ NOUVEAU : Variable pour la vue (condition du bouton Modifier)
-            $myCreatedUserIds = $createdByMe;
-            
-            // Query de base LIMITÉE aux utilisateurs de cet admin
-            $query = User::with(['userType', 'status', 'agency', 'createdBy.administrator'])
-                         ->whereIn('id', $createdByMe);
+            if (!$currentAdmin->isAdmin()) {
+                abort(403, 'Accès non autorisé');
+            }
 
-            // Filtrage par recherche (dans SES utilisateurs seulement)
+            // 🔒 FILTRAGE CORRECT : Récupérer seulement les utilisateurs créés par cet admin
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdmin->id)
+                                          ->pluck('user_id')
+                                          ->toArray();
+            
+            // Inclure l'admin lui-même dans la liste (optionnel)
+            $myUserIds[] = $currentAdmin->id;
+            
+            // 🔒 Variable pour la vue (condition du bouton Modifier)
+            $myCreatedUserIds = $myUserIds;
+
+            $query = User::whereIn('id', $myUserIds)
+                        ->with(['userType', 'status', 'agency', 'createdBy']);
+
+            // Recherche (dans ses utilisateurs uniquement)
             if ($request->filled('search')) {
                 $search = $request->search;
-                $query->search($search);
+                $query->where(function($q) use ($search) {
+                    $q->where('username', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('mobile_number', 'LIKE', "%{$search}%")
+                      ->orWhere('company', 'LIKE', "%{$search}%");
+                });
             }
 
-            // Filtrage par statut (dans SES utilisateurs seulement)
+            // Filtres par type
+            if ($request->filled('user_type')) {
+                $typeMapping = [
+                    'admin' => 1,
+                    'ecran' => 2,
+                    'accueil' => 3,
+                    'conseiller' => 4,
+                ];
+                
+                if (isset($typeMapping[$request->user_type])) {
+                    $query->where('user_type_id', $typeMapping[$request->user_type]);
+                }
+            }
+
+            // Filtres par statut
             if ($request->filled('status')) {
-                $statusMap = [
+                $statusMapping = [
                     'active' => 2,
                     'inactive' => 1,
-                    'suspended' => 3
+                    'suspended' => 3,
                 ];
-                if (isset($statusMap[$request->status])) {
-                    $query->where('status_id', $statusMap[$request->status]);
+                
+                if (isset($statusMapping[$request->status])) {
+                    $query->where('status_id', $statusMapping[$request->status]);
                 }
             }
 
-            // Filtrage par type (dans SES utilisateurs seulement) 
-            // IMPORTANT : Exclure les autres admins du type "admin"
-            if ($request->filled('type')) {
-                $typeMapping = [
-                    'admin' => 1,       // Administrateur
-                    'ecran' => 2,       // Poste Ecran  
-                    'accueil' => 3,     // Poste Accueil
-                    'conseiller' => 4,  // Poste Conseiller
-                    'user' => [2, 3, 4] // Tous les utilisateurs normaux
-                ];
-                
-                $requestedType = $request->type;
-                
-                if ($requestedType === 'admin') {
-                    // Montrer seulement lui-même s'il est admin
-                    $query->where('id', $currentAdminId)->where('user_type_id', 1);
-                } elseif ($requestedType === 'user') {
-                    // Montrer tous ses utilisateurs normaux créés (écran, accueil, conseiller)
-                    $query->whereIn('user_type_id', [2, 3, 4]);
-                } elseif (isset($typeMapping[$requestedType])) {
-                    // Filtrer par type spécifique
-                    $typeId = $typeMapping[$requestedType];
-                    $query->where('user_type_id', $typeId);
-                }
+            // Filtres par agence (🔒 seulement ses agences)
+            if ($request->filled('agency_id')) {
+                $query->where('agency_id', $request->agency_id);
             }
 
-            $users = $query->orderBy('created_at', 'desc')->paginate(15);
+            // Tri
+            $sortBy = $request->get('sort', 'created_at');
+            $sortOrder = $request->get('order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
 
-            // Informations de traçabilité
-            $users->getCollection()->transform(function ($user) {
-                $user->creation_info = $user->getCreationInfo();
-                $user->can_be_deleted = $user->canBeDeleted();
-                $user->can_be_suspended = $user->canBeSuspended();
-                return $user;
-            });
+            // Pagination
+            $users = $query->paginate(15)->appends($request->query());
 
-            //  Passer $myCreatedUserIds à la vue pour conditionner le bouton Modifier
-            return view('user.users-list', compact('users', 'myCreatedUserIds'));
+            // 🔒 STATISTIQUES : Seulement pour les utilisateurs de cet admin
+            $stats = [
+                'total_my_users' => count($myUserIds) - 1, // -1 pour exclure l'admin lui-même du compte
+                'active_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count() - 1,
+                'inactive_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
+                'suspended_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
+                'recent_my_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
+            ];
+
+            // 🔒 AGENCES : Seulement celles créées par cet admin pour les filtres
+            $myAgencies = Agency::where('created_by', $currentAdmin->id)
+                               ->orderBy('name')
+                               ->get();
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'users' => $users->map(function($user) {
+                        return [
+                            'id' => $user->id,
+                            'username' => $user->username,
+                            'email' => $user->email,
+                            'mobile_number' => $user->mobile_number,
+                            'company' => $user->company,
+                            'type' => $user->getTypeName(),
+                            'type_icon' => $user->getTypeIcon(),
+                            'type_badge_color' => $user->getTypeBadgeColor(),
+                            'type_emoji' => $user->getTypeEmoji(),
+                            'agency' => $user->agency ? $user->agency->name : null,
+                            'agency_id' => $user->agency_id,
+                            'status' => $user->getStatusName(),
+                            'status_badge_color' => $user->getStatusBadgeColor(),
+                            'created_at' => $user->created_at->format('d/m/Y H:i'),
+                            'last_login' => $user->last_login_at ? $user->last_login_at->format('d/m/Y H:i') : 'Jamais',
+                            'is_active' => $user->isActive(),
+                            'is_admin' => $user->isAdmin(),
+                            'creation_info' => $user->getCreationInfo(),
+                        ];
+                    }),
+                    'pagination' => [
+                        'current_page' => $users->currentPage(),
+                        'total' => $users->total(),
+                        'per_page' => $users->perPage(),
+                        'last_page' => $users->lastPage()
+                    ],
+                    'stats' => $stats
+                ]);
+            }
+
+            return view('User.users-list', compact('users', 'stats', 'myAgencies', 'myCreatedUserIds'));
 
         } catch (\Exception $e) {
-            \Log::error('Users list error', [
-                'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
-
+            \Log::error("Erreur liste utilisateurs pour admin " . Auth::id() . ": " . $e->getMessage());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la récupération des utilisateurs'
+                ], 500);
+            }
+            
             return redirect()->route('layouts.app')
-                ->with('error', 'Erreur lors du chargement de la liste des utilisateurs.');
+                    ->with('error', 'Erreur lors de la récupération des utilisateurs.');
         }
     }
 
     // ===============================================
-    // ACTIONS SUR LES UTILISATEURS ( users-list)
+    // ACTIONS SUR LES UTILISATEURS (users-list)
     // ===============================================
 
     /**
-     * Activer un utilisateur (ADMINS UNIQUEMENT)
+     * ✅ CORRIGÉ : Activer utilisateur (vérification d'autorisation)
      */
     public function activateUser(User $user, Request $request)
     {
@@ -294,55 +366,51 @@ class DashboardController extends Controller
             abort(403, 'Accès non autorisé');
         }
 
-        try {
-            $user->activate();
-            
-            $message = 'L\'utilisateur ' . $user->username . ' a été activé avec succès.';
-            
-            \Log::info('User activated', [
-                'activated_user_id' => $user->id,
-                'activated_user_username' => $user->username,
-                'admin_id' => Auth::id(),
-                'admin_username' => Auth::user()->username
-            ]);
-            
+        // 🔒 Vérifier l'autorisation
+        if (!$this->checkUserOwnership($user)) {
             if ($request->expectsJson()) {
                 return response()->json([
-                    'success' => true, 
-                    'message' => $message,
-                    'user' => [
-                        'id' => $user->id,
-                        'username' => $user->username,
-                        'status' => 'active',
-                        'status_badge_color' => $user->getStatusBadgeColor()
-                    ]
-                ]);
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas modifier cet utilisateur.'
+                ], 403);
+            }
+            abort(403, 'Vous ne pouvez pas modifier cet utilisateur.');
+        }
+
+        try {
+            $success = $user->activate();
+            
+            if ($success) {
+                \Log::info("Utilisateur {$user->username} activé par " . Auth::user()->username);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => "Utilisateur {$user->username} activé avec succès !"
+                    ]);
+                }
+                
+                return redirect()->back()->with('success', "Utilisateur {$user->username} activé !");
             }
             
-            return redirect()->back()->with('success', $message);
+            throw new \Exception('Échec de l\'activation');
             
         } catch (\Exception $e) {
-            $errorMessage = 'Erreur lors de l\'activation : ' . $e->getMessage();
-            
-            \Log::error('User activation error', [
-                'user_id' => $user->id,
-                'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
+            \Log::error("Erreur activation utilisateur: " . $e->getMessage());
             
             if ($request->expectsJson()) {
                 return response()->json([
-                    'success' => false, 
-                    'message' => $errorMessage
+                    'success' => false,
+                    'message' => 'Erreur lors de l\'activation de l\'utilisateur.'
                 ], 500);
             }
             
-            return redirect()->back()->with('error', $errorMessage);
+            return redirect()->back()->with('error', 'Erreur lors de l\'activation.');
         }
     }
 
     /**
-     * Suspendre un utilisateur (ADMINS UNIQUEMENT)
+     * ✅ CORRIGÉ : Suspendre utilisateur (vérification d'autorisation)
      */
     public function suspendUser(User $user, Request $request)
     {
@@ -356,156 +424,70 @@ class DashboardController extends Controller
             abort(403, 'Accès non autorisé');
         }
 
-        try {
-            if (!$user->canBeSuspended()) {
-                $message = 'Impossible de suspendre cet utilisateur.';
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false, 
-                        'message' => $message
-                    ], 400);
-                }
-                
-                return redirect()->back()->with('error', $message);
-            }
-
-            if ($user->id === Auth::id()) {
-                $message = 'Vous ne pouvez pas suspendre votre propre compte.';
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false, 
-                        'message' => $message
-                    ], 400);
-                }
-                
-                return redirect()->back()->with('error', $message);
-            }
-
-            $user->suspend();
-            
-            $message = 'L\'utilisateur ' . $user->username . ' a été suspendu.';
-            
-            \Log::info('User suspended', [
-                'suspended_user_id' => $user->id,
-                'suspended_user_username' => $user->username,
-                'admin_id' => Auth::id(),
-                'admin_username' => Auth::user()->username
-            ]);
-            
+        // 🔒 Vérifier l'autorisation
+        if (!$this->checkUserOwnership($user)) {
             if ($request->expectsJson()) {
                 return response()->json([
-                    'success' => true, 
-                    'message' => $message,
-                    'user' => [
-                        'id' => $user->id,
-                        'username' => $user->username,
-                        'status' => 'suspended',
-                        'status_badge_color' => $user->getStatusBadgeColor()
-                    ]
-                ]);
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas modifier cet utilisateur.'
+                ], 403);
+            }
+            abort(403, 'Vous ne pouvez pas modifier cet utilisateur.');
+        }
+
+        // Empêcher un admin de se suspendre lui-même
+        if ($user->id === Auth::id()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas vous suspendre vous-même.'
+                ], 400);
+            }
+            return redirect()->back()->with('error', 'Vous ne pouvez pas vous suspendre vous-même.');
+        }
+
+        try {
+            $success = $user->suspend();
+            
+            if ($success) {
+                \Log::info("Utilisateur {$user->username} suspendu par " . Auth::user()->username);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => "Utilisateur {$user->username} suspendu avec succès !"
+                    ]);
+                }
+                
+                return redirect()->back()->with('success', "Utilisateur {$user->username} suspendu !");
             }
             
-            return redirect()->back()->with('success', $message);
+            throw new \Exception('Échec de la suspension');
             
         } catch (\Exception $e) {
-            $errorMessage = 'Erreur lors de la suspension : ' . $e->getMessage();
-            
-            \Log::error('User suspension error', [
-                'user_id' => $user->id,
-                'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
+            \Log::error("Erreur suspension utilisateur: " . $e->getMessage());
             
             if ($request->expectsJson()) {
                 return response()->json([
-                    'success' => false, 
-                    'message' => $errorMessage
+                    'success' => false,
+                    'message' => 'Erreur lors de la suspension de l\'utilisateur.'
                 ], 500);
             }
             
-            return redirect()->back()->with('error', $errorMessage);
+            return redirect()->back()->with('error', 'Erreur lors de la suspension.');
         }
     }
 
     /**
-     * Réactiver un utilisateur suspendu (ADMINS UNIQUEMENT)
+     * ✅ CORRIGÉ : Réactiver utilisateur (alias pour activate)
      */
     public function reactivateUser(User $user, Request $request)
     {
-        if (!Auth::user()->isAdmin()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false, 
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-            abort(403, 'Accès non autorisé');
-        }
-
-        try {
-            if (!$user->isSuspended()) {
-                $message = 'L\'utilisateur ' . $user->username . ' n\'est pas suspendu.';
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false, 
-                        'message' => $message
-                    ], 400);
-                }
-                
-                return redirect()->back()->with('error', $message);
-            }
-
-            $user->activate();
-            
-            $message = 'L\'utilisateur ' . $user->username . ' a été réactivé avec succès.';
-            
-            \Log::info('User reactivated', [
-                'reactivated_user_id' => $user->id,
-                'reactivated_user_username' => $user->username,
-                'admin_id' => Auth::id(),
-                'admin_username' => Auth::user()->username
-            ]);
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => true, 
-                    'message' => $message,
-                    'user' => [
-                        'id' => $user->id,
-                        'username' => $user->username,
-                        'status' => 'active',
-                        'status_badge_color' => $user->getStatusBadgeColor()
-                    ]
-                ]);
-            }
-            
-            return redirect()->back()->with('success', $message);
-            
-        } catch (\Exception $e) {
-            $errorMessage = 'Erreur lors de la réactivation : ' . $e->getMessage();
-            
-            \Log::error('User reactivation error', [
-                'user_id' => $user->id,
-                'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false, 
-                    'message' => $errorMessage
-                ], 500);
-            }
-            
-            return redirect()->back()->with('error', $errorMessage);
-        }
+        return $this->activateUser($user, $request);
     }
 
     /**
-     * Supprimer un utilisateur (ADMINS UNIQUEMENT)
+     * ✅ CORRIGÉ : Supprimer utilisateur (vérification d'autorisation)
      */
     public function deleteUser(User $user, Request $request)
     {
@@ -519,80 +501,135 @@ class DashboardController extends Controller
             abort(403, 'Accès non autorisé');
         }
 
+        // 🔒 Vérifier l'autorisation
+        if (!$this->checkUserOwnership($user)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas supprimer cet utilisateur.'
+                ], 403);
+            }
+            abort(403, 'Vous ne pouvez pas supprimer cet utilisateur.');
+        }
+
+        // Empêcher un admin de se supprimer lui-même
+        if ($user->id === Auth::id()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas vous supprimer vous-même.'
+                ], 400);
+            }
+            return redirect()->back()->with('error', 'Vous ne pouvez pas vous supprimer vous-même.');
+        }
+
         try {
-            if (!$user->canBeDeleted()) {
-                $message = 'Impossible de supprimer cet utilisateur.';
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false, 
-                        'message' => $message
-                    ], 400);
-                }
-                
-                return redirect()->back()->with('error', $message);
-            }
-
-            if ($user->id === Auth::id()) {
-                $message = 'Vous ne pouvez pas supprimer votre propre compte.';
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false, 
-                        'message' => $message
-                    ], 400);
-                }
-                
-                return redirect()->back()->with('error', $message);
-            }
-
             $username = $user->username;
-            $userId = $user->id;
             
-            \Log::warning('User deleted', [
-                'deleted_user_id' => $userId,
-                'deleted_user_username' => $username,
-                'deleted_user_email' => $user->email,
-                'admin_id' => Auth::id(),
-                'admin_username' => Auth::user()->username
-            ]);
+            // Supprimer la relation administrator_user
+            AdministratorUser::where('user_id', $user->id)->delete();
             
+            // Supprimer l'utilisateur
             $user->delete();
             
-            $message = 'L\'utilisateur ' . $username . ' a été supprimé définitivement.';
+            \Log::info("Utilisateur {$username} supprimé par " . Auth::user()->username);
             
             if ($request->expectsJson()) {
                 return response()->json([
-                    'success' => true, 
-                    'message' => $message,
-                    'deleted_user_id' => $userId
+                    'success' => true,
+                    'message' => "Utilisateur {$username} supprimé avec succès !"
                 ]);
             }
             
-            return redirect()->back()->with('success', $message);
+            return redirect()->back()->with('success', "Utilisateur {$username} supprimé !");
             
         } catch (\Exception $e) {
-            $errorMessage = 'Erreur lors de la suppression : ' . $e->getMessage();
-            
-            \Log::error('User deletion error', [
-                'user_id' => $user->id,
-                'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
+            \Log::error("Erreur suppression utilisateur: " . $e->getMessage());
             
             if ($request->expectsJson()) {
                 return response()->json([
-                    'success' => false, 
-                    'message' => $errorMessage
+                    'success' => false,
+                    'message' => 'Erreur lors de la suppression de l\'utilisateur.'
                 ], 500);
             }
             
-            return redirect()->back()->with('error', $errorMessage);
+            return redirect()->back()->with('error', 'Erreur lors de la suppression.');
         }
     }
 
     /**
-     * Suppression en masse d'utilisateurs (ADMINS UNIQUEMENT)
+     * ✅ CORRIGÉ : Actions en masse seulement sur ses utilisateurs
+     */
+    public function bulkActivate(Request $request)
+{
+    if (!Auth::user()->isAdmin()) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Accès non autorisé'
+        ], 403);
+    }
+
+    try {
+        $userIds = $request->input('user_ids', []);
+        $currentAdminId = Auth::id();
+        
+        // 🔒 Récupérer les utilisateurs de l'admin connecté
+        $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
+                                     ->pluck('user_id')
+                                     ->toArray();
+
+        // ✅ NOUVEAU : Si aucun user_ids, activer TOUS les inactifs
+        if (empty($userIds)) {
+            // Activer tous les utilisateurs inactifs de cet admin
+            $count = User::whereIn('id', $myUserIds)
+                        ->where('status_id', 1) // Seulement les inactifs
+                        ->update(['status_id' => 2]);
+
+            if ($count === 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Aucun utilisateur en attente d\'activation.'
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$count} utilisateur(s) en attente activé(s) avec succès !"
+            ]);
+        }
+
+        // ✅ EXISTANT : Mode sélection (gardé intact)
+        // Vérifier que tous les utilisateurs appartiennent à l'admin
+        $validUserIds = array_intersect($userIds, $myUserIds);
+        
+        if (empty($validUserIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucun utilisateur autorisé dans la sélection.'
+            ], 403);
+        }
+
+        $count = User::whereIn('id', $validUserIds)
+                    ->where('status_id', '!=', 2)
+                    ->update(['status_id' => 2]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} de vos utilisateur(s) activé(s) avec succès !"
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error("Erreur activation en masse: " . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de l\'activation en masse.'
+        ], 500);
+    }
+}
+
+    /**
+     * ✅ CORRIGÉ : Suppression en masse seulement sur ses utilisateurs
      */
     public function bulkDeleteUsers(Request $request)
     {
@@ -603,112 +640,60 @@ class DashboardController extends Controller
             ], 403);
         }
 
-        $request->validate([
-            'user_ids' => 'required|array|min:1',
-            'user_ids.*' => 'exists:users,id'
-        ]);
-
         try {
-            $userIds = $request->user_ids;
-            $currentAdminId = Auth::id();
+            $userIds = $request->input('user_ids', []);
             
-            $usersToDelete = User::whereIn('id', $userIds)->get();
-            
-            if ($usersToDelete->isEmpty()) {
+            if (empty($userIds)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucun utilisateur trouvé pour la suppression'
-                ]);
-            }
-            
-            $errors = [];
-            
-            if (in_array($currentAdminId, $userIds)) {
-                $errors[] = 'Vous ne pouvez pas supprimer votre propre compte';
-            }
-            
-            $adminUsers = $usersToDelete->where('user_type_id', 1);
-            $activeAdmins = User::admins()->active()->count();
-            
-            if ($adminUsers->count() >= $activeAdmins) {
-                $errors[] = 'Impossible de supprimer tous les administrateurs actifs';
-            }
-            
-            foreach ($usersToDelete as $user) {
-                if (!$user->canBeDeleted() && $user->id !== $currentAdminId) {
-                    $errors[] = "L'utilisateur {$user->username} ne peut pas être supprimé";
-                }
-            }
-            
-            if (!empty($errors)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => implode('. ', $errors)
+                    'message' => 'Aucun utilisateur sélectionné.'
                 ], 400);
             }
+
+            // Empêcher la suppression de soi-même
+            $userIds = array_filter($userIds, function($id) {
+                return $id != Auth::id();
+            });
+
+            // 🔒 SÉCURITÉ : Vérifier que tous les utilisateurs appartiennent à l'admin
+            $myUserIds = AdministratorUser::where('administrator_id', Auth::id())
+                                         ->pluck('user_id')
+                                         ->toArray();
             
-            $deletedCount = 0;
-            $deletedUsers = [];
+            $validUserIds = array_intersect($userIds, $myUserIds);
             
-            DB::beginTransaction();
-            
-            foreach ($usersToDelete as $user) {
-                if ($user->canBeDeleted() && $user->id !== $currentAdminId) {
-                    try {
-                        \Log::warning('Bulk user deletion', [
-                            'deleted_user_id' => $user->id,
-                            'deleted_user_username' => $user->username,
-                            'deleted_user_email' => $user->email,
-                            'admin_id' => $currentAdminId,
-                            'admin_username' => Auth::user()->username
-                        ]);
-                        
-                        $deletedUsers[] = [
-                            'id' => $user->id,
-                            'username' => $user->username,
-                            'email' => $user->email
-                        ];
-                        
-                        $user->delete();
-                        $deletedCount++;
-                        
-                    } catch (\Exception $e) {
-                        \Log::error('Error deleting user in bulk operation', [
-                            'user_id' => $user->id,
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
+            if (empty($validUserIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun utilisateur autorisé dans la sélection.'
+                ], 403);
             }
+
+            // Supprimer les relations
+            AdministratorUser::whereIn('user_id', $validUserIds)->delete();
             
-            DB::commit();
+            // Supprimer les utilisateurs
+            $count = User::whereIn('id', $validUserIds)->delete();
 
             return response()->json([
                 'success' => true,
-                'message' => "{$deletedCount} utilisateur(s) ont été supprimés avec succès",
-                'deleted_count' => $deletedCount,
-                'deleted_users' => $deletedUsers
+                'message' => "{$count} de vos utilisateur(s) supprimé(s) avec succès !"
             ]);
-            
+
         } catch (\Exception $e) {
-            DB::rollBack();
-            
-            \Log::error('Bulk deletion error', [
-                'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
+            \Log::error("Erreur suppression en masse: " . $e->getMessage());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression en masse : ' . $e->getMessage()
+                'message' => 'Erreur lors de la suppression en masse.'
             ], 500);
         }
     }
 
     /**
-     * Activation en masse des utilisateurs inactifs (AJAX - ADMINS)
+     * ✅ CORRIGÉ : Réinitialiser mot de passe (vérification d'autorisation)
      */
-    public function bulkActivate(Request $request)
+    public function resetUserPassword(User $user, Request $request)
     {
         if (!Auth::user()->isAdmin()) {
             return response()->json([
@@ -717,58 +702,51 @@ class DashboardController extends Controller
             ], 403);
         }
 
+        // 🔒 Vérifier l'autorisation
+        if (!$this->checkUserOwnership($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas réinitialiser le mot de passe de cet utilisateur.'
+            ], 403);
+        }
+
         try {
-            // AMÉLIORATION 2 : Activation en masse ISOLÉE - seulement SES utilisateurs inactifs
-            $currentAdminId = Auth::id();
-            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
-            $myUserIds[] = $currentAdminId;
+            // Générer un nouveau mot de passe
+            $newPassword = $this->generateSecurePassword();
+            $user->update(['password' => Hash::make($newPassword)]);
+
+            // Marquer comme nécessitant une réinitialisation
+            $adminUserRecord = AdministratorUser::where('administrator_id', Auth::id())
+                ->where('user_id', $user->id)
+                ->first();
             
-            $inactiveUsers = User::whereIn('id', $myUserIds)->inactive()->get();
-            
-            if ($inactiveUsers->isEmpty()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucun de vos utilisateurs inactifs à activer'
+            if ($adminUserRecord) {
+                $adminUserRecord->update([
+                    'password_reset_required' => true,
+                    'temporary_password' => $newPassword
                 ]);
             }
 
-            $activatedCount = 0;
-            
-            DB::beginTransaction();
-            
-            foreach ($inactiveUsers as $user) {
-                try {
-                    $user->activate();
-                    $activatedCount++;
-                    
-                    \Log::info('Bulk user activation', [
-                        'activated_user_id' => $user->id,
-                        'activated_user_username' => $user->username,
-                        'admin_id' => Auth::id(),
-                        'admin_username' => Auth::user()->username
-                    ]);
-                } catch (\Exception $e) {
-                    \Log::error('Error in bulk activation', [
-                        'user_id' => $user->id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-            
-            DB::commit();
+            \Log::info("Mot de passe réinitialisé pour {$user->username} par " . Auth::user()->username);
 
             return response()->json([
                 'success' => true,
-                'message' => "{$activatedCount} de vos utilisateur(s) ont été activés avec succès",
-                'activated_count' => $activatedCount
+                'message' => "Mot de passe réinitialisé pour {$user->username}",
+                'new_password' => $newPassword,
+                'credentials' => [
+                    'email' => $user->email,
+                    'username' => $user->username,
+                    'password' => $newPassword,
+                    'login_url' => route('login')
+                ]
             ]);
-            
+
         } catch (\Exception $e) {
-            DB::rollBack();
+            \Log::error("Erreur réinitialisation mot de passe: " . $e->getMessage());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'activation en masse : ' . $e->getMessage()
+                'message' => 'Erreur lors de la réinitialisation du mot de passe.'
             ], 500);
         }
     }
@@ -778,8 +756,7 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * Obtenir les statistiques en temps réel ISOLÉES (AJAX - ADMINS)
-     * AMÉLIORATION 2 : Statistiques isolées pour SES utilisateurs uniquement
+     * ✅ CORRIGÉ : Statistiques seulement pour les utilisateurs de l'admin
      */
     public function getStats(Request $request)
     {
@@ -791,33 +768,53 @@ class DashboardController extends Controller
         }
 
         try {
-            $currentAdminId = Auth::id();
+            $currentAdmin = Auth::user();
             
-            // AMÉLIORATION 2 : ISOLATION - Statistiques pour SES utilisateurs uniquement
-            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
-            $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
+            // 🔒 IDS DES UTILISATEURS : Seulement ceux créés par cet admin
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdmin->id)
+                                         ->pluck('user_id')
+                                         ->toArray();
             
+            // Inclure l'admin lui-même
+            $myUserIds[] = $currentAdmin->id;
+
             $stats = [
-                'total_users' => count($myUserIds),
-                'active_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count(),
-                'inactive_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
-                'suspended_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
-                'admin_users' => 1, // Seulement lui-même
-                'normal_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
-                'users_created_by_me' => Auth::user()->createdUsers()->count(),
-                'recent_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
-                'users_created_today' => User::whereIn('id', $myUserIds)->whereDate('created_at', today())->count(),
-                'users_created_this_week' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfWeek())->count(),
-                'users_created_this_month' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfMonth())->count(),
+                'my_total_users' => count($myUserIds) - 1, // -1 pour exclure l'admin du compte
+                'my_active_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count() - 1,
+                'my_inactive_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
+                'my_suspended_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
+                'my_recent_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
+                'my_users_needing_password_reset' => AdministratorUser::where('administrator_id', $currentAdmin->id)
+                                                                     ->where('password_reset_required', true)
+                                                                     ->count(),
+                
+                // Statistiques par type (seulement mes utilisateurs)
+                'my_admin_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
+                'my_ecran_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                'my_accueil_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
+                'my_conseiller_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
+                
+                // Mes agences et services
+                'my_agencies' => Agency::where('created_by', $currentAdmin->id)->count(),
+                'my_active_agencies' => Agency::where('created_by', $currentAdmin->id)->where('status', 'active')->count(),
+                'my_services' => Service::where('created_by', $currentAdmin->id)->count(),
+                'my_active_services' => Service::where('created_by', $currentAdmin->id)->where('statut', 'actif')->count(),
             ];
 
             return response()->json([
                 'success' => true, 
                 'stats' => $stats,
+                'admin_info' => [
+                    'id' => $currentAdmin->id,
+                    'username' => $currentAdmin->username,
+                    'email' => $currentAdmin->email
+                ],
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
             
         } catch (\Exception $e) {
+            \Log::error("Erreur statistiques isolées: " . $e->getMessage());
+            
             return response()->json([
                 'success' => false, 
                 'message' => 'Erreur lors de la récupération des statistiques'
@@ -826,8 +823,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Recherche d'utilisateurs en temps réel (AJAX - ADMINS)
-     * AMÉLIORATION 2 : Recherche ISOLÉE dans SES utilisateurs uniquement
+     * ✅ CORRIGÉ : Recherche seulement dans ses utilisateurs
      */
     public function searchUsers(Request $request)
     {
@@ -848,13 +844,20 @@ class DashboardController extends Controller
         }
 
         try {
-            // AMÉLIORATION 2 : ISOLATION - Recherche dans SES utilisateurs uniquement
+            // 🔒 RECHERCHE : Seulement dans ses utilisateurs
             $currentAdminId = Auth::id();
-            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
+                                         ->pluck('user_id')
+                                         ->toArray();
             $myUserIds[] = $currentAdminId;
             
             $users = User::whereIn('id', $myUserIds)
-                        ->search($search)
+                        ->where(function($q) use ($search) {
+                            $q->where('username', 'LIKE', "%{$search}%")
+                              ->orWhere('email', 'LIKE', "%{$search}%")
+                              ->orWhere('mobile_number', 'LIKE', "%{$search}%")
+                              ->orWhere('company', 'LIKE', "%{$search}%");
+                        })
                         ->with(['userType', 'status'])
                         ->limit(5)
                         ->get();
@@ -885,8 +888,7 @@ class DashboardController extends Controller
     }
 
     /**
-     *  Obtenir les détails d'un utilisateur (AJAX - ADMINS)
-     * Toutes les données sont maintenant correctement formatées
+     * ✅ CORRIGÉ : Détails utilisateur (vérification d'autorisation)
      */
     public function getUserDetails(User $user, Request $request)
     {
@@ -897,113 +899,123 @@ class DashboardController extends Controller
             ], 403);
         }
 
+        // 🔒 Vérifier l'autorisation
+        if (!$this->checkUserOwnership($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas voir les détails de cet utilisateur.'
+            ], 403);
+        }
+
         try {
-            $user->load(['userType', 'status', 'createdBy.administrator']);
-            
-            //  Calculs et formatage corrects
-            $createdAt = $user->created_at;
-            $updatedAt = $user->updated_at;
-            $now = now();
-            
-            // Calcul du temps d'existence (âge du compte)
-            $accountAgeDays = $createdAt->diffInDays($now);
-            $accountAgeFormatted = $this->formatAccountAge($accountAgeDays);
-            
-            // Dernière modification du mot de passe
-            $lastPasswordChange = $user->last_password_change ?? $createdAt;
-            $passwordChangeFormatted = $lastPasswordChange->eq($createdAt) 
-                ? 'A la création' 
-                : $lastPasswordChange->format('d/m/Y à H:i');
-            
-            // Tentatives de connexion (défaut à 0 si pas de tracking)
-            $loginAttempts = $user->failed_login_attempts ?? 0;
+            $user->load(['userType', 'status', 'agency', 'createdBy.administrator']);
             
             $userDetails = [
-                //  Informations de base
                 'id' => $user->id,
                 'username' => $user->username,
                 'email' => $user->email,
                 'mobile_number' => $user->mobile_number,
-                'company' => $user->company ?? 'Non renseigné', 
-                
-                //  Type et statut
-                'type' => $user->getTypeName(), //  Plus de "utilisateur"
-                'type_icon' => $user->getTypeIcon(),
-                'status' => $user->getStatusName(), //  Plus d'"inconnu"
-                'status_badge_color' => $user->getStatusBadgeColor(),
-                'user_type_id' => $user->user_type_id,
-                'status_id' => $user->status_id,
-                
-                //  Dates formatées correctement
-                'created_at' => $createdAt->format('d/m/Y à H:i'), //  Plus d'"Invalide Date"
-                'created_at_iso' => $createdAt->toISOString(),
-                'updated_at' => $updatedAt->format('d/m/Y à H:i'), //  Vraie date de modification
-                'updated_at_iso' => $updatedAt->toISOString(),
-                
-                //  Temps d'existence calculé
-                'account_age_days' => $accountAgeDays, //  Calculé depuis created_at
-                'account_age_formatted' => $accountAgeFormatted, //  Format lisible
-                
-                //  Informations de création
+                'company' => $user->company,
+                'type_info' => $user->getTypeInfo(),
+                'status_info' => $user->getStatusInfo(),
+                'agency' => $user->agency ? [
+                    'id' => $user->agency->id,
+                    'name' => $user->agency->name,
+                    'city' => $user->agency->city,
+                    'country' => $user->agency->country
+                ] : null,
+                'login_info' => $user->getLastLoginInfo(),
+                'password_info' => $user->getPasswordInfo(),
+                'security_info' => $user->getLoginAttemptsInfo(),
                 'creation_info' => $user->getCreationInfo(),
-                'last_activity' => $updatedAt->format('d/m/Y à H:i'),
-                
-                // Informations booléennes
-                'is_admin' => $user->isAdmin(),
-                'is_active' => $user->isActive(),
-                'is_suspended' => $user->isSuspended(),
-                'can_be_suspended' => $user->canBeSuspended(),
-                'can_be_deleted' => $user->canBeDeleted(),
-                
-                //  Sécurité et connexions
-                'last_password_change' => $passwordChangeFormatted, //  Dynamique
-                'failed_login_attempts' => $loginAttempts, //  Dynamique
-                'last_login_at' => $user->last_login_at ? $user->last_login_at->format('d/m/Y à H:i') : 'Jamais connecté',
-                
-                // Formatage pour l'affichage JavaScript
-                'created_at_relative' => $createdAt->diffForHumans(),
-                'updated_at_relative' => $updatedAt->diffForHumans(),
+                'required_actions' => $user->getRequiredActions(),
+                'permissions' => [
+                    'can_edit' => true, // Puisqu'on a vérifié l'autorisation
+                    'can_delete' => $user->id !== Auth::id(), // Ne peut pas se supprimer
+                    'can_suspend' => $user->id !== Auth::id(), // Ne peut pas se suspendre
+                    'can_reset_password' => true,
+                ]
             ];
 
             return response()->json([
                 'success' => true,
                 'user' => $userDetails
             ]);
-            
+
         } catch (\Exception $e) {
-            \Log::error('Get user details error', [
-                'user_id' => $user->id,
-                'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
+            \Log::error("Erreur détails utilisateur: " . $e->getMessage());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des détails'
+                'message' => 'Erreur lors de la récupération des détails.'
             ], 500);
         }
     }
 
+    // ===============================================
+    // STATISTIQUES AVANCÉES
+    // ===============================================
+
     /**
-     * ✅ NOUVELLE : Formater l'âge du compte de manière lisible
+     * ✅ CORRIGÉ : Statistiques avancées isolées
      */
-    private function formatAccountAge(int $days): string
+    public function getAdvancedStats(Request $request)
     {
-        if ($days < 1) {
-            return 'Moins d\'un jour';
-        } elseif ($days === 1) {
-            return '1 jour';
-        } elseif ($days < 7) {
-            return $days . ' jours';
-        } elseif ($days < 30) {
-            $weeks = floor($days / 7);
-            return $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-        } elseif ($days < 365) {
-            $months = floor($days / 30);
-            return $months . ' mois';
-        } else {
-            $years = floor($days / 365);
-            return $years . ' an' . ($years > 1 ? 's' : '');
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
+
+        try {
+            $currentAdminId = Auth::id();
+            
+            // 🔒 ISOLATION - Statistiques pour SES utilisateurs uniquement
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
+                                         ->pluck('user_id')
+                                         ->toArray();
+            $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
+            
+            // Statistiques détaillées par type
+            $statsByType = [
+                'admin' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 3)->count(),
+                ],
+                'ecran' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 3)->count(),
+                ],
+                'accueil' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 3)->count(),
+                ],
+                'conseiller' => [
+                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
+                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 2)->count(),
+                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 1)->count(),
+                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 3)->count(),
+                ]
+            ];
+
+            return response()->json([
+                'success' => true, 
+                'stats_by_type' => $statsByType,
+                'timestamp' => now()->format('d/m/Y H:i:s')
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur lors de la récupération des statistiques avancées'
+            ], 500);
         }
     }
 
@@ -1012,8 +1024,7 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * Export des utilisateurs (CSV/Excel) - ADMINS UNIQUEMENT
-     * AMÉLIORATION 2 : Export ISOLÉ - seulement SES utilisateurs
+     * ✅ CORRIGÉ : Export seulement des utilisateurs de l'admin
      */
     public function exportUsers(Request $request)
     {
@@ -1022,9 +1033,11 @@ class DashboardController extends Controller
         }
 
         try {
-            // AMÉLIORATION 2 : ISOLATION - Export de SES utilisateurs uniquement
+            // 🔒 EXPORT : Seulement ses propres utilisateurs
             $currentAdminId = Auth::id();
-            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
+                                         ->pluck('user_id')
+                                         ->toArray();
             $myUserIds[] = $currentAdminId;
             
             $users = User::whereIn('id', $myUserIds)
@@ -1089,200 +1102,15 @@ class DashboardController extends Controller
         }
     }
 
-    public function getStatsByType(Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Accès non autorisé'
-            ], 403);
-        }
-
-        try {
-            $currentAdminId = Auth::id();
-            
-            // ISOLATION - Statistiques pour SES utilisateurs uniquement
-            $myUserIds = Auth::user()->createdUsers()->pluck('user_id')->toArray();
-            $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
-            
-            // Statistiques détaillées par type
-            $statsByType = [
-                'admin' => [
-                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
-                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 2)->count(),
-                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 1)->count(),
-                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->where('status_id', 3)->count(),
-                ],
-                'ecran' => [
-                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
-                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 2)->count(),
-                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 1)->count(),
-                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->where('status_id', 3)->count(),
-                ],
-                'accueil' => [
-                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
-                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 2)->count(),
-                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 1)->count(),
-                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->where('status_id', 3)->count(),
-                ],
-                'conseiller' => [
-                    'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
-                    'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 2)->count(),
-                    'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 1)->count(),
-                    'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 3)->count(),
-                ]
-            ];
-
-            return response()->json([
-                'success' => true, 
-                'stats_by_type' => $statsByType,
-                'timestamp' => now()->format('d/m/Y H:i:s')
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Erreur lors de la récupération des statistiques par type'
-            ], 500);
-        }
-    }
-
     /**
-     * 🆕 NOUVELLE MÉTHODE : Réinitialiser le mot de passe d'un utilisateur depuis le modal détails
-     * L'admin reçoit le nouveau mot de passe généré (comme dans user-create)
+     * Générer un mot de passe sécurisé
      */
-    public function resetUserPassword(User $user, Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Accès non autorisé'
-            ], 403);
-        }
-
-        try {
-            // Vérifier que l'admin connecté a le droit de gérer cet utilisateur
-            // (soit il l'a créé, soit c'est un admin qui peut agir sur cet utilisateur)
-            $currentAdmin = Auth::user();
-            $userCreator = $user->getCreator();
-            
-            // Vérifier si l'admin a créé cet utilisateur OU si c'est un admin système
-            $canResetPassword = false;
-            
-            if ($user->wasCreatedByAdmin()) {
-                // Si l'utilisateur a été créé par un admin, vérifier que c'est le bon admin
-                $canResetPassword = $user->createdBy && $user->createdBy->administrator_id === $currentAdmin->id;
-            } else {
-                // Si c'est un utilisateur admin (créé via inscription), on peut le réinitialiser
-                $canResetPassword = true;
-            }
-
-            if (!$canResetPassword) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous n\'avez pas l\'autorisation de réinitialiser le mot de passe de cet utilisateur.'
-                ], 403);
-            }
-
-            // Empêcher un admin de réinitialiser son propre mot de passe via cette méthode
-            if ($user->id === $currentAdmin->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous ne pouvez pas réinitialiser votre propre mot de passe via cette méthode.'
-                ], 400);
-            }
-
-            // Générer un nouveau mot de passe temporaire sécurisé (même logique que UserManagementController)
-            $newPassword = $this->generateSecureTemporaryPassword();
-            
-            // Mettre à jour le mot de passe en base +  Mettre à jour last_password_change
-            $user->update([
-                'password' => Hash::make($newPassword),
-                'last_password_change' => now()
-            ]);
-
-            // Marquer comme nécessitant une réinitialisation (si relation existe)
-            if ($user->createdBy) {
-                $user->createdBy->update(['password_reset_required' => true]);
-            }
-
-            // Préparer les informations complètes pour l'admin
-            $userCredentials = [
-                'user_id' => $user->id,
-                'username' => $user->username,
-                'email' => $user->email,
-                'mobile_number' => $user->mobile_number,
-                'company' => $user->company,
-                'user_type' => $user->getTypeName(),
-                'user_type_emoji' => $user->getTypeEmoji(),
-                'user_role' => $user->getUserRole(),
-                'new_password' => $newPassword,
-                'login_url' => route('login'),
-                'reset_by_admin' => $currentAdmin->username,
-                'reset_at' => now()->format('d/m/Y à H:i'),
-            ];
-
-            // Log de l'action pour sécurité
-            \Log::info('Password reset by admin from modal', [
-                'admin_id' => $currentAdmin->id,
-                'admin_username' => $currentAdmin->username,
-                'target_user_id' => $user->id,
-                'target_username' => $user->username,
-                'reset_method' => 'admin_modal_reset',
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent()
-            ]);
-
-            // Retourner le succès avec le nouveau mot de passe pour l'admin
-            return response()->json([
-                'success' => true,
-                'message' => "Mot de passe réinitialisé avec succès pour {$user->username}",
-                'user' => [
-                    'id' => $user->id,
-                    'username' => $user->username,
-                    'email' => $user->email,
-                    'mobile_number' => $user->mobile_number,
-                    'company' => $user->company,
-                    'type' => $user->getTypeName(),
-                    'type_emoji' => $user->getTypeEmoji(),
-                    'status' => $user->getStatusName(),
-                ],
-                'new_password' => $newPassword,
-                'credentials' => $userCredentials,
-                'reset_info' => [
-                    'reset_by' => $currentAdmin->username,
-                    'reset_at' => now()->format('d/m/Y à H:i:s'),
-                    'password_strength' => 'Format sécurisé (8 caractères)',
-                    'must_change' => true
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Password reset error from modal', [
-                'admin_id' => Auth::id(),
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la réinitialisation du mot de passe. Veuillez réessayer.'
-            ], 500);
-        }
-    }
-
-    /**
-     * 🆕 MÉTHODE UTILITAIRE : Générer un mot de passe temporaire sécurisé
-     * Même logique que UserManagementController pour cohérence
-     */
-    private function generateSecureTemporaryPassword(int $length = 8): string 
+    private function generateSecurePassword($length = 8): string 
     {
         $voyelles = 'aeiou';
         $consonnes = 'bcdfghjklmnpqrstvwxz';
         $password = '';
         
-        // Consonne-Voyelle-Consonne + 3 chiffres + caractère spécial
         $password .= strtoupper($consonnes[rand(0, strlen($consonnes) - 1)]);
         $password .= $voyelles[rand(0, strlen($voyelles) - 1)];
         $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
@@ -1290,5 +1118,28 @@ class DashboardController extends Controller
         $password .= '@';
         
         return $password;
+    }
+
+    /**
+     * Formater l'âge du compte
+     */
+    private function formatAccountAge(int $days): string
+    {
+        if ($days < 1) {
+            return 'Moins d\'un jour';
+        } elseif ($days === 1) {
+            return '1 jour';
+        } elseif ($days < 7) {
+            return $days . ' jours';
+        } elseif ($days < 30) {
+            $weeks = floor($days / 7);
+            return $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
+        } elseif ($days < 365) {
+            $months = floor($days / 30);
+            return $months . ' mois';
+        } else {
+            $years = floor($days / 365);
+            return $years . ' an' . ($years > 1 ? 's' : '');
+        }
     }
 }

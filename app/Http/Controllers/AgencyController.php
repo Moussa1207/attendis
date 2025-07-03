@@ -12,11 +12,12 @@ use Carbon\Carbon;
 class AgencyController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * ✅ CORRIGÉ : Afficher SEULEMENT les agences créées par l'admin connecté
      */
     public function index(Request $request)
     {
-        $query = Agency::query();
+        // 🔒 ISOLATION : Filtrer par admin connecté
+        $query = Agency::where('created_by', Auth::id());
 
         // Recherche
         if ($request->filled('search')) {
@@ -30,7 +31,7 @@ class AgencyController extends Controller
             });
         }
 
-        // Filtres
+        // Filtres (même logique, mais sur les agences de l'admin)
         if ($request->filled('status')) {
             $status = $request->get('status');
             if ($status === 'active') {
@@ -48,31 +49,27 @@ class AgencyController extends Controller
             $query->where('city', 'LIKE', "%{$request->get('city')}%");
         }
 
-        // Filtre récent
         if ($request->filled('recent')) {
             $days = (int) $request->get('recent');
             $query->where('created_at', '>=', Carbon::now()->subDays($days));
         }
 
-        // Trier par date de création (plus récent en premier)
         $query->orderBy('created_at', 'desc');
-
-        // Pagination
         $agencies = $query->paginate(15);
 
-        // Statistiques
+        // 🔒 STATISTIQUES : Seulement pour cet admin
         $stats = [
-            'total' => Agency::count(),
-            'active' => Agency::where('status', 'active')->count(),
-            'inactive' => Agency::where('status', 'inactive')->count(),
-            'recent' => Agency::where('created_at', '>=', Carbon::now()->subDays(7))->count(),
+            'total' => Agency::where('created_by', Auth::id())->count(),
+            'active' => Agency::where('created_by', Auth::id())->where('status', 'active')->count(),
+            'inactive' => Agency::where('created_by', Auth::id())->where('status', 'inactive')->count(),
+            'recent' => Agency::where('created_by', Auth::id())->where('created_at', '>=', Carbon::now()->subDays(7))->count(),
         ];
 
         return view('agency.agence', compact('agencies', 'stats'));
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Formulaire de création (pas de changement)
      */
     public function create()
     {
@@ -80,7 +77,7 @@ class AgencyController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Créer une agence (pas de changement - déjà correct)
      */
     public function store(Request $request)
     {
@@ -114,8 +111,8 @@ class AgencyController extends Controller
                 'address_2' => $request->address_2,
                 'city' => $request->city,
                 'country' => $request->country,
-                'status' => 'active', // Par défaut active
-                'created_by' => Auth::id(),
+                'status' => 'active',
+                'created_by' => Auth::id(), // ✅ Déjà correct
             ]);
 
             return redirect()->route('agency.agence')
@@ -129,26 +126,42 @@ class AgencyController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * ✅ CORRIGÉ : Vérifier que l'admin a créé cette agence
      */
     public function show(Agency $agency)
     {
+        // 🔒 VÉRIFICATION : L'admin connecté a-t-il créé cette agence ?
+        if ($agency->created_by !== Auth::id()) {
+            abort(403, 'Vous ne pouvez pas voir cette agence.');
+        }
+
         return view('agencies.show', compact('agency'));
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * ✅ CORRIGÉ : Vérifier l'autorisation pour éditer
      */
     public function edit(Agency $agency)
     {
+        if ($agency->created_by !== Auth::id()) {
+            abort(403, 'Vous ne pouvez pas modifier cette agence.');
+        }
+
         return view('agencies.edit', compact('agency'));
     }
 
     /**
-     * Update the specified resource in storage.
+     * ✅ CORRIGÉ : Vérifier l'autorisation pour mettre à jour
      */
     public function update(Request $request, Agency $agency)
     {
+        if ($agency->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas modifier cette agence.'
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:agencies,name,' . $agency->id,
             'phone' => 'required|string|max:20',
@@ -180,10 +193,17 @@ class AgencyController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * ✅ CORRIGÉ : Vérifier l'autorisation pour supprimer
      */
     public function destroy(Agency $agency)
     {
+        if ($agency->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas supprimer cette agence.'
+            ], 403);
+        }
+
         try {
             $agencyName = $agency->name;
             $agency->delete();
@@ -202,10 +222,17 @@ class AgencyController extends Controller
     }
 
     /**
-     * Activate an agency.
+     * ✅ CORRIGÉ : Activer seulement ses propres agences
      */
     public function activate(Agency $agency)
     {
+        if ($agency->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas activer cette agence.'
+            ], 403);
+        }
+
         try {
             $agency->update(['status' => 'active']);
 
@@ -223,10 +250,17 @@ class AgencyController extends Controller
     }
 
     /**
-     * Deactivate an agency.
+     * ✅ CORRIGÉ : Désactiver seulement ses propres agences
      */
     public function deactivate(Agency $agency)
     {
+        if ($agency->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas désactiver cette agence.'
+            ], 403);
+        }
+
         try {
             $agency->update(['status' => 'inactive']);
 
@@ -244,12 +278,18 @@ class AgencyController extends Controller
     }
 
     /**
-     * Get agency details for modal.
+     * ✅ CORRIGÉ : Détails seulement pour ses propres agences
      */
     public function details(Agency $agency)
     {
+        if ($agency->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas voir cette agence.'
+            ], 403);
+        }
+
         try {
-            // Charger les relations nécessaires
             $agency->load('creator');
 
             $agencyData = [
@@ -286,16 +326,18 @@ class AgencyController extends Controller
     }
 
     /**
-     * Bulk activate agencies.
+     * ✅ CORRIGÉ : Activation en masse seulement pour ses agences
      */
     public function bulkActivate()
     {
         try {
-            $count = Agency::where('status', 'inactive')->update(['status' => 'active']);
+            $count = Agency::where('created_by', Auth::id())
+                           ->where('status', 'inactive')
+                           ->update(['status' => 'active']);
 
             return response()->json([
                 'success' => true,
-                'message' => "✅ {$count} agence(s) activée(s) avec succès !"
+                'message' => "✅ {$count} de vos agence(s) activée(s) avec succès !"
             ]);
 
         } catch (\Exception $e) {
@@ -307,7 +349,7 @@ class AgencyController extends Controller
     }
 
     /**
-     * Bulk delete agencies.
+     * ✅ CORRIGÉ : Suppression en masse seulement pour ses agences
      */
     public function bulkDelete(Request $request)
     {
@@ -321,11 +363,14 @@ class AgencyController extends Controller
                 ], 400);
             }
 
-            $count = Agency::whereIn('id', $agencyIds)->delete();
+            // 🔒 SÉCURITÉ : Vérifier que toutes les agences appartiennent à l'admin
+            $count = Agency::whereIn('id', $agencyIds)
+                          ->where('created_by', Auth::id())
+                          ->delete();
 
             return response()->json([
                 'success' => true,
-                'message' => " {$count} agence(s) supprimée(s) avec succès !"
+                'message' => " {$count} de vos agence(s) supprimée(s) avec succès !"
             ]);
 
         } catch (\Exception $e) {
@@ -337,17 +382,60 @@ class AgencyController extends Controller
     }
 
     /**
-     * Export agencies to Excel.
+     * ✅ CORRIGÉ : Export seulement des agences de l'admin
      */
     public function export()
     {
         try {
-            // Ici vous pouvez implémenter l'export Excel
-            // Pour l'instant, on simule un téléchargement
-            return response()->json([
-                'success' => true,
-                'message' => 'Export des agences en cours...'
-            ]);
+            $agencies = Agency::where('created_by', Auth::id())
+                             ->with('creator')
+                             ->get();
+            
+            $filename = 'mes_agences_' . date('Y-m-d_H-i-s') . '.csv';
+            
+            $headers = [
+                'Content-Type' => 'text/csv; charset=utf-8',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ];
+
+            $callback = function() use ($agencies) {
+                $file = fopen('php://output', 'w');
+                
+                // BOM pour UTF-8
+                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                
+                // En-têtes CSV
+                fputcsv($file, [
+                    'ID',
+                    'Nom',
+                    'Téléphone',
+                    'Adresse 1',
+                    'Adresse 2',
+                    'Ville',
+                    'Pays',
+                    'Statut',
+                    'Date de création'
+                ], ';');
+                
+                // Données
+                foreach ($agencies as $agency) {
+                    fputcsv($file, [
+                        $agency->id,
+                        $agency->name,
+                        $agency->phone,
+                        $agency->address_1,
+                        $agency->address_2 ?: '',
+                        $agency->city,
+                        $agency->country,
+                        $agency->status === 'active' ? 'Active' : 'Inactive',
+                        $agency->created_at->format('d/m/Y H:i:s')
+                    ], ';');
+                }
+                
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -357,9 +445,7 @@ class AgencyController extends Controller
         }
     }
 
-    /**
-     * Helper: Get full address.
-     */
+    // Méthodes utilitaires (pas de changement)
     private function getFullAddress(Agency $agency)
     {
         $parts = array_filter([
@@ -372,9 +458,6 @@ class AgencyController extends Controller
         return implode(', ', $parts);
     }
 
-    /**
-     * Helper: Get agency age.
-     */
     private function getAgencyAge($createdAt)
     {
         try {

@@ -24,7 +24,7 @@ class UserManagementController extends Controller
     }
 
     /**
-     * Afficher le formulaire de création d'utilisateur 
+     * ✅ CORRIGÉ : Afficher le formulaire de création d'utilisateur 
      * COHÉRENT avec user-create.blade.php
      */
     public function create()
@@ -35,16 +35,19 @@ class UserManagementController extends Controller
         // Obtenir les rôles disponibles avec leurs informations
         $availableRoles = $this->getAvailableRoles();
         
-        // NOUVEAU : Récupérer toutes les agences actives
-        $agencies = Agency::active()->orderBy('name')->get();
+        // 🔒 CORRIGÉ : Récupérer SEULEMENT les agences créées par cet admin
+        $agencies = Agency::where('created_by', Auth::id())
+                         ->where('status', 'active')
+                         ->orderBy('name')
+                         ->get();
         
         return view('user.user-create', compact('adminStats', 'availableRoles', 'agencies'));
     }
 
     /**
-     * ✅ CRÉER UN NOUVEL UTILISATEUR - VERSION CORRIGÉE AVEC MAPPING DES RÔLES ET AGENCE
+     * ✅ CORRIGÉ : CRÉER UN NOUVEL UTILISATEUR - VERSION CORRIGÉE AVEC VALIDATION AGENCE
      * L'admin voit TOUJOURS le mot de passe temporaire
-     * AMÉLIORATION : Support complet des 4 types métier et gestion des agences
+     * AMÉLIORATION : Support complet des 4 types métier et gestion des agences avec validation
      */
     public function store(Request $request)
     {
@@ -53,7 +56,21 @@ class UserManagementController extends Controller
             'username' => 'required|string|max:255|unique:users',
             'mobile_number' => 'required|string|max:20',
             'user_role' => 'required|string|in:admin,ecran,conseiller,accueil',
-            'agency_id' => 'nullable|exists:agencies,id',
+            'agency_id' => [
+                'nullable',
+                'exists:agencies,id',
+                // 🔒 NOUVELLE VALIDATION : Vérifier que l'agence appartient à l'admin connecté
+                function ($attribute, $value, $fail) {
+                    if ($value) {
+                        $agency = Agency::where('id', $value)
+                                       ->where('created_by', Auth::id())
+                                       ->first();
+                        if (!$agency) {
+                            $fail('L\'agence sélectionnée ne vous appartient pas.');
+                        }
+                    }
+                }
+            ],
             'send_credentials' => 'boolean'
         ], [
             'email.unique' => 'Cette adresse email est déjà utilisée.',
@@ -104,7 +121,7 @@ class UserManagementController extends Controller
                 'username' => $request->username,
                 'mobile_number' => $request->mobile_number,
                 'company' => $inheritedCompany,
-                'agency_id' => $request->agency_id,
+                'agency_id' => $request->agency_id, // Déjà validée comme appartenant à l'admin
                 'password' => Hash::make($temporaryPassword),
                 'user_type_id' => $userTypeMapping[$request->user_role],
                 'status_id' => 2,
@@ -199,9 +216,10 @@ class UserManagementController extends Controller
                 ]);
             }
 
+            // 🔒 CORRIGÉ : Utiliser les agences de l'admin pour la vue de retour
             $adminStats = AdministratorUser::getStatsForAdmin(Auth::id());
             $availableRoles = $this->getAvailableRoles();
-            $agencies = Agency::active()->orderBy('name')->get();
+            $agencies = $this->getMyAgencies();
 
             return view('user.user-create', [
                 'adminStats' => $adminStats,
@@ -249,7 +267,7 @@ class UserManagementController extends Controller
             $user = User::findOrFail($id);
             $currentAdmin = Auth::user();
             
-            // ✅ NOUVEAU : Autorisation simplifiée pour les admins
+            // Vérifier que l'utilisateur est bien admin
             if (!$currentAdmin->isAdmin()) {
                 if ($request && $request->expectsJson()) {
                     return response()->json([
@@ -260,11 +278,8 @@ class UserManagementController extends Controller
                 abort(403, 'Seuls les administrateurs peuvent modifier les utilisateurs');
             }
 
-            // ✅ PROTECTION : Empêcher la modification d'un autre admin (sauf super-admin)
+            // Protection : Empêcher la modification d'un autre admin (sauf super-admin)
             if ($user->isAdmin() && $user->id !== $currentAdmin->id) {
-                // Vérifier si l'admin connecté peut modifier d'autres admins
-                
-                // Si l'admin connecté n'a pas créé cet admin, bloquer
                 if (!$currentAdmin->createdUsers()->where('user_id', $user->id)->exists()) {
                     if ($request && $request->expectsJson()) {
                         return response()->json([
@@ -278,16 +293,8 @@ class UserManagementController extends Controller
                 }
             }
             
-            // ✅ LOG : Enregistrer l'accès pour debugging
-            \Log::info("Admin {$currentAdmin->username} accède à la modification de l'utilisateur {$user->username}", [
-                'admin_id' => $currentAdmin->id,
-                'target_user_id' => $user->id,
-                'target_user_type' => $user->getTypeName(),
-                'is_target_admin' => $user->isAdmin()
-            ]);
-            
-            // ✅ CORRIGÉ : Récupérer les agences pour permettre la modification
-            $agencies = Agency::active()->orderBy('name')->get();
+            // 🔒 CORRIGÉ : Récupérer SEULEMENT les agences créées par cet admin
+            $agencies = $this->getMyAgencies();
             $availableRoles = $this->getAvailableRoles();
             
             return view('User.user-edit', compact('user', 'agencies', 'availableRoles'));
@@ -313,7 +320,7 @@ class UserManagementController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Mettre à jour un utilisateur
+     * ✅ CORRIGÉ : Mettre à jour un utilisateur avec validation complète de l'agence
      * AMÉLIORATION : Autorisation simplifiée pour les admins
      */
     public function update(Request $request, $id)
@@ -321,7 +328,7 @@ class UserManagementController extends Controller
         try {
             $user = User::findOrFail($id);
             
-            // ✅ NOUVEAU : Autorisation simplifiée pour les admins
+            // Vérifications d'autorisation
             if (!Auth::user()->isAdmin()) {
                 if ($request->expectsJson()) {
                     return response()->json([
@@ -332,7 +339,7 @@ class UserManagementController extends Controller
                 abort(403, 'Seuls les administrateurs peuvent modifier les utilisateurs');
             }
 
-            // ✅ PROTECTION : Empêcher la modification d'un autre admin (sauf si créé par lui)
+            // Protection : Empêcher la modification d'un autre admin (sauf si créé par lui)
             if ($user->isAdmin() && $user->id !== Auth::id()) {
                 $currentAdmin = Auth::user();
                 
@@ -349,7 +356,6 @@ class UserManagementController extends Controller
                 }
             }
 
-            // ✅ NOUVEAU : Validation adaptée pour les admins
             // Gérer le cas où user_role n'est pas modifié (utiliser new_user_role si fourni)
             $userRole = $request->input('new_user_role', $request->input('user_role'));
             
@@ -360,7 +366,21 @@ class UserManagementController extends Controller
                 'user_role' => 'required|in:ecran,accueil,conseiller,admin',
                 'company' => 'nullable|string|max:255',
                 'status' => 'required|in:active,inactive,suspended',
-                'agency_id' => 'nullable|exists:agencies,id',
+                'agency_id' => [
+                    'nullable',
+                    'exists:agencies,id',
+                    // 🔒 VALIDATION PERSONNALISÉE : Vérifier que l'agence appartient à l'admin connecté
+                    function ($attribute, $value, $fail) {
+                        if ($value) {
+                            $agency = Agency::where('id', $value)
+                                           ->where('created_by', Auth::id())
+                                           ->first();
+                            if (!$agency) {
+                                $fail('L\'agence sélectionnée ne vous appartient pas.');
+                            }
+                        }
+                    }
+                ],
             ], [
                 'email.required' => 'L\'email est obligatoire.',
                 'email.email' => 'L\'email doit être valide.',
@@ -402,10 +422,10 @@ class UserManagementController extends Controller
                 'suspended' => 3,
             ];
 
-            // Mettre à jour l'utilisateur (avec agence optionnelle)
+            // Mettre à jour l'utilisateur
             $oldTypeName = $user->getTypeName();
             
-            // ✅ PROTECTION : Ne pas changer le type d'un admin
+            // Protection : Ne pas changer le type d'un admin
             $newUserTypeId = $user->isAdmin() ? 1 : $userTypeMapping[$userRole];
             
             $user->update([
@@ -415,10 +435,10 @@ class UserManagementController extends Controller
                 'company' => $request->company,
                 'user_type_id' => $newUserTypeId,
                 'status_id' => $statusMapping[$request->status],
-                'agency_id' => $request->agency_id, // ✅ AJOUTÉ : Mise à jour de l'agence
+                'agency_id' => $request->agency_id, // Agence déjà validée comme appartenant à l'admin
             ]);
 
-            // ✅ NOUVEAU : Créer/Mettre à jour la relation administrator_user si elle n'existe pas
+            // Créer/Mettre à jour la relation administrator_user si elle n'existe pas
             $adminUserRecord = AdministratorUser::where('administrator_id', Auth::id())
                 ->where('user_id', $user->id)
                 ->first();
@@ -776,6 +796,17 @@ class UserManagementController extends Controller
     // ===============================================
 
     /**
+     * 🆕 NOUVELLE MÉTHODE : Obtenir les agences de l'admin connecté (réutilisable)
+     */
+    private function getMyAgencies()
+    {
+        return Agency::where('created_by', Auth::id())
+                     ->where('status', 'active')
+                     ->orderBy('name')
+                     ->get();
+    }
+
+    /**
      * Générer un mot de passe temporaire simple (format amélioré)
      */
     private function generateSecurePassword($length = 8): string 
@@ -789,7 +820,7 @@ class UserManagementController extends Controller
         $password .= $voyelles[rand(0, strlen($voyelles) - 1)];
         $password .= $consonnes[rand(0, strlen($consonnes) - 1)];
         $password .= rand(100, 999);
-        $password .= '@';
+       // $password .= '@';
         
         return $password;
     }

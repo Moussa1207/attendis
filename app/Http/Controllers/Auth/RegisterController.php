@@ -30,7 +30,7 @@ class RegisterController extends Controller
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
         ]);
 
-        // AMÉLIORATION 1 : Les admins sont TOUJOURS actifs à l'inscription (plus d'attente)
+        //  Les admins sont TOUJOURS actifs à l'inscription (plus d'attente)
         $isFirstUser = User::count() === 0;
         $userTypeId = 1; // 1 = Admin TOUJOURS
         $statusId = 2; // TOUJOURS Actif pour les admins (plus d'attente d'activation)
@@ -44,7 +44,7 @@ class RegisterController extends Controller
                 'company' => $request->company,
                 'password' => Hash::make($request->password),
                 'user_type_id' => $userTypeId, // TOUJOURS Admin
-                'status_id' => $statusId, // TOUJOURS Actif (AMÉLIORATION)
+                'status_id' => $statusId, // TOUJOURS Actif 
             ]);
 
             // Message personnalisé selon si c'est le premier admin ou non
@@ -59,7 +59,7 @@ class RegisterController extends Controller
                     'ip' => $request->ip()
                 ]);
             } else {
-                // AMÉLIORATION : Message clair pour connexion immédiate
+                //  Message clair pour connexion immédiate
                 $message = 'Inscription d\'administrateur réussie ! Vous pouvez maintenant vous connecter directement (plus d\'attente d\'activation).';
                
                 \Log::info('New administrator registered and activated immediately', [
@@ -68,7 +68,7 @@ class RegisterController extends Controller
                     'email' => $user->email,
                     'company' => $user->company,
                     'ip' => $request->ip(),
-                    'status' => 'active_immediately' // AMÉLIORATION
+                    'status' => 'active_immediately' 
                 ]);
             }
 

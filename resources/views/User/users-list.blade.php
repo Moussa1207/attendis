@@ -315,7 +315,8 @@
                                         </button>
                                     </div>
                                     <div class="btn-group">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleSelectAll()" title="Sélectionner tout" id="selectAllBtn">
+                                        <!-- ✅ CORRIGÉ: Bouton sélectionner tout fonctionnel -->
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="handleSelectAllButton()" title="Sélectionner tout" id="selectAllBtn">
                                             <i data-feather="square" class="icon-xs"></i>
                                         </button>
                                         <button class="btn btn-sm btn-outline-primary" onclick="refreshUsersList()" title="Actualiser">
@@ -342,11 +343,12 @@
                                         <thead class="thead-light">
                                             <tr>
                                                 <th class="border-top-0">
-                                                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 
+                                                    <!-- ✅ CORRIGÉ: Checkbox principale sans onclick -->
+                                                    <input type="checkbox" id="selectAll" class="mr-2"> 
                                                     Utilisateur
                                                 </th>
                                                 <th class="border-top-0">Contact</th>
-                                                <th class="border-top-0">Entreprise</th>
+                                                <th class="border-top-0">Assignée</th>
                                                 <th class="border-top-0">Type</th>
                                                 <th class="border-top-0">Statut</th>
                                                 <th class="border-top-0">Inscription</th>
@@ -358,7 +360,8 @@
                                             <tr class="user-row" data-user-id="{{ $user->id }}">                                                        
                                                 <td>
                                                     <div class="media">
-                                                        <input type="checkbox" class="user-checkbox mr-2" value="{{ $user->id }}" onchange="handleIndividualCheckbox()">
+                                                        <!-- ✅ CORRIGÉ: Checkbox utilisateur sans onchange -->
+                                                        <input type="checkbox" class="user-checkbox mr-2" value="{{ $user->id }}">
                                                         <img src="{{asset('frontend/assets/images/users/user-5.jpg')}}" alt="" class="rounded-circle thumb-md mr-3">
                                                         <div class="media-body align-self-center">
                                                             <h6 class="m-0 font-weight-semibold">{{ $user->username }}</h6>
@@ -1127,6 +1130,23 @@
     background-color: #0e8bc4 !important;
     transform: scale(1.05);
     box-shadow: 0 2px 8px rgba(18, 164, 237, 0.3);
+}
+
+/* ✅ NOUVEAU CSS pour la sélection corrigée */
+.user-checkbox, #selectAll {
+    cursor: pointer;
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+
+.user-checkbox:hover, #selectAll:hover {
+    transform: scale(1.2);
+}
+
+.highlight-change {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    transition: background-color 0.3s ease;
+    border-left: 3px solid #007bff;
 }
 
 /* ==================================================================================== */
@@ -1945,11 +1965,6 @@
     100% { transform: scale(1); }
 }
 
-.highlight-change {
-    background-color: rgba(0, 123, 255, 0.1) !important;
-    transition: background-color 0.3s ease;
-}
-
 .status-changing {
     opacity: 0.5;
     transition: opacity 0.3s ease;
@@ -2022,7 +2037,6 @@
 let searchTimeout;
 let realTimeInterval;
 let lastUpdateTimestamp = Date.now();
-let isSelectAllActive = false;
 let currentAction = null; // Pour stocker l'action en cours
 let currentUserId = null; // Pour stocker l'ID de l'utilisateur affiché dans le modal
 let newPasswordData = null; //  Pour stocker les données du nouveau mot de passe
@@ -2031,12 +2045,149 @@ let newPasswordData = null; //  Pour stocker les données du nouveau mot de pass
 let copyInProgress = false;
 let copyAllInProgress = false;
 
+// ==================================================================================== 
+// ✅ CORRECTION PRINCIPALE : GESTION DES SÉLECTIONS FONCTIONNELLE
+// ==================================================================================== 
+
+// ✅ NOUVELLE FONCTION: Gérer le bouton "Sélectionner tout"
+function handleSelectAllButton() {
+    console.log('🔄 Bouton Sélectionner tout cliqué');
+    
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const userCheckboxes = document.querySelectorAll('.user-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
+    
+    // Déterminer l'action : si tout est sélectionné, désélectionner, sinon sélectionner tout
+    const shouldSelectAll = checkedCheckboxes.length < userCheckboxes.length;
+    
+    console.log(`Action: ${shouldSelectAll ? 'Sélectionner' : 'Désélectionner'} tout`);
+    
+    // Appliquer la sélection à toutes les checkboxes
+    userCheckboxes.forEach(checkbox => {
+        checkbox.checked = shouldSelectAll;
+        
+        // Effet visuel sur la ligne
+        const row = checkbox.closest('tr');
+        if (row) {
+            if (shouldSelectAll) {
+                row.classList.add('highlight-change');
+            } else {
+                row.classList.remove('highlight-change');
+            }
+        }
+    });
+    
+    // Synchroniser la checkbox du tableau
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = shouldSelectAll;
+        selectAllCheckbox.indeterminate = false;
+    }
+    
+    // Mettre à jour l'icône du bouton
+    updateSelectAllButtonIcon(shouldSelectAll);
+    
+    // Message de confirmation
+    const selectedCount = shouldSelectAll ? userCheckboxes.length : 0;
+    console.log(`✅ ${selectedCount} utilisateur(s) sélectionné(s)`);
+    
+    // Mettre à jour les boutons d'action (utilise votre fonction existante)
+    if (typeof updateSelectionStatus === 'function') {
+        updateSelectionStatus();
+    }
+    
+    // Toast notification (utilise votre fonction existante)
+    if (typeof showToast === 'function') {
+        if (shouldSelectAll) {
+            showToast('Sélection', `${selectedCount} utilisateur(s) sélectionné(s)`, 'success');
+        } else {
+            showToast('Désélection', 'Tous les utilisateurs désélectionnés', 'info');
+        }
+    }
+}
+
+// ✅ NOUVELLE FONCTION: Gérer la checkbox du tableau
+function handleTableSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const userCheckboxes = document.querySelectorAll('.user-checkbox');
+    
+    if (!selectAllCheckbox) return;
+    
+    const isChecked = selectAllCheckbox.checked;
+    console.log('🔄 Checkbox tableau:', isChecked);
+    
+    // Appliquer à toutes les checkboxes utilisateur
+    userCheckboxes.forEach(checkbox => {
+        checkbox.checked = isChecked;
+        
+        // Effet visuel
+        const row = checkbox.closest('tr');
+        if (row) {
+            if (isChecked) {
+                row.classList.add('highlight-change');
+            } else {
+                row.classList.remove('highlight-change');
+            }
+        }
+    });
+    
+    // Synchroniser le bouton externe
+    updateSelectAllButtonIcon(isChecked);
+    
+    // Mettre à jour les boutons d'action (utilise votre fonction existante)
+    if (typeof updateSelectionStatus === 'function') {
+        updateSelectionStatus();
+    }
+}
+
+// ✅ NOUVELLE FONCTION: Mettre à jour l'icône du bouton
+function updateSelectAllButtonIcon(state) {
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    if (!selectAllBtn) return;
+    
+    const icon = selectAllBtn.querySelector('i');
+    if (!icon) return;
+    
+    if (state === true) {
+        icon.setAttribute('data-feather', 'check-square');
+        selectAllBtn.classList.add('btn-primary');
+        selectAllBtn.classList.remove('btn-outline-secondary', 'btn-warning');
+        selectAllBtn.title = 'Désélectionner tout';
+    } else if (state === 'partial') {
+        icon.setAttribute('data-feather', 'minus-square');
+        selectAllBtn.classList.add('btn-warning');
+        selectAllBtn.classList.remove('btn-outline-secondary', 'btn-primary');
+        selectAllBtn.title = 'Sélectionner tout les restants';
+    } else {
+        icon.setAttribute('data-feather', 'square');
+        selectAllBtn.classList.add('btn-outline-secondary');
+        selectAllBtn.classList.remove('btn-primary', 'btn-warning');
+        selectAllBtn.title = 'Sélectionner tout';
+    }
+    
+    // Régénérer l'icône si Feather est disponible
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
 // Initialisation complète
 document.addEventListener('DOMContentLoaded', function() {
     // Initialiser Feather icons
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
+
+    // ✅ NOUVEAU: Connecter la checkbox du tableau
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', handleTableSelectAll);
+        console.log('✅ Checkbox tableau connectée');
+    }
+    
+    // ✅ NOUVEAU: Connecter les checkboxes individuelles
+    document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', handleIndividualCheckbox);
+    });
 
     // Démarrer les mises à jour temps réel
     startRealTimeUpdates();
@@ -2077,9 +2228,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     //  Scroll tactile et trackpad
     enhanceModalScroll();
+    
+    console.log('✅ Système de sélection corrigé et initialisé');
 });
 
-// ✅  Améliorer le scroll tactile et trackpad
+// ✅ Améliorer le scroll tactile et trackpad
 function enhanceModalScroll() {
     // Activer le scroll fluide pour toutes les modales
     document.querySelectorAll('.modal-body, .modal-password-body').forEach(modalBody => {
@@ -3315,88 +3468,65 @@ function checkActiveFilters() {
 }
 
 // ==================================================================================== 
-// GESTION DES SÉLECTIONS
+// GESTION DES SÉLECTIONS - FONCTIONS DE COMPATIBILITÉ
 // ==================================================================================== 
 
 /**
  * Initialiser la gestion des sélections
  */
 function initializeSelectionHandlers() {
-    const selectAllCheckbox = document.getElementById('selectAll');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', toggleSelectAll);
-    }
-
-    // Initialiser les checkboxes individuelles
-    document.querySelectorAll('.user-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', handleIndividualCheckbox);
-    });
+    // Cette fonction est maintenant gérée dans DOMContentLoaded
+    console.log('⚠️ initializeSelectionHandlers() appelée - déjà gérée dans DOMContentLoaded');
 }
 
 /**
- * Basculer la sélection de tous les utilisateurs
+ * ✅ CORRIGÉ : Gérer les checkboxes individuelles
  */
-function toggleSelectAll() {
+function handleIndividualCheckbox(event) {
     const selectAllCheckbox = document.getElementById('selectAll');
-    const userCheckboxes = document.querySelectorAll('.user-checkbox');
-    const selectAllBtn = document.getElementById('selectAllBtn');
-
-    isSelectAllActive = selectAllCheckbox ? selectAllCheckbox.checked : !isSelectAllActive;
-
-    userCheckboxes.forEach(checkbox => {
-        checkbox.checked = isSelectAllActive;
-
-        // Animation visuelle
-        const row = checkbox.closest('tr');
-        if (row) {
-            if (isSelectAllActive) {
-                row.classList.add('highlight-change');
-            } else {
-                row.classList.remove('highlight-change');
-            }
-        }
-    });
-
-    // Mettre à jour l'icône du bouton
-    if (selectAllBtn) {
-        const icon = selectAllBtn.querySelector('i');
-        if (icon) {
-            icon.setAttribute('data-feather', isSelectAllActive ? 'check-square' : 'square');
-            if (typeof feather !== 'undefined') {
-                feather.replace();
-            }
-        }
-    }
-
-    // Mettre à jour le statut de sélection
-    updateSelectionStatus();
-}
-
-/**
- * Gérer les checkboxes individuelles
- */
-function handleIndividualCheckbox() {
     const userCheckboxes = document.querySelectorAll('.user-checkbox');
     const checkedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
-    const selectAllCheckbox = document.getElementById('selectAll');
 
-    // Mettre à jour l'état du "Sélectionner tout"
-    if (selectAllCheckbox) {
-        selectAllCheckbox.checked = checkedCheckboxes.length === userCheckboxes.length;
-        selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < userCheckboxes.length;
-    }
-
-    // Animation sur la ligne
-    const row = event.target.closest('tr');
+    // Effet visuel sur la ligne
+    const checkbox = event.target;
+    const row = checkbox.closest('tr');
     if (row) {
-        if (event.target.checked) {
+        if (checkbox.checked) {
             row.classList.add('highlight-change');
         } else {
             row.classList.remove('highlight-change');
         }
     }
 
+    // Mettre à jour l'état de la checkbox "Sélectionner tout"
+    if (selectAllCheckbox) {
+        if (checkedCheckboxes.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+            updateSelectAllButtonIcon(false);
+        } else if (checkedCheckboxes.length === userCheckboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+            updateSelectAllButtonIcon(true);
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+            updateSelectAllButtonIcon('partial');
+        }
+    }
+
+    // Utiliser updateSelectionStatus existante
     updateSelectionStatus();
+
+    console.log(`📊 Sélection: ${checkedCheckboxes.length}/${userCheckboxes.length} utilisateurs`);
+}
+
+/**
+ * Basculer la sélection de tous les utilisateurs (GARDE POUR COMPATIBILITÉ)
+ */
+function toggleSelectAll() {
+    console.log('⚠️ Ancienne fonction toggleSelectAll() appelée, redirection...');
+    handleSelectAllButton();
 }
 
 /**
@@ -3406,18 +3536,55 @@ function updateSelectionStatus() {
     const checkedCount = document.querySelectorAll('.user-checkbox:checked').length;
 
     // Mettre à jour les boutons d'action selon la sélection
+    updateActionButtons(checkedCount);
+    
+    // Mettre à jour l'affichage du compteur s'il existe
+    updateSelectionCounter(checkedCount, document.querySelectorAll('.user-checkbox').length);
+}
+
+/**
+ * Mettre à jour les boutons d'action selon la sélection
+ */
+function updateActionButtons(checkedCount) {
+    // Bouton de suppression en masse
     const bulkDeleteBtn = document.querySelector('button[onclick="showBulkDeleteModal()"]');
     if (bulkDeleteBtn) {
         if (checkedCount > 0) {
             bulkDeleteBtn.classList.remove('btn-outline-danger');
             bulkDeleteBtn.classList.add('btn-danger');
             bulkDeleteBtn.title = `Supprimer ${checkedCount} utilisateur(s) sélectionné(s)`;
+            bulkDeleteBtn.disabled = false;
+            
+            // Animation du bouton
+            bulkDeleteBtn.style.transform = 'scale(1.05)';
+            setTimeout(() => {
+                bulkDeleteBtn.style.transform = '';
+            }, 200);
         } else {
             bulkDeleteBtn.classList.remove('btn-danger');
             bulkDeleteBtn.classList.add('btn-outline-danger');
             bulkDeleteBtn.title = 'Supprimer sélectionnés';
+            bulkDeleteBtn.disabled = false; // Laisser activé pour afficher le message d'erreur
         }
     }
+
+    // Autres boutons d'action si nécessaire
+    const bulkActivateBtn = document.querySelector('button[onclick="showBulkActivateModal()"]');
+    if (bulkActivateBtn && checkedCount > 0) {
+        bulkActivateBtn.classList.add('btn-warning');
+        bulkActivateBtn.classList.remove('btn-outline-warning');
+    } else if (bulkActivateBtn) {
+        bulkActivateBtn.classList.remove('btn-warning');
+        bulkActivateBtn.classList.add('btn-outline-warning');
+    }
+}
+
+/**
+ * Mettre à jour l'affichage du compteur de sélection
+ */
+function updateSelectionCounter(checkedCount, totalCount) {
+    // Cette fonction peut être étendue si vous voulez un compteur visuel
+    console.log(`📊 Sélection mise à jour: ${checkedCount}/${totalCount} utilisateurs`);
 }
 
 // ==================================================================================== 
@@ -3679,7 +3846,7 @@ if (!window.fetch) {
 }
 
 // Initialisation finale
-console.log(' Système de gestion des utilisateurs initialisé avec succès');
+console.log('✅ Système de gestion des utilisateurs initialisé avec succès - Sélection corrigée');
 </script>
 
 @endsection

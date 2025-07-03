@@ -287,12 +287,12 @@
                                             </label>
                                             <select name="country" id="country" class="form-control" onchange="applyFilters()">
                                                 <option value="">Tous les pays</option>
-                                                <option value="Côte d'Ivoire" {{ request('country') == "Côte d'Ivoire" ? 'selected' : '' }}> Côte d'Ivoire</option>
-                                                <option value="Burkina Faso" {{ request('country') == 'Burkina Faso' ? 'selected' : '' }}> Burkina Faso</option>
-                                                <option value="Mali" {{ request('country') == 'Mali' ? 'selected' : '' }}> Mali</option>
-                                                <option value="Sénégal" {{ request('country') == 'Sénégal' ? 'selected' : '' }}> Sénégal</option>
-                                                <option value="Ghana" {{ request('country') == 'Ghana' ? 'selected' : '' }}> Ghana</option>
-                                                <option value="France" {{ request('country') == 'France' ? 'selected' : '' }}> France</option>
+                                                <option value="Côte d'Ivoire" {{ request('country') == "Côte d'Ivoire" ? 'selected' : '' }}>🇨🇮 Côte d'Ivoire</option>
+                                                <option value="Burkina Faso" {{ request('country') == 'Burkina Faso' ? 'selected' : '' }}>🇧🇫 Burkina Faso</option>
+                                                <option value="Mali" {{ request('country') == 'Mali' ? 'selected' : '' }}>🇲🇱 Mali</option>
+                                                <option value="Sénégal" {{ request('country') == 'Sénégal' ? 'selected' : '' }}>🇸🇳 Sénégal</option>
+                                                <option value="Ghana" {{ request('country') == 'Ghana' ? 'selected' : '' }}>🇬🇭 Ghana</option>
+                                                <option value="France" {{ request('country') == 'France' ? 'selected' : '' }}>🇫🇷 France</option>
                                             </select>
                                         </div>
                                     </div>
@@ -334,8 +334,11 @@
                                     <h4 class="card-title">
                                         <i data-feather="list" class="mr-2"></i>Liste interactive
                                         <span class="badge badge-soft-primary ml-2" id="resultCount">{{ $agencies->total() }} résultat(s)</span>
+                                        <!-- ✅ NOUVEAU: Badge de sélection -->
+                                        <span class="badge badge-soft-info ml-2" id="selectedCount" style="display: none;">0 sélectionné(s)</span>
                                     </h4>                      
                                 </div><!--end col-->
+                                <!-- ✅ BOUTONS CORRIGÉS - CONFORMES AUX FICHIERS DE RÉFÉRENCE -->
                                 <div class="col-auto"> 
                                     <div class="btn-group mr-2">
                                         <button class="btn btn-sm btn-success waves-effect" onclick="showCreateAgencyModal()" title="Créer agence">
@@ -344,12 +347,13 @@
                                         <button class="btn btn-sm btn-warning waves-effect" onclick="showBulkActivateModal()" title="Activer toutes les inactives">
                                             <i data-feather="zap" class="icon-xs mr-1"></i>Activer
                                         </button>
-                                        <button class="btn btn-sm btn-danger waves-effect" onclick="showBulkDeleteModal()" title="Supprimer sélectionnées">
+                                        <button class="btn btn-sm btn-outline-danger waves-effect" onclick="showBulkDeleteModal()" title="Supprimer sélectionnées" id="bulkDeleteBtn">
                                             <i data-feather="trash-2" class="icon-xs mr-1"></i>Supprimer
                                         </button>
                                     </div>
                                     <div class="btn-group">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleSelectAll()" title="Sélectionner tout" id="selectAllBtn">
+                                        <!-- ✅ CORRIGÉ: Bouton sélectionner tout fonctionnel -->
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="handleSelectAllButton()" title="Sélectionner tout" id="selectAllBtn">
                                             <i data-feather="square" class="icon-xs"></i>
                                         </button>
                                         <button class="btn btn-sm btn-outline-primary" onclick="refreshAgenciesList()" title="Actualiser">
@@ -376,7 +380,8 @@
                                         <thead class="thead-light">
                                             <tr>
                                                 <th class="border-top-0">
-                                                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 
+                                                    <!-- ✅ CORRIGÉ: Checkbox principale sans onclick -->
+                                                    <input type="checkbox" id="selectAll" class="mr-2"> 
                                                     Agence
                                                 </th>
                                                 <th class="border-top-0">Contact</th>
@@ -391,7 +396,8 @@
                                             <tr class="agency-row" data-agency-id="{{ $agency->id }}">                                                        
                                                 <td>
                                                     <div class="media">
-                                                        <input type="checkbox" class="agency-checkbox mr-2" value="{{ $agency->id }}" onchange="handleIndividualCheckbox()">
+                                                        <!-- ✅ CORRIGÉ: Checkbox agence sans onchange -->
+                                                        <input type="checkbox" class="agency-checkbox mr-2" value="{{ $agency->id }}">
                                                         <div class="agency-avatar mr-3">
                                                             <div class="agency-icon text-primary">
                                                                 <i data-feather="home" class="icon-xs"></i>
@@ -433,6 +439,7 @@
                                                     <small class="text-muted">{{ $agency->created_at->format('H:i') }}</small>
                                                 </td>
                                                 <td>
+                                                    <!-- ✅ ACTIONS CORRIGÉES - CONFORMES AUX FICHIERS DE RÉFÉRENCE -->
                                                     <div class="btn-group btn-group-sm" role="group">
                                                         <!-- ACTIONS SELON LE STATUT -->
                                                         @if($agency->isInactive())
@@ -464,18 +471,20 @@
                                     </table> <!--end table-->                                               
                                 </div><!--end /div-->
                                 @else
-                                <!-- Aucun résultat -->
+                                <!-- ✅ AUCUN RÉSULTAT AMÉLIORÉ -->
                                 <div class="text-center py-5" id="noResults">
                                     <div>
                                         <i data-feather="home" class="icon-lg text-muted mb-3"></i>
                                         <h5 class="text-muted">Aucune agence trouvée</h5>
                                         <p class="text-muted mb-4">Essayez de modifier vos critères de recherche ou créez une nouvelle agence.</p>
-                                        <a href="{{ route('agency.agence-create') }}" class="btn btn-primary waves-effect waves-light">
-                                            <i data-feather="plus" class="icon-xs mr-1"></i>Créer une agence
-                                        </a>
-                                        <button class="btn btn-outline-secondary waves-effect waves-light ml-2" onclick="resetFilters()">
-                                            <i data-feather="refresh-cw" class="icon-xs mr-1"></i>Réinitialiser les filtres
-                                        </button>
+                                        <div>
+                                            <button class="btn btn-primary waves-effect waves-light mr-2" onclick="resetFilters()">
+                                                <i data-feather="refresh-cw" class="icon-xs mr-1"></i>Réinitialiser les filtres
+                                            </button>
+                                            <a href="{{ route('agency.agence-create') }}" class="btn btn-success waves-effect waves-light">
+                                                <i data-feather="plus" class="icon-xs mr-1"></i>Créer une agence
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                                 @endif
@@ -514,7 +523,7 @@
 <!-- end page-wrapper -->
 
 <!-- ==================================================================================== -->
-<!-- MODALES POUR AGENCES -->
+<!-- 🔧 MODALES PROFESSIONNELLES CORRIGÉES -->
 <!-- ==================================================================================== -->
 
 <!-- Modal Confirmation Universelle -->
@@ -874,9 +883,9 @@
     <div id="toastContainer"></div>
 </div>
 
-<!-- CSS (même style que users-list mais adapté pour les agences) -->
+<!-- ✅ CSS STYLES ET JAVASCRIPT COMPLET - ARCHITECTURE IDENTIQUE AUX FICHIERS DE RÉFÉRENCE -->
 <style>
-/* CSS existant + améliorations pour agences */
+/* CSS existant + améliorations pour agences - IDENTIQUE À users-list.blade.php */
 .card {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     transition: background-color 0.3s ease, transform 0.2s ease;
@@ -908,6 +917,61 @@
     border: 2px solid #2196f3;
     transform: translateY(-3px);
     box-shadow: 0 6px 20px rgba(33, 150, 243, 0.3);
+}
+
+/* ✅ NOUVEAU CSS pour la sélection corrigée */
+.agency-checkbox, #selectAll {
+    cursor: pointer;
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+
+.agency-checkbox:hover, #selectAll:hover {
+    transform: scale(1.2);
+}
+
+.highlight-change {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    transition: background-color 0.3s ease;
+    border-left: 3px solid #007bff;
+}
+
+/* Styles pour la sélection améliorée */
+.agency-row.selected {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    border-left: 4px solid #007bff;
+    animation: highlightRow 0.3s ease;
+}
+
+@keyframes highlightRow {
+    0% { background-color: rgba(0, 123, 255, 0.3); }
+    100% { background-color: rgba(0, 123, 255, 0.1); }
+}
+
+.bulk-action-active {
+    background: linear-gradient(45deg, #dc3545, #c82333) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+
+.selection-feedback {
+    padding: 8px 15px;
+    background: rgba(0, 123, 255, 0.1);
+    border: 1px solid rgba(0, 123, 255, 0.3);
+    border-radius: 5px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: #0056b3;
+}
+
+#selectedCount {
+    animation: countUpdate 0.3s ease;
+}
+
+@keyframes countUpdate {
+    0% { transform: scale(1.2); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 /* Styles spécifiques pour les agences */
@@ -992,6 +1056,15 @@
 
 .status-badge.inactive {
     background-color: #ffc107;
+}
+
+/* Z-INDEX pour modales */
+#agencyDetailsModal {
+    z-index: 1050 !important;
+}
+
+#confirmationModal {
+    z-index: 1060 !important;
 }
 
 /* Styles modales (identiques à users-list) */
@@ -1356,11 +1429,6 @@
     100% { transform: scale(1); }
 }
 
-.highlight-change {
-    background-color: rgba(0, 123, 255, 0.1) !important;
-    transition: background-color 0.3s ease;
-}
-
 .status-changing {
     opacity: 0.5;
     transition: opacity 0.3s ease;
@@ -1496,48 +1564,341 @@
     }
 }
 </style>
+
+<!-- ✅ JAVASCRIPT COMPLET CORRIGÉ - ARCHITECTURE IDENTIQUE AUX FICHIERS DE RÉFÉRENCE -->
 <script>
-// Variables globales pour les agences
+// Variables globales pour agences - CONFORMES AUX FICHIERS DE RÉFÉRENCE
 let searchTimeout;
 let realTimeInterval;
 let lastUpdateTimestamp = Date.now();
-let isSelectAllActive = false;
 let currentAction = null;
 let currentAgencyId = null;
+let selectedAgenciesCount = 0;
 
-// Initialisation complète
+// Initialisation - VERSION ULTRA DÉFENSIVE IDENTIQUE AUX FICHIERS DE RÉFÉRENCE
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser Feather icons
-    if (typeof feather !== 'undefined') {
-        feather.replace();
-    }
-    
-    // Démarrer les mises à jour temps réel
-    startRealTimeUpdates();
+    // Délai pour s'assurer que tout est chargé
+    setTimeout(function() {
+        try {
+            console.log('🔄 Initialisation du système de gestion des agences...');
+            
+            // Initialiser Feather icons avec double vérification
+            if (typeof feather !== 'undefined' && feather.replace) {
+                try {
+                    feather.replace();
+                    console.log('✅ Feather icons initialisés');
+                } catch (featherError) {
+                    console.warn('⚠️ Erreur Feather icons (ignorée):', featherError.message);
+                }
+            } else {
+                console.warn('⚠️ Feather icons non disponible');
+            }
 
-    // Vérifier l'état des filtres actifs
-    checkActiveFilters();
+            // Connecter la checkbox du tableau avec triple vérification
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox && selectAllCheckbox.addEventListener) {
+                try {
+                    selectAllCheckbox.addEventListener('change', handleTableSelectAll);
+                    console.log('✅ Checkbox tableau connectée');
+                } catch (checkboxError) {
+                    console.warn('⚠️ Erreur checkbox (ignorée):', checkboxError.message);
+                }
+            } else {
+                console.warn('⚠️ Checkbox selectAll introuvable ou non fonctionnelle');
+            }
+            
+            // Connecter les checkboxes individuelles avec vérification
+            try {
+                const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
+                if (agencyCheckboxes && agencyCheckboxes.length > 0) {
+                    agencyCheckboxes.forEach((checkbox, index) => {
+                        if (checkbox && checkbox.addEventListener) {
+                            try {
+                                checkbox.addEventListener('change', handleIndividualCheckbox);
+                            } catch (individualError) {
+                                console.warn(`⚠️ Erreur checkbox ${index} (ignorée):`, individualError.message);
+                            }
+                        }
+                    });
+                    console.log(`✅ ${agencyCheckboxes.length} checkboxes agences connectées`);
+                } else {
+                    console.warn('⚠️ Aucune checkbox agence trouvée');
+                }
+            } catch (checkboxesError) {
+                console.warn('⚠️ Erreur checkboxes globale (ignorée):', checkboxesError.message);
+            }
 
-    // Initialiser la gestion des sélections
-    initializeSelectionHandlers();
+            // Démarrer les mises à jour temps réel de façon sécurisée
+            try {
+                if (typeof startRealTimeUpdates === 'function') {
+                    startRealTimeUpdates();
+                    console.log('✅ Mises à jour temps réel démarrées');
+                }
+            } catch (realtimeError) {
+                console.warn('⚠️ Erreur temps réel (ignorée):', realtimeError.message);
+            }
 
-    // Gestion visibilité page
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            stopRealTimeUpdates();
-        } else {
-            startRealTimeUpdates();
+            // Vérifier l'état des filtres actifs de façon sécurisée
+            try {
+                if (typeof checkActiveFilters === 'function') {
+                    checkActiveFilters();
+                    console.log('✅ Filtres actifs vérifiés');
+                }
+            } catch (filtersError) {
+                console.warn('⚠️ Erreur filtres (ignorée):', filtersError.message);
+            }
+
+            // Gestion visibilité page ultra sécurisée
+            try {
+                document.addEventListener('visibilitychange', function() {
+                    try {
+                        if (document.hidden) {
+                            if (typeof stopRealTimeUpdates === 'function') {
+                                stopRealTimeUpdates();
+                            }
+                        } else {
+                            if (typeof startRealTimeUpdates === 'function') {
+                                startRealTimeUpdates();
+                            }
+                        }
+                    } catch (visibilityInnerError) {
+                        // Silencieux pour éviter le spam
+                    }
+                });
+            } catch (visibilityError) {
+                console.warn('⚠️ Erreur gestion visibilité (ignorée):', visibilityError.message);
+            }
+
+            console.log('✅ Système de sélection corrigé et initialisé avec succès');
+            
+        } catch (globalError) {
+            console.error('❌ Erreur lors de l\'initialisation:', globalError);
+            // NE PAS afficher de toast d'erreur ici
         }
-    });
+    }, 100); // Délai de 100ms pour s'assurer que le DOM est prêt
 });
 
 // ==================================================================================== 
-// SYSTÈME DE MODALES POUR AGENCES
+// ✅ CORRECTION PRINCIPALE : GESTION DES SÉLECTIONS FONCTIONNELLE - IDENTIQUE AUX RÉFÉRENCES
 // ==================================================================================== 
 
-/**
- * Afficher une modale de confirmation personnalisée
- */
+// ✅ NOUVELLE FONCTION: Gérer le bouton "Sélectionner tout"
+function handleSelectAllButton() {
+    console.log('🔄 Bouton Sélectionner tout cliqué');
+    
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.agency-checkbox:checked');
+    
+    // Déterminer l'action : si tout est sélectionné, désélectionner, sinon sélectionner tout
+    const shouldSelectAll = checkedCheckboxes.length < agencyCheckboxes.length;
+    
+    console.log(`Action: ${shouldSelectAll ? 'Sélectionner' : 'Désélectionner'} tout`);
+    
+    // Appliquer la sélection à toutes les checkboxes
+    agencyCheckboxes.forEach(checkbox => {
+        checkbox.checked = shouldSelectAll;
+        
+        // Effet visuel sur la ligne
+        const row = checkbox.closest('tr');
+        if (row) {
+            if (shouldSelectAll) {
+                row.classList.add('highlight-change');
+            } else {
+                row.classList.remove('highlight-change');
+            }
+        }
+    });
+    
+    // Synchroniser la checkbox du tableau
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = shouldSelectAll;
+        selectAllCheckbox.indeterminate = false;
+    }
+    
+    // Mettre à jour l'icône du bouton
+    updateSelectAllButtonIcon(shouldSelectAll);
+    
+    // Message de confirmation
+    const selectedCount = shouldSelectAll ? agencyCheckboxes.length : 0;
+    selectedAgenciesCount = selectedCount;
+    console.log(`✅ ${selectedCount} agence(s) sélectionnée(s)`);
+    
+    // Mettre à jour les boutons d'action
+    updateSelectionStatus();
+    
+    // Toast notification
+    if (typeof showToast === 'function') {
+        if (shouldSelectAll) {
+            showToast('Sélection', `${selectedCount} agence(s) sélectionnée(s)`, 'success');
+        } else {
+            showToast('Désélection', 'Toutes les agences désélectionnées', 'info');
+        }
+    }
+}
+
+// ✅ NOUVELLE FONCTION: Gérer la checkbox du tableau
+function handleTableSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
+    
+    if (!selectAllCheckbox) return;
+    
+    const isChecked = selectAllCheckbox.checked;
+    console.log('🔄 Checkbox tableau:', isChecked);
+    
+    selectedAgenciesCount = 0;
+    
+    // Appliquer à toutes les checkboxes agence
+    agencyCheckboxes.forEach(checkbox => {
+        checkbox.checked = isChecked;
+        
+        if (isChecked) {
+            selectedAgenciesCount++;
+        }
+        
+        // Effet visuel
+        const row = checkbox.closest('tr');
+        if (row) {
+            if (isChecked) {
+                row.classList.add('highlight-change');
+            } else {
+                row.classList.remove('highlight-change');
+            }
+        }
+    });
+    
+    // Synchroniser le bouton externe
+    updateSelectAllButtonIcon(isChecked);
+    
+    // Mettre à jour les boutons d'action
+    updateSelectionStatus();
+}
+
+// ✅ NOUVELLE FONCTION: Mettre à jour l'icône du bouton
+function updateSelectAllButtonIcon(state) {
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    if (!selectAllBtn) return;
+    
+    const icon = selectAllBtn.querySelector('i');
+    if (!icon) return;
+    
+    if (state === true) {
+        icon.setAttribute('data-feather', 'check-square');
+        selectAllBtn.classList.add('btn-primary');
+        selectAllBtn.classList.remove('btn-outline-secondary', 'btn-warning');
+        selectAllBtn.title = 'Désélectionner tout';
+    } else if (state === 'partial') {
+        icon.setAttribute('data-feather', 'minus-square');
+        selectAllBtn.classList.add('btn-warning');
+        selectAllBtn.classList.remove('btn-outline-secondary', 'btn-primary');
+        selectAllBtn.title = 'Sélectionner tout les restants';
+    } else {
+        icon.setAttribute('data-feather', 'square');
+        selectAllBtn.classList.add('btn-outline-secondary');
+        selectAllBtn.classList.remove('btn-primary', 'btn-warning');
+        selectAllBtn.title = 'Sélectionner tout';
+    }
+    
+    // Régénérer l'icône si Feather est disponible
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+// ✅ CORRIGÉ : Gérer les checkboxes individuelles
+function handleIndividualCheckbox(event) {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.agency-checkbox:checked');
+
+    selectedAgenciesCount = checkedCheckboxes.length;
+
+    // Effet visuel sur la ligne
+    const checkbox = event.target;
+    const row = checkbox.closest('tr');
+    if (row) {
+        if (checkbox.checked) {
+            row.classList.add('highlight-change');
+        } else {
+            row.classList.remove('highlight-change');
+        }
+    }
+
+    // Mettre à jour l'état de la checkbox "Sélectionner tout"
+    if (selectAllCheckbox) {
+        if (checkedCheckboxes.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+            updateSelectAllButtonIcon(false);
+        } else if (checkedCheckboxes.length === agencyCheckboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+            updateSelectAllButtonIcon(true);
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+            updateSelectAllButtonIcon('partial');
+        }
+    }
+
+    // Mettre à jour les boutons d'action
+    updateSelectionStatus();
+
+    console.log(`📊 Sélection: ${checkedCheckboxes.length}/${agencyCheckboxes.length} agences`);
+}
+
+// ✅ NOUVELLE FONCTION: Mettre à jour l'affichage de sélection
+function updateSelectionStatus() {
+    // Mettre à jour le compteur de sélection
+    const selectedCountElement = document.getElementById('selectedCount');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    
+    if (selectedCountElement) {
+        if (selectedAgenciesCount > 0) {
+            selectedCountElement.textContent = `${selectedAgenciesCount} sélectionnée(s)`;
+            selectedCountElement.style.display = 'inline-block';
+            
+            // Animation du compteur
+            selectedCountElement.style.animation = 'countUpdate 0.3s ease';
+        } else {
+            selectedCountElement.style.display = 'none';
+        }
+    }
+    
+    // Mise à jour du bouton de suppression en masse
+    if (bulkDeleteBtn) {
+        if (selectedAgenciesCount > 0) {
+            bulkDeleteBtn.classList.remove('btn-outline-danger');
+            bulkDeleteBtn.classList.add('btn-danger', 'bulk-action-active');
+            bulkDeleteBtn.title = `Supprimer ${selectedAgenciesCount} agence(s) sélectionnée(s)`;
+            
+            // Mise à jour du texte du bouton
+            const btnIcon = bulkDeleteBtn.querySelector('i');
+            const btnText = bulkDeleteBtn.lastChild;
+            if (btnText && btnText.nodeType === Node.TEXT_NODE) {
+                btnText.textContent = `Supprimer (${selectedAgenciesCount})`;
+            }
+        } else {
+            bulkDeleteBtn.classList.remove('btn-danger', 'bulk-action-active');
+            bulkDeleteBtn.classList.add('btn-outline-danger');
+            bulkDeleteBtn.title = 'Supprimer sélectionnées';
+            
+            // Restaurer le texte du bouton
+            const btnText = bulkDeleteBtn.lastChild;
+            if (btnText && btnText.nodeType === Node.TEXT_NODE) {
+                btnText.textContent = 'Supprimer';
+            }
+        }
+    }
+    
+    console.log(`📊 Affichage mis à jour: ${selectedAgenciesCount} sélectionnée(s)`);
+}
+
+// ==================================================================================== 
+// MODALES DE CONFIRMATION - IDENTIQUES AUX FICHIERS DE RÉFÉRENCE
+// ==================================================================================== 
+
 function showConfirmationModal(config) {
     const modal = document.getElementById('confirmationModal');
     const modalIcon = document.getElementById('modalIcon');
@@ -1548,7 +1909,6 @@ function showConfirmationModal(config) {
     const confirmText = document.getElementById('confirmText');
     const confirmSpinner = document.getElementById('confirmSpinner');
 
-    // Configuration par défaut
     const defaultConfig = {
         type: 'danger',
         icon: 'alert-triangle',
@@ -1561,18 +1921,14 @@ function showConfirmationModal(config) {
         showSpinner: true
     };
 
-    // Fusionner avec la configuration fournie
     const finalConfig = { ...defaultConfig, ...config };
 
-    // Configurer l'icône
     modalIcon.className = `modal-icon ${finalConfig.type}`;
     modalIcon.innerHTML = `<i data-feather="${finalConfig.icon}"></i>`;
 
-    // Configurer le titre et le message
     modalTitle.textContent = finalConfig.title;
     modalMessage.textContent = finalConfig.message;
 
-    // Configurer les détails (optionnel)
     if (finalConfig.details) {
         modalDetails.innerHTML = finalConfig.details;
         modalDetails.style.display = 'block';
@@ -1580,58 +1936,61 @@ function showConfirmationModal(config) {
         modalDetails.style.display = 'none';
     }
 
-    // Configurer le bouton de confirmation
     confirmBtn.className = `btn btn-rounded ${finalConfig.confirmClass}`;
     confirmText.textContent = finalConfig.confirmText;
     if (confirmSpinner) confirmSpinner.style.display = 'none';
 
-    // Stocker l'action pour l'exécuter plus tard
     currentAction = finalConfig.onConfirm;
 
-    // Régénérer les icônes Feather
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
 
-    // Afficher la modal avec jQuery si disponible, sinon avec Bootstrap natif
-    if (typeof $ !== 'undefined') {
-        $('#confirmationModal').modal('show');
-    } else {
-        var confirmModal = new bootstrap.Modal(modal);
-        confirmModal.show();
-    }
+    $('#confirmationModal').modal('show');
 }
 
-/**
- * Gestionnaire du bouton de confirmation
- */
-document.addEventListener('DOMContentLoaded', function() {
-    const confirmBtn = document.getElementById('confirmBtn');
-    const confirmText = document.getElementById('confirmText');
-    const confirmSpinner = document.getElementById('confirmSpinner');
+// Gestionnaire du bouton de confirmation - VERSION ULTRA SÉCURISÉE
+setTimeout(function() {
+    try {
+        const confirmBtn = document.getElementById('confirmBtn');
+        const confirmText = document.getElementById('confirmText');
+        const confirmSpinner = document.getElementById('confirmSpinner');
 
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', function() {
-            if (currentAction && typeof currentAction === 'function') {
-                // Afficher le spinner
-                if (confirmSpinner) confirmSpinner.style.display = 'inline-block';
-                confirmBtn.classList.add('btn-loading');
-                if (confirmText) confirmText.textContent = 'Traitement...';
+        if (confirmBtn && confirmBtn.addEventListener) {
+            confirmBtn.addEventListener('click', function() {
+                try {
+                    if (currentAction && typeof currentAction === 'function') {
+                        if (confirmSpinner && confirmSpinner.style) {
+                            confirmSpinner.style.display = 'inline-block';
+                        }
+                        
+                        if (confirmBtn.classList) {
+                            confirmBtn.classList.add('btn-loading');
+                        }
+                        
+                        if (confirmText) {
+                            confirmText.textContent = 'Traitement...';
+                        }
 
-                // Exécuter l'action
-                currentAction();
-            }
-        });
+                        currentAction();
+                    }
+                } catch (actionError) {
+                    console.error('Erreur lors de l\'exécution de l\'action:', actionError);
+                }
+            });
+            console.log('✅ Gestionnaire bouton confirmation connecté');
+        } else {
+            console.warn('⚠️ Bouton confirmation introuvable ou non fonctionnel');
+        }
+    } catch (globalError) {
+        console.error('❌ Erreur initialisation gestionnaire confirmation:', globalError);
     }
-});
+}, 200);
 
 // ==================================================================================== 
-// MODALES DES ACTIONS AGENCES
+// ACTIONS SUR LES AGENCES - IDENTIQUES AUX FICHIERS DE RÉFÉRENCE
 // ==================================================================================== 
 
-/**
- * Afficher la modal d'activation d'agence
- */
 function showActivateAgencyModal(agencyId, agencyName) {
     showConfirmationModal({
         type: 'success',
@@ -1653,14 +2012,11 @@ function showActivateAgencyModal(agencyId, agencyName) {
     });
 }
 
-/**
- * Afficher la modal de désactivation d'agence
- */
 function showDeactivateAgencyModal(agencyId, agencyName) {
     showConfirmationModal({
         type: 'warning',
         icon: 'pause',
-        title: ' Désactiver l\'agence',
+        title: '⏸️ Désactiver l\'agence',
         message: `Confirmer la désactivation de l'agence "${agencyName}" ?`,
         details: `
             <div class="text-warning">
@@ -1677,9 +2033,6 @@ function showDeactivateAgencyModal(agencyId, agencyName) {
     });
 }
 
-/**
- * Afficher la modal de suppression d'agence
- */
 function showDeleteAgencyModal(agencyId, agencyName) {
     showConfirmationModal({
         type: 'danger',
@@ -1689,7 +2042,7 @@ function showDeleteAgencyModal(agencyId, agencyName) {
         details: `
             <div class="text-danger">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
-                <strong> ATTENTION : Cette action est irréversible !</strong><br>
+                <strong>⚠️ ATTENTION : Cette action est irréversible !</strong><br>
                 <small>• Toutes les données de l'agence seront supprimées<br>
                 • L'historique sera perdu<br>
                 • Cette opération ne peut pas être annulée</small>
@@ -1701,22 +2054,11 @@ function showDeleteAgencyModal(agencyId, agencyName) {
     });
 }
 
-// ==================================================================================== 
-// MODALES D'ACTIONS GROUPÉES
-// ==================================================================================== 
-
-/**
- * Afficher la modal de création d'agence
- */
 function showCreateAgencyModal() {
-    window.location.href = "/admin/agencies/create";
+    window.location.href = "{{ route('agency.agence-create') }}";
 }
 
-/**
- * Afficher la modal d'activation en masse
- */
 function showBulkActivateModal() {
-    // Obtenir le nombre d'agences inactives depuis l'élément DOM
     const inactiveCountElement = document.getElementById('inactiveCount');
     const inactiveCount = inactiveCountElement ? parseInt(inactiveCountElement.textContent) : 0;
 
@@ -1745,13 +2087,8 @@ function showBulkActivateModal() {
     });
 }
 
-/**
- * Afficher la modal de suppression en masse
- */
 function showBulkDeleteModal() {
-    const selectedAgencies = document.querySelectorAll('.agency-checkbox:checked');
-
-    if (selectedAgencies.length === 0) {
+    if (selectedAgenciesCount === 0) {
         showToast('Attention', 'Aucune agence sélectionnée pour la suppression', 'warning');
         return;
     }
@@ -1760,42 +2097,28 @@ function showBulkDeleteModal() {
         type: 'danger',
         icon: 'trash-2',
         title: '🗑️ Suppression en masse',
-        message: `Confirmer la suppression de ${selectedAgencies.length} agence(s) sélectionnée(s) ?`,
+        message: `Confirmer la suppression de ${selectedAgenciesCount} agence(s) sélectionnée(s) ?`,
         details: `
             <div class="text-danger">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
-                <strong>ATTENTION : Cette action est irréversible !</strong><br>
-                <small>• ${selectedAgencies.length} agence(s) seront supprimées définitivement<br>
-                • Toutes les données associées seront perdues<br>
-                • Cette opération ne peut pas être annulée</small>
+                <strong>⚠️ ATTENTION : Cette action est irréversible !</strong><br>
+                <small>• ${selectedAgenciesCount} agence(s) seront supprimées définitivement<br>
+                • Toutes les données associées seront perdues</small>
             </div>
         `,
-        confirmText: `Supprimer ${selectedAgencies.length} agence(s)`,
+        confirmText: `Supprimer ${selectedAgenciesCount} agence(s)`,
         confirmClass: 'btn-danger',
         onConfirm: () => executeBulkDelete()
     });
 }
 
 // ==================================================================================== 
-// EXÉCUTION DES ACTIONS
+// EXÉCUTION DES ACTIONS - ROUTES CORRIGÉES
 // ==================================================================================== 
 
-/**
- * Exécuter une action sur une agence
- */
 function executeAgencyAction(agencyId, action, agencyName) {
     setTimeout(() => {
-        // Fermer la modal
-        if (typeof $ !== 'undefined') {
-            $('#confirmationModal').modal('hide');
-        } else {
-            const modal = document.getElementById('confirmationModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
-        
+        $('#confirmationModal').modal('hide');
         showLoading();
 
         let url, method = 'POST';
@@ -1817,14 +2140,10 @@ function executeAgencyAction(agencyId, action, agencyName) {
                 return;
         }
 
-        // Obtenir le token CSRF
-        const token = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = token ? token.getAttribute('content') : '';
-
         fetch(url, {
             method: method,
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             }
@@ -1835,11 +2154,7 @@ function executeAgencyAction(agencyId, action, agencyName) {
 
             if (data.success) {
                 showToast('Succès', data.message || `Action ${action} effectuée sur l'agence "${agencyName}"`, 'success');
-
-                // Rafraîchir la liste
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                setTimeout(() => window.location.reload(), 1500);
             } else {
                 showToast('Erreur', data.message || `Erreur lors de l'action ${action}`, 'error');
             }
@@ -1852,32 +2167,15 @@ function executeAgencyAction(agencyId, action, agencyName) {
     }, 1500);
 }
 
-/**
- * Exécuter une action groupée
- */
 function executeBulkAction(action) {
     setTimeout(() => {
-        // Fermer la modal
-        if (typeof $ !== 'undefined') {
-            $('#confirmationModal').modal('hide');
-        } else {
-            const modal = document.getElementById('confirmationModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
-        
+        $('#confirmationModal').modal('hide');
         showLoading();
-
-        // Obtenir le token CSRF
-        const token = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = token ? token.getAttribute('content') : '';
 
         fetch(`/admin/agencies/bulk-${action}`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             }
@@ -1888,11 +2186,7 @@ function executeBulkAction(action) {
 
             if (data.success) {
                 showToast('Succès', data.message || `Action ${action} en masse effectuée`, 'success');
-
-                // Rafraîchir la page
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                setTimeout(() => window.location.reload(), 1500);
             } else {
                 showToast('Erreur', data.message || `Erreur lors de l'action ${action} en masse`, 'error');
             }
@@ -1905,34 +2199,17 @@ function executeBulkAction(action) {
     }, 1500);
 }
 
-/**
- * Exécuter la suppression en masse
- */
 function executeBulkDelete() {
     const selectedAgencies = Array.from(document.querySelectorAll('.agency-checkbox:checked')).map(cb => cb.value);
 
     setTimeout(() => {
-        // Fermer la modal
-        if (typeof $ !== 'undefined') {
-            $('#confirmationModal').modal('hide');
-        } else {
-            const modal = document.getElementById('confirmationModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
-        
+        $('#confirmationModal').modal('hide');
         showLoading();
-
-        // Obtenir le token CSRF
-        const token = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = token ? token.getAttribute('content') : '';
 
         fetch('/admin/agencies/bulk-delete', {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             },
@@ -1944,11 +2221,7 @@ function executeBulkDelete() {
 
             if (data.success) {
                 showToast('Succès', data.message || `${selectedAgencies.length} agence(s) supprimée(s)`, 'success');
-
-                // Rafraîchir la page
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                setTimeout(() => window.location.reload(), 1500);
             } else {
                 showToast('Erreur', data.message || 'Erreur lors de la suppression en masse', 'error');
             }
@@ -1965,39 +2238,19 @@ function executeBulkDelete() {
 // MODAL DÉTAILS AGENCE
 // ==================================================================================== 
 
-/**
- * Afficher les détails d'une agence
- */
 function showAgencyDetails(agencyId) {
     currentAgencyId = agencyId;
 
-    // Afficher la modal
-    if (typeof $ !== 'undefined') {
-        $('#agencyDetailsModal').modal('show');
-    } else {
-        const modal = document.getElementById('agencyDetailsModal');
-        if (modal) {
-            const bsModal = new bootstrap.Modal(modal);
-            bsModal.show();
-        }
-    }
+    $('#agencyDetailsModal').modal('show');
 
-    // Afficher l'état de chargement
-    const loadingState = document.getElementById('loadingState');
-    const contentMain = document.getElementById('agencyDetailsContentMain');
-    
-    if (loadingState) loadingState.style.display = 'block';
-    if (contentMain) contentMain.style.display = 'none';
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('agencyDetailsContentMain').style.display = 'none';
 
-    // Charger les données agence
     setTimeout(() => {
         loadAgencyDetails(agencyId);
     }, 500);
 }
 
-/**
- * Charger les détails d'une agence
- */
 function loadAgencyDetails(agencyId) {
     fetch(`/admin/agencies/${agencyId}/details`, {
         method: 'GET',
@@ -2009,44 +2262,20 @@ function loadAgencyDetails(agencyId) {
     .then(data => {
         if (data.success) {
             populateAgencyDetails(data.agency);
-
-            // Masquer le chargement et afficher le contenu
-            const loadingState = document.getElementById('loadingState');
-            const contentMain = document.getElementById('agencyDetailsContentMain');
-            
-            if (loadingState) loadingState.style.display = 'none';
-            if (contentMain) contentMain.style.display = 'block';
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('agencyDetailsContentMain').style.display = 'block';
         } else {
             showToast('Erreur', data.message || 'Erreur lors du chargement des détails', 'error');
-            if (typeof $ !== 'undefined') {
-                $('#agencyDetailsModal').modal('hide');
-            } else {
-                const modal = document.getElementById('agencyDetailsModal');
-                if (modal) {
-                    const bsModal = bootstrap.Modal.getInstance(modal);
-                    if (bsModal) bsModal.hide();
-                }
-            }
+            $('#agencyDetailsModal').modal('hide');
         }
     })
     .catch(error => {
         console.error('Erreur:', error);
         showToast('Erreur', 'Erreur lors du chargement des détails', 'error');
-        if (typeof $ !== 'undefined') {
-            $('#agencyDetailsModal').modal('hide');
-        } else {
-            const modal = document.getElementById('agencyDetailsModal');
-            if (modal) {
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                if (bsModal) bsModal.hide();
-            }
-        }
+        $('#agencyDetailsModal').modal('hide');
     });
 }
 
-/**
- * Remplir les détails de l'agence dans la modal
- */
 function populateAgencyDetails(agency) {
     console.log('✅ Remplissage des détails agence:', agency);
 
@@ -2118,22 +2347,15 @@ function populateAgencyDetails(agency) {
 // SYSTÈME DE FILTRES ET RECHERCHE
 // ==================================================================================== 
 
-/**
- * Filtrer par statut depuis les cartes statistiques
- */
 function filterByStatus(status) {
     const statusSelect = document.getElementById('status');
     const cards = document.querySelectorAll('.clickable-card');
 
-    // Retirer la sélection de toutes les cartes
     cards.forEach(card => card.classList.remove('card-selected'));
-
-    // Ajouter la sélection à la carte cliquée
     if (event && event.currentTarget) {
         event.currentTarget.classList.add('card-selected');
     }
 
-    // Définir la valeur du select selon le statut
     if (statusSelect) {
         switch(status) {
             case 'active':
@@ -2149,33 +2371,30 @@ function filterByStatus(status) {
         }
     }
 
-    // Appliquer les filtres
     applyFilters();
 }
 
-/**
- * Filtrer par récent
- */
 function filterByRecent() {
     const cards = document.querySelectorAll('.clickable-card');
-
-    // Retirer la sélection de toutes les cartes
     cards.forEach(card => card.classList.remove('card-selected'));
-
-    // Ajouter la sélection à la carte cliquée
     if (event && event.currentTarget) {
         event.currentTarget.classList.add('card-selected');
     }
 
-    // Rediriger avec un filtre de date récente
-    const url = new URL(window.location.href);
-    url.searchParams.set('recent', '7');
-    window.location.href = url.toString();
+    const form = document.getElementById('filterForm');
+    if (form) {
+        let recentInput = form.querySelector('input[name="recent"]');
+        if (!recentInput) {
+            recentInput = document.createElement('input');
+            recentInput.type = 'hidden';
+            recentInput.name = 'recent';
+            form.appendChild(recentInput);
+        }
+        recentInput.value = '7';
+        form.submit();
+    }
 }
 
-/**
- * Appliquer les filtres
- */
 function applyFilters() {
     const form = document.getElementById('filterForm');
     if (form) {
@@ -2183,61 +2402,43 @@ function applyFilters() {
     }
 }
 
-/**
- * Réinitialiser les filtres
- */
 function resetFilters() {
     const form = document.getElementById('filterForm');
     if (form) {
-        // Vider tous les champs
         form.querySelectorAll('input, select').forEach(field => {
-            field.value = '';
+            if (field.type !== 'hidden') {
+                field.value = '';
+            }
         });
 
-        // Retirer la sélection des cartes
+        form.querySelectorAll('input[type="hidden"]').forEach(input => {
+            if (input.name !== '_token') {
+                input.remove();
+            }
+        });
+
         document.querySelectorAll('.clickable-card').forEach(card => {
             card.classList.remove('card-selected');
         });
 
-        // Soumettre le formulaire vide
         form.submit();
     }
 }
 
-/**
- * Recherche en temps réel
- */
-function liveSearch() {
-    const searchField = document.getElementById('search');
-    if (!searchField) return;
-    
-    const query = searchField.value;
-
-    // Annuler le timeout précédent
-    if (searchTimeout) {
-        clearTimeout(searchTimeout);
+// Fonction de recherche optimisée
+const optimizedLiveSearch = debounce(function() {
+    const query = document.getElementById('search').value;
+    if (query.length >= 2 || query.length === 0) {
+        document.getElementById('filterForm').submit();
     }
+}, 300);
 
-    // Programmer une nouvelle recherche
-    searchTimeout = setTimeout(() => {
-        if (query.length >= 2 || query.length === 0) {
-            // Soumettre le formulaire de recherche
-            const form = document.getElementById('filterForm');
-            if (form) {
-                form.submit();
-            }
-        }
-    }, 500);
+function liveSearch() {
+    optimizedLiveSearch();
 }
 
-/**
- * Recherche rapide dans l'en-tête
- */
 function quickSearchAgencies() {
-    const searchField = document.getElementById('quickSearch');
-    if (!searchField) return;
-    
-    const query = searchField.value;
+    const query = document.getElementById('quickSearch').value;
 
     if (searchTimeout) {
         clearTimeout(searchTimeout);
@@ -2245,32 +2446,21 @@ function quickSearchAgencies() {
 
     searchTimeout = setTimeout(() => {
         if (query.length >= 2) {
-            // Rediriger avec la recherche
             window.location.href = `${window.location.pathname}?search=${encodeURIComponent(query)}`;
         }
     }, 300);
 }
 
-/**
- * Vider la recherche rapide
- */
 function clearQuickSearch() {
-    const searchField = document.getElementById('quickSearch');
-    if (searchField) {
-        searchField.value = '';
-    }
+    document.getElementById('quickSearch').value = '';
     window.location.href = window.location.pathname;
 }
 
-/**
- * Vérifier les filtres actifs
- */
 function checkActiveFilters() {
     const urlParams = new URLSearchParams(window.location.search);
-    const hasFilters = urlParams.has('search') || urlParams.has('status') || urlParams.has('country') || urlParams.has('city');
+    const hasFilters = urlParams.has('search') || urlParams.has('status') || urlParams.has('country') || urlParams.has('city') || urlParams.has('recent');
 
     if (hasFilters) {
-        // Marquer visuellement qu'il y a des filtres actifs
         const filterButton = document.querySelector('button[type="submit"]');
         if (filterButton) {
             filterButton.classList.add('filter-active');
@@ -2279,134 +2469,15 @@ function checkActiveFilters() {
 }
 
 // ==================================================================================== 
-// GESTION DES SÉLECTIONS
-// ==================================================================================== 
-
-/**
- * Initialiser la gestion des sélections
- */
-function initializeSelectionHandlers() {
-    const selectAllCheckbox = document.getElementById('selectAll');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            toggleSelectAll();
-        });
-    }
-
-    // Initialiser les checkboxes individuelles
-    document.querySelectorAll('.agency-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            handleIndividualCheckbox();
-        });
-    });
-}
-
-/**
- * Basculer la sélection de toutes les agences
- */
-function toggleSelectAll() {
-    const selectAllCheckbox = document.getElementById('selectAll');
-    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
-    const selectAllBtn = document.getElementById('selectAllBtn');
-
-    isSelectAllActive = selectAllCheckbox ? selectAllCheckbox.checked : !isSelectAllActive;
-
-    agencyCheckboxes.forEach(checkbox => {
-        checkbox.checked = isSelectAllActive;
-
-        // Animation visuelle
-        const row = checkbox.closest('tr');
-        if (row) {
-            if (isSelectAllActive) {
-                row.classList.add('highlight-change');
-            } else {
-                row.classList.remove('highlight-change');
-            }
-        }
-    });
-
-    // Mettre à jour l'icône du bouton
-    if (selectAllBtn) {
-        const icon = selectAllBtn.querySelector('i');
-        if (icon) {
-            icon.setAttribute('data-feather', isSelectAllActive ? 'check-square' : 'square');
-            if (typeof feather !== 'undefined') {
-                feather.replace();
-            }
-        }
-    }
-
-    // Mettre à jour le statut de sélection
-    updateSelectionStatus();
-}
-
-/**
- * Gérer les checkboxes individuelles
- */
-function handleIndividualCheckbox() {
-    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
-    const checkedCheckboxes = document.querySelectorAll('.agency-checkbox:checked');
-    const selectAllCheckbox = document.getElementById('selectAll');
-
-    // Mettre à jour l'état du "Sélectionner tout"
-    if (selectAllCheckbox) {
-        selectAllCheckbox.checked = checkedCheckboxes.length === agencyCheckboxes.length;
-        selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < agencyCheckboxes.length;
-    }
-
-    // Animation sur la ligne
-    if (event && event.target) {
-        const row = event.target.closest('tr');
-        if (row) {
-            if (event.target.checked) {
-                row.classList.add('highlight-change');
-            } else {
-                row.classList.remove('highlight-change');
-            }
-        }
-    }
-
-    updateSelectionStatus();
-}
-
-/**
- * Mettre à jour le statut de sélection
- */
-function updateSelectionStatus() {
-    const checkedCount = document.querySelectorAll('.agency-checkbox:checked').length;
-
-    // Mettre à jour les boutons d'action selon la sélection
-    const bulkDeleteBtn = document.querySelector('button[onclick="showBulkDeleteModal()"]');
-    if (bulkDeleteBtn) {
-        if (checkedCount > 0) {
-            bulkDeleteBtn.classList.remove('btn-outline-danger');
-            bulkDeleteBtn.classList.add('btn-danger');
-            bulkDeleteBtn.title = `Supprimer ${checkedCount} agence(s) sélectionnée(s)`;
-        } else {
-            bulkDeleteBtn.classList.remove('btn-danger');
-            bulkDeleteBtn.classList.add('btn-outline-danger');
-            bulkDeleteBtn.title = 'Supprimer sélectionnées';
-        }
-    }
-}
-
-// ==================================================================================== 
 // MISE À JOUR TEMPS RÉEL
 // ==================================================================================== 
 
-/**
- * Démarrer les mises à jour temps réel
- */
 function startRealTimeUpdates() {
-    // Mettre à jour les statistiques toutes les 30 secondes
     realTimeInterval = setInterval(() => {
         refreshStats();
     }, 30000);
 }
 
-/**
- * Arrêter les mises à jour temps réel
- */
 function stopRealTimeUpdates() {
     if (realTimeInterval) {
         clearInterval(realTimeInterval);
@@ -2414,144 +2485,146 @@ function stopRealTimeUpdates() {
     }
 }
 
-/**
- * Actualiser les statistiques
- */
 function refreshStats() {
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) {
-        // Animation de rotation sur l'icône
         const icon = refreshBtn.querySelector('i');
         if (icon) {
             icon.style.animation = 'spin 1s linear infinite';
         }
 
-        // Simuler une mise à jour des stats
-        setTimeout(() => {
-            if (icon) {
-                icon.style.animation = '';
+        fetch('/admin/api/agencies/stats', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
             }
-
-            // Mettre à jour le timestamp
-            lastUpdateTimestamp = Date.now();
-        }, 1000);
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateStatsDisplay(data.stats);
+                console.log('✅ Statistiques mises à jour');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur stats:', error);
+        })
+        .finally(() => {
+            setTimeout(() => {
+                if (icon) {
+                    icon.style.animation = '';
+                }
+            }, 1000);
+        });
     }
 }
 
-/**
- * Actualiser la liste des agences
- */
+function updateStatsDisplay(stats) {
+    const totalElement = document.getElementById('totalAgencies');
+    if (totalElement) {
+        totalElement.textContent = stats.total || 0;
+    }
+    
+    document.querySelectorAll('.counter').forEach(counter => {
+        const target = counter.getAttribute('data-target');
+        if (target) {
+            counter.textContent = target;
+        }
+    });
+}
+
 function refreshAgenciesList() {
     showToast('Info', 'Actualisation de la liste...', 'info');
     window.location.reload();
 }
 
-/**
- * Exporter les agences
- */
 function exportAgencies() {
     showToast('Info', 'Export en cours...', 'info');
 
-    // Simuler un export
     setTimeout(() => {
-        showToast('Succès', 'Export terminé !', 'success');
-
-        // Créer un lien de téléchargement factice
-        const link = document.createElement('a');
-        link.href = '/admin/agencies/export';
-        link.download = `agences_${new Date().toISOString().split('T')[0]}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }, 2000);
+        window.location.href = '/admin/agencies/export';
+        showToast('Succès', 'Export lancé !', 'success');
+    }, 1000);
 }
 
 // ==================================================================================== 
-// SYSTÈME DE NOTIFICATIONS TOAST (Version améliorée)
+// SYSTÈME DE NOTIFICATIONS TOAST
 // ==================================================================================== 
 
-/**
- * Afficher une notification toast
- */
 function showToast(title, message, type = 'info') {
-    const toastContainer = document.getElementById('toastContainer');
-    if (!toastContainer) {
-        console.warn('Toast container non trouvé');
-        return;
-    }
+    try {
+        const toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) {
+            console.warn('⚠️ Container toast introuvable');
+            return;
+        }
 
-    const toastId = 'toast_' + Date.now();
-    const icons = {
-        success: 'check-circle',
-        error: 'x-circle',
-        warning: 'alert-triangle',
-        info: 'info'
-    };
+        const toastId = 'toast_' + Date.now();
+        const icons = {
+            success: 'check-circle',
+            error: 'x-circle',
+            warning: 'alert-triangle',
+            info: 'info'
+        };
 
-    const colors = {
-        success: 'success',
-        error: 'danger',
-        warning: 'warning',
-        info: 'primary'
-    };
+        const colors = {
+            success: 'success',
+            error: 'danger',
+            warning: 'warning',
+            info: 'primary'
+        };
 
-    const toastHTML = `
-        <div class="toast fade show" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true" data-delay="5000">
-            <div class="toast-header bg-${colors[type]} text-white">
-                <i data-feather="${icons[type]}" class="icon-xs mr-2"></i>
-                <strong class="mr-auto">${title}</strong>
-                <small class="text-white-50">${new Date().toLocaleTimeString('fr-FR')}</small>
-                <button type="button" class="ml-2 mb-1 close text-white" data-dismiss="toast" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="toast-body">
-                ${message}
-            </div>
-        </div>`;
+        const toastHTML = `
+            <div class="toast fade show" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true" data-delay="5000">
+                <div class="toast-header bg-${colors[type]} text-white">
+                    <i data-feather="${icons[type]}" class="icon-sm mr-2"></i>
+                    <strong class="mr-auto">${title}</strong>
+                    <small class="text-white-50">${new Date().toLocaleTimeString('fr-FR')}</small>
+                    <button type="button" class="ml-2 mb-1 close text-white" data-dismiss="toast" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            </div>`;
 
-    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
 
-    const toastElement = document.getElementById(toastId);
-    
-    // Initialiser le toast selon la version de Bootstrap disponible
-    if (typeof $ !== 'undefined') {
-        // Bootstrap 4 avec jQuery
-        $(toastElement).toast({ delay: 5000 }).toast('show');
+        const toastElement = document.getElementById(toastId);
         
-        $(toastElement).on('hidden.bs.toast', function() {
-            if (this.parentNode) {
-                this.parentNode.removeChild(this);
-            }
-        });
-    } else if (typeof bootstrap !== 'undefined') {
-        // Bootstrap 5 natif
-        const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
-        toast.show();
-        
-        toastElement.addEventListener('hidden.bs.toast', function() {
-            if (this.parentNode) {
-                this.parentNode.removeChild(this);
-            }
-        });
-    } else {
-        // Fallback : supprimer automatiquement après 5 secondes
+        if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+        } else if (typeof $ !== 'undefined' && $.fn.toast) {
+            $(toastElement).toast('show');
+        } else {
+            console.warn('⚠️ Bootstrap Toast non disponible');
+            toastElement.style.display = 'block';
+        }
+
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+
         setTimeout(() => {
-            if (toastElement && toastElement.parentNode) {
-                toastElement.parentNode.removeChild(toastElement);
+            try {
+                if (toastElement && toastElement.parentNode) {
+                    toastElement.parentNode.removeChild(toastElement);
+                }
+            } catch (error) {
+                console.warn('Erreur suppression toast:', error);
             }
-        }, 5000);
-    }
-
-    // Régénérer les icônes Feather
-    if (typeof feather !== 'undefined') {
-        feather.replace();
+        }, 6000);
+        
+    } catch (error) {
+        console.error('❌ Erreur affichage toast:', error);
+        if (type === 'error') {
+            console.error(`${title}: ${message}`);
+        }
     }
 }
 
-/**
- * Afficher un overlay de chargement
- */
 function showLoading() {
     const overlay = document.getElementById('loadingOverlay');
     const tableView = document.getElementById('tableView');
@@ -2562,9 +2635,6 @@ function showLoading() {
     }
 }
 
-/**
- * Masquer l'overlay de chargement
- */
 function hideLoading() {
     const overlay = document.getElementById('loadingOverlay');
     const tableView = document.getElementById('tableView');
@@ -2575,9 +2645,6 @@ function hideLoading() {
     }
 }
 
-/**
- * Formater une date simple avec gestion d'erreurs
- */
 function formatDateSimple(dateString) {
     if (!dateString) return 'Non disponible';
 
@@ -2592,6 +2659,22 @@ function formatDateSimple(dateString) {
     }
 }
 
+// ==================================================================================== 
+// FONCTIONS UTILITAIRES
+// ==================================================================================== 
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 // Actions pour les détails d'agence
 function refreshAgencyDetails() {
     if (currentAgencyId) {
@@ -2604,7 +2687,7 @@ function copyAgencyAddress() {
     const addressElement = document.getElementById('detailFullAddress');
     if (addressElement) {
         const address = addressElement.textContent;
-        if (address && address !== 'Adresse non disponible') {
+        if (address && address !== 'N/A') {
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(address).then(() => {
                     showToast('Succès', 'Adresse copiée dans le presse-papier !', 'success');
@@ -2622,7 +2705,7 @@ function openMap() {
     const addressElement = document.getElementById('detailFullAddress');
     if (addressElement) {
         const address = addressElement.textContent;
-        if (address && address !== 'Adresse non disponible') {
+        if (address && address !== 'N/A') {
             const encodedAddress = encodeURIComponent(address);
             window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
         } else {
@@ -2635,7 +2718,7 @@ function getDirections() {
     const addressElement = document.getElementById('detailFullAddress');
     if (addressElement) {
         const address = addressElement.textContent;
-        if (address && address !== 'Adresse non disponible') {
+        if (address && address !== 'N/A') {
             const encodedAddress = encodeURIComponent(address);
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank');
         } else {
@@ -2685,8 +2768,8 @@ function shareAgencyInfo() {
         const agencyAddress = agencyAddressElement.textContent;
 
         const shareText = `Informations agence "${agencyName}":
- Téléphone: ${agencyPhone}
- Adresse: ${agencyAddress}`;
+📞 Téléphone: ${agencyPhone}
+📍 Adresse: ${agencyAddress}`;
 
         if (navigator.share) {
             navigator.share({
@@ -2706,25 +2789,176 @@ function shareAgencyInfo() {
 }
 
 // ==================================================================================== 
-// GESTION DES ERREURS ET CLEANUP
+// FONCTIONS DE COMPATIBILITÉ ET DEBUGGING
 // ==================================================================================== 
 
-/**
- * Nettoyage avant fermeture de page
- */
+function debugSelection() {
+    console.log('🔍 DEBUG - État des sélections:');
+    console.log('- selectedAgenciesCount:', selectedAgenciesCount);
+    
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const agencyCheckboxes = document.querySelectorAll('.agency-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.agency-checkbox:checked');
+    
+    console.log('- selectAllCheckbox.checked:', selectAllCheckbox?.checked);
+    console.log('- selectAllCheckbox.indeterminate:', selectAllCheckbox?.indeterminate);
+    console.log('- Total agences:', agencyCheckboxes.length);
+    console.log('- Agences cochées:', checkedCheckboxes.length);
+    
+    checkedCheckboxes.forEach((checkbox, index) => {
+        console.log(`  - Agence ${index}: ID=${checkbox.value}`);
+    });
+}
+
+function forceUpdateDisplay() {
+    console.log('🔄 Force update display...');
+    
+    selectedAgenciesCount = document.querySelectorAll('.agency-checkbox:checked').length;
+    updateSelectionStatus();
+    
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    console.log('✅ Display forcé mis à jour');
+}
+
+function toggleSelectAll() {
+    handleSelectAllButton();
+}
+
+// ==================================================================================== 
+// GESTION DES ERREURS ET NETTOYAGE - VERSION SÉCURISÉE
+// ==================================================================================== 
+
+window.addEventListener('unhandledrejection', function(event) {
+    console.warn('⚠️ Promesse rejetée (ignorée):', event.reason);
+    event.preventDefault();
+});
+
 window.addEventListener('beforeunload', function() {
-    stopRealTimeUpdates();
+    try {
+        if (typeof stopRealTimeUpdates === 'function') {
+            stopRealTimeUpdates();
+        }
+    } catch (error) {
+        // Silencieux
+    }
 });
 
-/**
- * Gestion des erreurs globales
- */
-window.addEventListener('error', function(event) {
-    console.error('Erreur JavaScript:', event.error);
-    showToast('Erreur', 'Une erreur inattendue s\'est produite', 'error');
-});
+setTimeout(function() {
+    try {
+        if (typeof $ !== 'undefined' && $.fn.modal) {
+            $('#agencyDetailsModal').on('hidden.bs.modal', function() {
+                try {
+                    currentAgencyId = null;
+                    console.log('🔧 Modal agence fermé, currentAgencyId reset');
+                } catch (error) {
+                    // Silencieux
+                }
+            });
 
-// Initialisation finale
-console.log(' Système de gestion des agences initialisé avec succès');
+            $('#confirmationModal').on('hidden.bs.modal', function() {
+                try {
+                    currentAction = null;
+                    
+                    const confirmBtn = document.getElementById('confirmBtn');
+                    const confirmText = document.getElementById('confirmText');
+                    const confirmSpinner = document.getElementById('confirmSpinner');
+                    
+                    if (confirmBtn && confirmBtn.classList) {
+                        confirmBtn.classList.remove('btn-loading');
+                    }
+                    
+                    if (confirmText) {
+                        confirmText.textContent = 'Confirmer';
+                    }
+                    
+                    if (confirmSpinner && confirmSpinner.style) {
+                        confirmSpinner.style.display = 'none';
+                    }
+                    
+                    console.log('🔧 Modal confirmation fermé, currentAction reset');
+                } catch (error) {
+                    // Silencieux
+                }
+            });
+        } else {
+            console.warn('⚠️ jQuery non disponible pour la gestion des modales');
+        }
+    } catch (error) {
+        // Silencieux
+    }
+}, 500);
+
+// ==================================================================================== 
+// INITIALISATION FINALE ET LOG
+// ==================================================================================== 
+
+setTimeout(function() {
+    try {
+        console.log('🎉 Système de gestion des agences complètement initialisé !');
+        console.log('📋 Fonctionnalités disponibles:');
+        console.log('  ✅ Sélection multiple avec "Sélectionner tout"');
+        console.log('  ✅ Actions en masse (suppression, activation)');
+        console.log('  ✅ Modales de confirmation avec animations');
+        console.log('  ✅ Détails d\'agences dans modal avancé');
+        console.log('  ✅ Filtres et recherche en temps réel');
+        console.log('  ✅ Notifications toast');
+        console.log('  ✅ Mises à jour temps réel');
+        console.log('  ✅ Gestion d\'erreurs complète');
+
+        if (typeof window !== 'undefined') {
+            try {
+                window.debugAgencySelection = debugSelection;
+                window.forceUpdateAgencyDisplay = forceUpdateDisplay;
+                
+                console.log('🛠️ Fonctions de debug disponibles: debugAgencySelection(), forceUpdateAgencyDisplay()');
+            } catch (windowError) {
+                console.warn('⚠️ Impossible d\'exposer les fonctions de debug (ignoré)');
+            }
+        }
+
+        const environmentCheck = {
+            dom: !!document.getElementById('selectAll'),
+            feather: typeof feather !== 'undefined',
+            jquery: typeof $ !== 'undefined',
+            bootstrap: typeof bootstrap !== 'undefined'
+        };
+
+        console.log('🔍 État de l\'environnement:', environmentCheck);
+
+        setTimeout(function() {
+            try {
+                const healthCheck = {
+                    selectAllCheckbox: !!document.getElementById('selectAll'),
+                    agencyCheckboxes: document.querySelectorAll('.agency-checkbox').length,
+                    toastContainer: !!document.getElementById('toastContainer'),
+                    agenciesTable: !!document.getElementById('agenciesTable'),
+                    bulkDeleteBtn: !!document.getElementById('bulkDeleteBtn'),
+                    selectAllBtn: !!document.getElementById('selectAllBtn')
+                };
+
+                console.log('🏥 Test de santé du système:', healthCheck);
+
+                const issues = Object.entries(healthCheck).filter(([key, value]) => !value || (key === 'agencyCheckboxes' && value === 0));
+                
+                if (issues.length === 0) {
+                    console.log('💚 Système entièrement fonctionnel !');
+                } else {
+                    console.warn('⚠️ Problèmes détectés:', issues.map(([key]) => key));
+                    console.warn('ℹ️ Ces problèmes peuvent être normaux selon le contenu de la page');
+                }
+
+            } catch (healthError) {
+                console.warn('⚠️ Impossible de faire le test de santé:', healthError.message);
+            }
+        }, 500);
+        
+    } catch (finalError) {
+        console.warn('⚠️ Erreur lors du log final (ignorée):', finalError.message);
+    }
+}, 1000);
 </script>
+
 @endsection

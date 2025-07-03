@@ -15,18 +15,19 @@ use Illuminate\Support\Str;
 class ServiceController extends Controller
 {
     /**
-     * Afficher la liste des services
+     * ✅ CORRIGÉ : Afficher SEULEMENT les services créés par l'admin connecté
      */
     public function index(Request $request): View
     {
-        $query = Service::with('creator');
+        // 🔒 ISOLATION : Filtrer par admin connecté
+        $query = Service::where('created_by', Auth::id())->with('creator');
 
-        // Recherche
+        // Recherche (sur ses propres services)
         if ($request->filled('search')) {
             $query->search($request->search);
         }
 
-        // Filtrage par statut
+        // Filtrage par statut (sur ses propres services)
         if ($request->filled('statut')) {
             $query->where('statut', $request->statut);
         }
@@ -43,7 +44,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * Afficher le formulaire de création
+     * Formulaire de création (pas de changement)
      */
     public function create(): View
     {
@@ -51,7 +52,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * Stocker un nouveau service
+     * Créer un service (pas de changement - déjà correct)
      */
     public function store(Request $request): RedirectResponse
     {
@@ -99,7 +100,7 @@ class ServiceController extends Controller
                 'code' => $code,
                 'statut' => $request->statut,
                 'description' => $request->description,
-                'created_by' => Auth::id(),
+                'created_by' => Auth::id(), // ✅ Déjà correct
             ]);
 
             return redirect()->route('service.service-list')
@@ -113,10 +114,17 @@ class ServiceController extends Controller
     }
 
     /**
-     * Afficher les détails d'un service
+     * ✅ CORRIGÉ : Vérifier l'autorisation pour voir
      */
     public function show(Service $service): JsonResponse
     {
+        if ($service->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas voir ce service.'
+            ], 403);
+        }
+
         try {
             $service->load('creator');
             
@@ -133,18 +141,27 @@ class ServiceController extends Controller
     }
 
     /**
-     * Afficher le formulaire d'édition
+     * ✅ CORRIGÉ : Vérifier l'autorisation pour éditer
      */
     public function edit(Service $service): View
     {
+        if ($service->created_by !== Auth::id()) {
+            abort(403, 'Vous ne pouvez pas modifier ce service.');
+        }
+
         return view('service.service-edit', compact('service'));
     }
 
     /**
-     * Mettre à jour un service
+     * ✅ CORRIGÉ : Vérifier l'autorisation pour mettre à jour
      */
     public function update(Request $request, Service $service): RedirectResponse
     {
+        if ($service->created_by !== Auth::id()) {
+            return redirect()->back()
+                ->with('error', 'Vous ne pouvez pas modifier ce service.');
+        }
+
         $validator = Validator::make($request->all(), [
             'nom' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:services,code,' . $service->id,
@@ -182,10 +199,17 @@ class ServiceController extends Controller
     }
 
     /**
-     * Supprimer un service
+     * ✅ CORRIGÉ : Vérifier l'autorisation pour supprimer
      */
     public function destroy(Service $service): JsonResponse
     {
+        if ($service->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas supprimer ce service.'
+            ], 403);
+        }
+
         try {
             $serviceName = $service->nom;
             $service->delete();
@@ -203,10 +227,17 @@ class ServiceController extends Controller
     }
 
     /**
-     * Activer un service
+     * ✅ CORRIGÉ : Activer seulement ses propres services
      */
     public function activate(Service $service): JsonResponse
     {
+        if ($service->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas activer ce service.'
+            ], 403);
+        }
+
         try {
             $service->activate();
 
@@ -223,10 +254,17 @@ class ServiceController extends Controller
     }
 
     /**
-     * Désactiver un service
+     * ✅ CORRIGÉ : Désactiver seulement ses propres services
      */
     public function deactivate(Service $service): JsonResponse
     {
+        if ($service->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas désactiver ce service.'
+            ], 403);
+        }
+
         try {
             $service->deactivate();
 
@@ -243,10 +281,17 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Obtenir les détails d'un service (AJAX) - TOUTES LES DONNÉES
+     * ✅ CORRIGÉ : Détails seulement pour ses propres services
      */
     public function details(Service $service): JsonResponse
     {
+        if ($service->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas voir ce service.'
+            ], 403);
+        }
+
         try {
             $service->load('creator');
             
@@ -288,7 +333,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ NOUVEAU : Recherche de services (AJAX)
+     * ✅ CORRIGÉ : Recherche seulement dans ses propres services
      */
     public function searchServices(Request $request): JsonResponse
     {
@@ -309,7 +354,9 @@ class ServiceController extends Controller
         }
 
         try {
-            $services = Service::where(function($query) use ($search) {
+            // 🔒 RECHERCHE : Seulement dans ses propres services
+            $services = Service::where('created_by', Auth::id())
+                ->where(function($query) use ($search) {
                     $query->where('nom', 'LIKE', "%{$search}%")
                           ->orWhere('code', 'LIKE', "%{$search}%")
                           ->orWhere('description', 'LIKE', "%{$search}%");
@@ -343,16 +390,18 @@ class ServiceController extends Controller
     }
 
     /**
-     * Activation en masse
+     * ✅ CORRIGÉ : Activation en masse seulement pour ses services
      */
     public function bulkActivate(Request $request): JsonResponse
     {
         try {
-            $count = Service::where('statut', 'inactif')->update(['statut' => 'actif']);
+            $count = Service::where('created_by', Auth::id())
+                           ->where('statut', 'inactif')
+                           ->update(['statut' => 'actif']);
 
             return response()->json([
                 'success' => true,
-                'message' => "{$count} service(s) activé(s) avec succès !"
+                'message' => "{$count} de vos service(s) activé(s) avec succès !"
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -363,7 +412,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * Suppression en masse
+     * ✅ CORRIGÉ : Suppression en masse seulement pour ses services
      */
     public function bulkDelete(Request $request): JsonResponse
     {
@@ -373,12 +422,14 @@ class ServiceController extends Controller
         ]);
 
         try {
-            $count = Service::whereIn('id', $request->service_ids)->count();
-            Service::whereIn('id', $request->service_ids)->delete();
+            // 🔒 SÉCURITÉ : Vérifier que tous les services appartiennent à l'admin
+            $count = Service::whereIn('id', $request->service_ids)
+                           ->where('created_by', Auth::id())
+                           ->delete();
 
             return response()->json([
                 'success' => true,
-                'message' => "{$count} service(s) supprimé(s) avec succès !"
+                'message' => "{$count} de vos service(s) supprimé(s) avec succès !"
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -389,14 +440,15 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Exporter les services avec vraies données
+     * ✅ CORRIGÉ : Export seulement des services de l'admin
      */
     public function export(): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         try {
-            $services = Service::with('creator')->get();
+            // 🔒 EXPORT : Seulement ses propres services
+            $services = Service::where('created_by', Auth::id())->with('creator')->get();
             
-            $filename = 'services_' . date('Y-m-d_H-i-s') . '.csv';
+            $filename = 'mes_services_' . date('Y-m-d_H-i-s') . '.csv';
             
             $headers = [
                 'Content-Type' => 'text/csv; charset=utf-8',
@@ -449,7 +501,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Statistiques des services (API)
+     * ✅ CORRIGÉ : Statistiques seulement pour ses services
      */
     public function getStats(): JsonResponse
     {
@@ -461,15 +513,16 @@ class ServiceController extends Controller
         }
 
         try {
+            // 🔒 STATISTIQUES : Seulement ses propres services
             $stats = [
-                'total' => Service::count(),
-                'active' => Service::where('statut', 'actif')->count(),
-                'inactive' => Service::where('statut', 'inactif')->count(),
-                'created_today' => Service::whereDate('created_at', today())->count(),
-                'created_this_week' => Service::where('created_at', '>=', now()->startOfWeek())->count(),
-                'created_this_month' => Service::where('created_at', '>=', now()->startOfMonth())->count(),
+                'total' => Service::where('created_by', Auth::id())->count(),
+                'active' => Service::where('created_by', Auth::id())->where('statut', 'actif')->count(),
+                'inactive' => Service::where('created_by', Auth::id())->where('statut', 'inactif')->count(),
+                'created_today' => Service::where('created_by', Auth::id())->whereDate('created_at', today())->count(),
+                'created_this_week' => Service::where('created_by', Auth::id())->where('created_at', '>=', now()->startOfWeek())->count(),
+                'created_this_month' => Service::where('created_by', Auth::id())->where('created_at', '>=', now()->startOfMonth())->count(),
                 'my_services' => Service::where('created_by', Auth::id())->count(),
-                'recent_services' => Service::where('created_at', '>=', now()->subDays(7))->count(),
+                'recent_services' => Service::where('created_by', Auth::id())->where('created_at', '>=', now()->subDays(7))->count(),
             ];
 
             return response()->json([
@@ -487,7 +540,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ NOUVEAU : Statistiques par type/créateur
+     * ✅ CORRIGÉ : Statistiques par type seulement pour ses services
      */
     public function getStatsByType(Request $request): JsonResponse
     {
@@ -499,8 +552,9 @@ class ServiceController extends Controller
         }
 
         try {
-            // Statistiques par créateur
-            $statsByCreator = Service::selectRaw('created_by, COUNT(*) as total')
+            // 🔒 STATISTIQUES PAR TYPE : Seulement ses propres services
+            $statsByCreator = Service::where('created_by', Auth::id())
+                ->selectRaw('created_by, COUNT(*) as total')
                 ->selectRaw('SUM(CASE WHEN statut = "actif" THEN 1 ELSE 0 END) as active')
                 ->selectRaw('SUM(CASE WHEN statut = "inactif" THEN 1 ELSE 0 END) as inactive')
                 ->with('creator:id,username')
@@ -530,7 +584,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ NOUVEAU : Formater l'âge du service
+     * Formater l'âge du service (pas de changement)
      */
     private function formatServiceAge(int $days): string
     {

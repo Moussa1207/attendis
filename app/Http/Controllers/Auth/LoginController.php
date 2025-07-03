@@ -16,7 +16,7 @@ class LoginController extends Controller
     }
 
     /**
-     * ✅ AMÉLIORÉ : Gestion de la connexion avec tracking complet
+     *  Gestion de la connexion avec tracking complet
      */
     public function login(Request $request)
     {
@@ -38,7 +38,7 @@ class LoginController extends Controller
         $credentials = $request->only('email', 'password');
         $remember = $request->has('remember');
 
-        // ✅ AMÉLIORATION : Vérifier avec les paramètres de sécurité dynamiques
+        //  Vérifier avec les paramètres de sécurité dynamiques
         $user = User::where('email', $credentials['email'])->first();
         
         if ($user && $user->isLockedOut()) {
@@ -67,7 +67,7 @@ class LoginController extends Controller
         if (Auth::attempt($credentials, $remember)) {
             $user = Auth::user();
 
-            // ✅ AMÉLIORATION : Vérifier le nombre de sessions avec les paramètres
+            //  Vérifier le nombre de sessions avec les paramètres
             $maxSessions = $user->getMaxAllowedSessions();
             $currentSessions = $this->getCurrentSessionsCount($user->id);
             
@@ -77,7 +77,7 @@ class LoginController extends Controller
                     ->with('error', "Nombre maximum de sessions simultanées atteint ({$maxSessions}). Fermez une session existante pour vous reconnecter.");
             }
 
-            // ✅ AMÉLIORATION : Appliquer les paramètres automatiques selon le type d'utilisateur
+            //  Appliquer les paramètres automatiques selon le type d'utilisateur
             if ($user->canBeAutoDetected()) {
                 $user->markAsAvailable();
                 
@@ -86,7 +86,7 @@ class LoginController extends Controller
                 }
             }
 
-            // ✅ AMÉLIORATION : Enregistrer la connexion avec les paramètres
+            //  Enregistrer la connexion avec les paramètres
             $user->recordSuccessfulLoginWithSettings();
 
             // Vérifier le statut de l'utilisateur
@@ -123,7 +123,7 @@ class LoginController extends Controller
             }
         }
 
-        // ✅ AMÉLIORATION : Enregistrer l'échec avec les paramètres
+        //  Enregistrer l'échec avec les paramètres
         if ($user) {
             $user->recordFailedLoginWithSettings();
         } else {
@@ -141,7 +141,7 @@ class LoginController extends Controller
     }
 
     /**
-     * ✅ NOUVEAU : Enregistrer une connexion réussie avec tracking complet
+     *  Enregistrer une connexion réussie avec tracking complet
      */
     private function recordSuccessfulLogin(User $user, Request $request): void
     {
@@ -171,7 +171,7 @@ class LoginController extends Controller
     }
 
     /**
-     * ✅ NOUVEAU : Enregistrer une tentative de connexion échouée avec tracking
+     *  Enregistrer une tentative de connexion échouée avec tracking
      */
     private function recordFailedLogin(Request $request, string $email): void
     {
@@ -192,7 +192,7 @@ class LoginController extends Controller
                     'will_be_locked' => $user->failed_login_attempts >= 5
                 ]);
 
-                // ✅ SÉCURITÉ : Avertissement si le compte va être verrouillé
+                //  SÉCURITÉ : Avertissement si le compte va être verrouillé
                 if ($user->failed_login_attempts >= 5) {
                     \Log::warning('User account locked due to failed attempts', [
                         'user_id' => $user->id,
@@ -241,7 +241,7 @@ class LoginController extends Controller
     }
 
     /**
-     * ✅ AMÉLIORÉ : Traiter le changement de mot de passe obligatoire avec tracking
+     *  Traiter le changement de mot de passe obligatoire avec tracking
      */
     public function updateMandatoryPassword(Request $request)
     {
@@ -277,11 +277,11 @@ class LoginController extends Controller
                     ->with('error', 'Le mot de passe ne respecte pas les critères de sécurité requis.');
             }
 
-            // ✅ AMÉLIORÉ : Mettre à jour le mot de passe avec tracking de la date
+            //  Mettre à jour le mot de passe avec tracking de la date
             $user->update([
                 'password' => Hash::make($request->password),
-                'last_password_change' => now(), // ✅ NOUVEAU : Tracking de la date de changement
-                'failed_login_attempts' => 0, // ✅ NOUVEAU : Réinitialiser les tentatives échouées
+                'last_password_change' => now(), //  Tracking de la date de changement
+                'failed_login_attempts' => 0, //  Réinitialiser les tentatives échouées
             ]);
 
             // Marquer que le password reset n'est plus requis
@@ -290,13 +290,13 @@ class LoginController extends Controller
             // Connecter l'utilisateur automatiquement
             Auth::login($user);
 
-            // ✅ NOUVEAU : Enregistrer cette connexion comme réussie
+            //  Enregistrer cette connexion comme réussie
             $this->recordSuccessfulLogin($user, $request);
 
             // Nettoyer la session
             session()->forget('user_must_change_password');
 
-            // ✅ AMÉLIORÉ : Log plus détaillé
+            //  Log plus détaillé
             \Log::info('Mandatory password change completed successfully', [
                 'user_id' => $user->id,
                 'username' => $user->username,
@@ -378,7 +378,7 @@ class LoginController extends Controller
     }
 
     /**
-     * ✅ AMÉLIORÉ : Déconnexion avec logging détaillé
+     *  Déconnexion avec logging détaillé
      */
     public function logout(Request $request)
     {
@@ -410,7 +410,7 @@ class LoginController extends Controller
     }
 
     /**
-     * ✅ NOUVEAU : Méthode utilitaire pour débloquer un compte (pour les admins)
+     *  Méthode utilitaire pour débloquer un compte (pour les admins)
      * Cette méthode peut être appelée par les administrateurs pour débloquer un compte
      */
     public function unlockAccount(Request $request, User $user)
@@ -463,7 +463,7 @@ class LoginController extends Controller
         }
     }
 
-    // ✅ NOUVELLE MÉTHODE : Attribution automatique des services
+    //  Attribution automatique des services
     private function autoAssignServicesToAdvisor(User $user): void
     {
         try {
@@ -489,7 +489,7 @@ class LoginController extends Controller
         }
     }
 
-    // ✅ NOUVELLE MÉTHODE : Compter les sessions actives
+    //  Compter les sessions actives
     private function getCurrentSessionsCount(int $userId): int
     {
         try {
@@ -508,7 +508,7 @@ class LoginController extends Controller
         }
     }
 
-    // ✅ NOUVELLE MÉTHODE : Marquer un conseiller comme disponible
+    //  Marquer un conseiller comme disponible
     private function markAdvisorAsAvailable(User $user): void
     {
         try {
@@ -535,7 +535,7 @@ class LoginController extends Controller
     }
 
     /**
-     * ✅ NOUVEAU : Middleware pour vérifier la fermeture automatique en temps réel
+     *  Middleware pour vérifier la fermeture automatique en temps réel
      */
     public function checkSessionClosure(Request $request)
     {

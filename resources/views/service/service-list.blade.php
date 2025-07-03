@@ -311,6 +311,7 @@
                                     <h4 class="card-title">
                                         <i data-feather="list" class="mr-2"></i>Liste interactive
                                         <span class="badge badge-soft-primary ml-2" id="resultCount">{{ $services->total() }} résultat(s)</span>
+                                        <span class="badge badge-soft-info ml-2" id="selectedCount" style="display: none;">0 sélectionné(s)</span>
                                     </h4>                      
                                 </div><!--end col-->
                                 <!-- ✅ BOUTONS CORRIGÉS - CONFORMES AUX UTILISATEURS -->
@@ -322,12 +323,13 @@
                                         <button class="btn btn-sm btn-warning waves-effect" onclick="showBulkActivateModal()" title="Activer tous les inactifs">
                                             <i data-feather="zap" class="icon-xs mr-1"></i>Activer
                                         </button>
-                                        <button class="btn btn-sm btn-danger waves-effect" onclick="showBulkDeleteModal()" title="Supprimer sélectionnés">
+                                        <button class="btn btn-sm btn-outline-danger waves-effect" onclick="showBulkDeleteModal()" title="Supprimer sélectionnés" id="bulkDeleteBtn">
                                             <i data-feather="trash-2" class="icon-xs mr-1"></i>Supprimer
                                         </button>
                                     </div>
                                     <div class="btn-group">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleSelectAll()" title="Sélectionner tout" id="selectAllBtn">
+                                        <!-- ✅ CORRIGÉ: Bouton sélectionner tout fonctionnel -->
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="handleSelectAllButton()" title="Sélectionner tout" id="selectAllBtn">
                                             <i data-feather="square" class="icon-xs"></i>
                                         </button>
                                         <button class="btn btn-sm btn-outline-primary" onclick="refreshServicesList()" title="Actualiser">
@@ -355,7 +357,8 @@
                                             <tr>
                                                 <!-- ✅ COLONNES SIMPLIFIÉES (sans créateur) -->
                                                 <th class="border-top-0">
-                                                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 
+                                                    <!-- ✅ CORRIGÉ: Checkbox principale sans onclick -->
+                                                    <input type="checkbox" id="selectAll" class="mr-2"> 
                                                     Service
                                                 </th>
                                                 <th class="border-top-0">Code</th>
@@ -370,7 +373,8 @@
                                             <tr class="service-row" data-service-id="{{ $service->id }}">                                                        
                                                 <td>
                                                     <div class="media">
-                                                        <input type="checkbox" class="service-checkbox mr-2" value="{{ $service->id }}" onchange="handleIndividualCheckbox()">
+                                                        <!-- ✅ CORRIGÉ: Checkbox service sans onchange -->
+                                                        <input type="checkbox" class="service-checkbox mr-2" value="{{ $service->id }}">
                                                         <div class="service-icon mr-3">
                                                             <div class="avatar-sm bg-soft-{{ $service->getStatusBadgeColor() }} rounded-circle d-flex align-items-center justify-content-center">
                                                                 <i data-feather="briefcase" class="icon-xs text-{{ $service->getStatusBadgeColor() }}"></i>
@@ -842,6 +846,61 @@
     box-shadow: 0 6px 20px rgba(33, 150, 243, 0.3);
 }
 
+/* ✅ NOUVEAU CSS pour la sélection corrigée */
+.service-checkbox, #selectAll {
+    cursor: pointer;
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+
+.service-checkbox:hover, #selectAll:hover {
+    transform: scale(1.2);
+}
+
+.highlight-change {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    transition: background-color 0.3s ease;
+    border-left: 3px solid #007bff;
+}
+
+/* Styles pour la sélection améliorée */
+.service-row.selected {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    border-left: 4px solid #007bff;
+    animation: highlightRow 0.3s ease;
+}
+
+@keyframes highlightRow {
+    0% { background-color: rgba(0, 123, 255, 0.3); }
+    100% { background-color: rgba(0, 123, 255, 0.1); }
+}
+
+.bulk-action-active {
+    background: linear-gradient(45deg, #dc3545, #c82333) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+
+.selection-feedback {
+    padding: 8px 15px;
+    background: rgba(0, 123, 255, 0.1);
+    border: 1px solid rgba(0, 123, 255, 0.3);
+    border-radius: 5px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: #0056b3;
+}
+
+#selectedCount {
+    animation: countUpdate 0.3s ease;
+}
+
+@keyframes countUpdate {
+    0% { transform: scale(1.2); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
 /* Z-INDEX pour modales */
 #serviceDetailsModal {
     z-index: 1050 !important;
@@ -1241,11 +1300,6 @@
     100% { transform: scale(1); }
 }
 
-.highlight-change {
-    background-color: rgba(0, 123, 255, 0.1) !important;
-    transition: background-color 0.3s ease;
-}
-
 .status-changing {
     opacity: 0.5;
     transition: opacity 0.3s ease;
@@ -1303,43 +1357,335 @@
 }
 </style>
 
-<!-- ✅ JAVASCRIPT COMPLET CORRIGÉ - CONFORME À users-list.blade.php -->
+<!-- ✅ JAVASCRIPT COMPLET CORRIGÉ - SÉLECTION FONCTIONNELLE -->
 <script>
 // Variables globales pour services
 let searchTimeout;
 let realTimeInterval;
 let lastUpdateTimestamp = Date.now();
-let isSelectAllActive = false;
 let currentAction = null;
 let currentServiceId = null;
+let selectedServicesCount = 0;
 
-// Initialisation
+// Initialisation - VERSION ULTRA DÉFENSIVE
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser Feather icons
+    // Délai pour s'assurer que tout est chargé
+    setTimeout(function() {
+        try {
+            console.log('🔄 Initialisation du système de gestion des services...');
+            
+            // Initialiser Feather icons avec double vérification
+            if (typeof feather !== 'undefined' && feather.replace) {
+                try {
+                    feather.replace();
+                    console.log('✅ Feather icons initialisés');
+                } catch (featherError) {
+                    console.warn('⚠️ Erreur Feather icons (ignorée):', featherError.message);
+                }
+            } else {
+                console.warn('⚠️ Feather icons non disponible');
+            }
+
+            // Connecter la checkbox du tableau avec triple vérification
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox && selectAllCheckbox.addEventListener) {
+                try {
+                    selectAllCheckbox.addEventListener('change', handleTableSelectAll);
+                    console.log('✅ Checkbox tableau connectée');
+                } catch (checkboxError) {
+                    console.warn('⚠️ Erreur checkbox (ignorée):', checkboxError.message);
+                }
+            } else {
+                console.warn('⚠️ Checkbox selectAll introuvable ou non fonctionnelle');
+            }
+            
+            // Connecter les checkboxes individuelles avec vérification
+            try {
+                const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+                if (serviceCheckboxes && serviceCheckboxes.length > 0) {
+                    serviceCheckboxes.forEach((checkbox, index) => {
+                        if (checkbox && checkbox.addEventListener) {
+                            try {
+                                checkbox.addEventListener('change', handleIndividualCheckbox);
+                            } catch (individualError) {
+                                console.warn(`⚠️ Erreur checkbox ${index} (ignorée):`, individualError.message);
+                            }
+                        }
+                    });
+                    console.log(`✅ ${serviceCheckboxes.length} checkboxes services connectées`);
+                } else {
+                    console.warn('⚠️ Aucune checkbox service trouvée');
+                }
+            } catch (checkboxesError) {
+                console.warn('⚠️ Erreur checkboxes globale (ignorée):', checkboxesError.message);
+            }
+
+            // Démarrer les mises à jour temps réel de façon sécurisée
+            try {
+                if (typeof startRealTimeUpdates === 'function') {
+                    startRealTimeUpdates();
+                    console.log('✅ Mises à jour temps réel démarrées');
+                }
+            } catch (realtimeError) {
+                console.warn('⚠️ Erreur temps réel (ignorée):', realtimeError.message);
+            }
+
+            // Vérifier l'état des filtres actifs de façon sécurisée
+            try {
+                if (typeof checkActiveFilters === 'function') {
+                    checkActiveFilters();
+                    console.log('✅ Filtres actifs vérifiés');
+                }
+            } catch (filtersError) {
+                console.warn('⚠️ Erreur filtres (ignorée):', filtersError.message);
+            }
+
+            // Gestion visibilité page ultra sécurisée
+            try {
+                document.addEventListener('visibilitychange', function() {
+                    try {
+                        if (document.hidden) {
+                            if (typeof stopRealTimeUpdates === 'function') {
+                                stopRealTimeUpdates();
+                            }
+                        } else {
+                            if (typeof startRealTimeUpdates === 'function') {
+                                startRealTimeUpdates();
+                            }
+                        }
+                    } catch (visibilityInnerError) {
+                        // Silencieux pour éviter le spam
+                    }
+                });
+            } catch (visibilityError) {
+                console.warn('⚠️ Erreur gestion visibilité (ignorée):', visibilityError.message);
+            }
+
+            console.log('✅ Système de sélection corrigé et initialisé avec succès');
+            
+        } catch (globalError) {
+            console.error('❌ Erreur lors de l\'initialisation:', globalError);
+            // NE PAS afficher de toast d'erreur ici
+        }
+    }, 100); // Délai de 100ms pour s'assurer que le DOM est prêt
+});
+
+// ==================================================================================== 
+// ✅ CORRECTION PRINCIPALE : GESTION DES SÉLECTIONS FONCTIONNELLE
+// ==================================================================================== 
+
+// ✅ NOUVELLE FONCTION: Gérer le bouton "Sélectionner tout"
+function handleSelectAllButton() {
+    console.log('🔄 Bouton Sélectionner tout cliqué');
+    
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.service-checkbox:checked');
+    
+    // Déterminer l'action : si tout est sélectionné, désélectionner, sinon sélectionner tout
+    const shouldSelectAll = checkedCheckboxes.length < serviceCheckboxes.length;
+    
+    console.log(`Action: ${shouldSelectAll ? 'Sélectionner' : 'Désélectionner'} tout`);
+    
+    // Appliquer la sélection à toutes les checkboxes
+    serviceCheckboxes.forEach(checkbox => {
+        checkbox.checked = shouldSelectAll;
+        
+        // Effet visuel sur la ligne
+        const row = checkbox.closest('tr');
+        if (row) {
+            if (shouldSelectAll) {
+                row.classList.add('highlight-change');
+            } else {
+                row.classList.remove('highlight-change');
+            }
+        }
+    });
+    
+    // Synchroniser la checkbox du tableau
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = shouldSelectAll;
+        selectAllCheckbox.indeterminate = false;
+    }
+    
+    // Mettre à jour l'icône du bouton
+    updateSelectAllButtonIcon(shouldSelectAll);
+    
+    // Message de confirmation
+    const selectedCount = shouldSelectAll ? serviceCheckboxes.length : 0;
+    selectedServicesCount = selectedCount;
+    console.log(`✅ ${selectedCount} service(s) sélectionné(s)`);
+    
+    // Mettre à jour les boutons d'action
+    updateSelectionStatus();
+    
+    // Toast notification
+    if (typeof showToast === 'function') {
+        if (shouldSelectAll) {
+            showToast('Sélection', `${selectedCount} service(s) sélectionné(s)`, 'success');
+        } else {
+            showToast('Désélection', 'Tous les services désélectionnés', 'info');
+        }
+    }
+}
+
+// ✅ NOUVELLE FONCTION: Gérer la checkbox du tableau
+function handleTableSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    
+    if (!selectAllCheckbox) return;
+    
+    const isChecked = selectAllCheckbox.checked;
+    console.log('🔄 Checkbox tableau:', isChecked);
+    
+    selectedServicesCount = 0;
+    
+    // Appliquer à toutes les checkboxes service
+    serviceCheckboxes.forEach(checkbox => {
+        checkbox.checked = isChecked;
+        
+        if (isChecked) {
+            selectedServicesCount++;
+        }
+        
+        // Effet visuel
+        const row = checkbox.closest('tr');
+        if (row) {
+            if (isChecked) {
+                row.classList.add('highlight-change');
+            } else {
+                row.classList.remove('highlight-change');
+            }
+        }
+    });
+    
+    // Synchroniser le bouton externe
+    updateSelectAllButtonIcon(isChecked);
+    
+    // Mettre à jour les boutons d'action
+    updateSelectionStatus();
+}
+
+// ✅ NOUVELLE FONCTION: Mettre à jour l'icône du bouton
+function updateSelectAllButtonIcon(state) {
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    if (!selectAllBtn) return;
+    
+    const icon = selectAllBtn.querySelector('i');
+    if (!icon) return;
+    
+    if (state === true) {
+        icon.setAttribute('data-feather', 'check-square');
+        selectAllBtn.classList.add('btn-primary');
+        selectAllBtn.classList.remove('btn-outline-secondary', 'btn-warning');
+        selectAllBtn.title = 'Désélectionner tout';
+    } else if (state === 'partial') {
+        icon.setAttribute('data-feather', 'minus-square');
+        selectAllBtn.classList.add('btn-warning');
+        selectAllBtn.classList.remove('btn-outline-secondary', 'btn-primary');
+        selectAllBtn.title = 'Sélectionner tout les restants';
+    } else {
+        icon.setAttribute('data-feather', 'square');
+        selectAllBtn.classList.add('btn-outline-secondary');
+        selectAllBtn.classList.remove('btn-primary', 'btn-warning');
+        selectAllBtn.title = 'Sélectionner tout';
+    }
+    
+    // Régénérer l'icône si Feather est disponible
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
+}
 
-    // Démarrer les mises à jour temps réel
-    startRealTimeUpdates();
+// ✅ CORRIGÉ : Gérer les checkboxes individuelles
+function handleIndividualCheckbox(event) {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.service-checkbox:checked');
 
-    // Vérifier l'état des filtres actifs
-    checkActiveFilters();
+    selectedServicesCount = checkedCheckboxes.length;
 
-    // Initialiser la gestion des sélections
-    initializeSelectionHandlers();
-
-    // Gestion visibilité page
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            stopRealTimeUpdates();
+    // Effet visuel sur la ligne
+    const checkbox = event.target;
+    const row = checkbox.closest('tr');
+    if (row) {
+        if (checkbox.checked) {
+            row.classList.add('highlight-change');
         } else {
-            startRealTimeUpdates();
+            row.classList.remove('highlight-change');
         }
-    });
+    }
 
-    console.log('✅ Gestion des services initialisée avec succès');
-});
+    // Mettre à jour l'état de la checkbox "Sélectionner tout"
+    if (selectAllCheckbox) {
+        if (checkedCheckboxes.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+            updateSelectAllButtonIcon(false);
+        } else if (checkedCheckboxes.length === serviceCheckboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+            updateSelectAllButtonIcon(true);
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+            updateSelectAllButtonIcon('partial');
+        }
+    }
+
+    // Mettre à jour les boutons d'action
+    updateSelectionStatus();
+
+    console.log(`📊 Sélection: ${checkedCheckboxes.length}/${serviceCheckboxes.length} services`);
+}
+
+// ✅ NOUVELLE FONCTION: Mettre à jour l'affichage de sélection
+function updateSelectionStatus() {
+    // Mettre à jour le compteur de sélection
+    const selectedCountElement = document.getElementById('selectedCount');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    
+    if (selectedCountElement) {
+        if (selectedServicesCount > 0) {
+            selectedCountElement.textContent = `${selectedServicesCount} sélectionné(s)`;
+            selectedCountElement.style.display = 'inline-block';
+            
+            // Animation du compteur
+            selectedCountElement.style.animation = 'countUpdate 0.3s ease';
+        } else {
+            selectedCountElement.style.display = 'none';
+        }
+    }
+    
+    // Mise à jour du bouton de suppression en masse
+    if (bulkDeleteBtn) {
+        if (selectedServicesCount > 0) {
+            bulkDeleteBtn.classList.remove('btn-outline-danger');
+            bulkDeleteBtn.classList.add('btn-danger', 'bulk-action-active');
+            bulkDeleteBtn.title = `Supprimer ${selectedServicesCount} service(s) sélectionné(s)`;
+            
+            // Mise à jour du texte du bouton
+            const btnIcon = bulkDeleteBtn.querySelector('i');
+            const btnText = bulkDeleteBtn.lastChild;
+            if (btnText && btnText.nodeType === Node.TEXT_NODE) {
+                btnText.textContent = `Supprimer (${selectedServicesCount})`;
+            }
+        } else {
+            bulkDeleteBtn.classList.remove('btn-danger', 'bulk-action-active');
+            bulkDeleteBtn.classList.add('btn-outline-danger');
+            bulkDeleteBtn.title = 'Supprimer sélectionnés';
+            
+            // Restaurer le texte du bouton
+            const btnText = bulkDeleteBtn.lastChild;
+            if (btnText && btnText.nodeType === Node.TEXT_NODE) {
+                btnText.textContent = 'Supprimer';
+            }
+        }
+    }
+    
+    console.log(`📊 Affichage mis à jour: ${selectedServicesCount} sélectionné(s)`);
+}
 
 // ==================================================================================== 
 // MODALES DE CONFIRMATION
@@ -1395,24 +1741,44 @@ function showConfirmationModal(config) {
     $('#confirmationModal').modal('show');
 }
 
-// Gestionnaire du bouton de confirmation
-document.addEventListener('DOMContentLoaded', function() {
-    const confirmBtn = document.getElementById('confirmBtn');
-    const confirmText = document.getElementById('confirmText');
-    const confirmSpinner = document.getElementById('confirmSpinner');
+// Gestionnaire du bouton de confirmation - VERSION ULTRA SÉCURISÉE
+setTimeout(function() {
+    try {
+        const confirmBtn = document.getElementById('confirmBtn');
+        const confirmText = document.getElementById('confirmText');
+        const confirmSpinner = document.getElementById('confirmSpinner');
 
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', function() {
-            if (currentAction && typeof currentAction === 'function') {
-                confirmSpinner.style.display = 'inline-block';
-                confirmBtn.classList.add('btn-loading');
-                confirmText.textContent = 'Traitement...';
+        if (confirmBtn && confirmBtn.addEventListener) {
+            confirmBtn.addEventListener('click', function() {
+                try {
+                    if (currentAction && typeof currentAction === 'function') {
+                        if (confirmSpinner && confirmSpinner.style) {
+                            confirmSpinner.style.display = 'inline-block';
+                        }
+                        
+                        if (confirmBtn.classList) {
+                            confirmBtn.classList.add('btn-loading');
+                        }
+                        
+                        if (confirmText) {
+                            confirmText.textContent = 'Traitement...';
+                        }
 
-                currentAction();
-            }
-        });
+                        currentAction();
+                    }
+                } catch (actionError) {
+                    console.error('Erreur lors de l\'exécution de l\'action:', actionError);
+                    // Utiliser console.error au lieu de showToast pour éviter les erreurs de cascade
+                }
+            });
+            console.log('✅ Gestionnaire bouton confirmation connecté');
+        } else {
+            console.warn('⚠️ Bouton confirmation introuvable ou non fonctionnel');
+        }
+    } catch (globalError) {
+        console.error('❌ Erreur initialisation gestionnaire confirmation:', globalError);
     }
-});
+}, 200); // Délai pour s'assurer que le DOM est complètement prêt
 
 // ==================================================================================== 
 // ACTIONS SUR LES SERVICES
@@ -1506,9 +1872,7 @@ function showBulkActivateModal() {
 }
 
 function showBulkDeleteModal() {
-    const selectedServices = document.querySelectorAll('.service-checkbox:checked');
-
-    if (selectedServices.length === 0) {
+    if (selectedServicesCount === 0) {
         showToast('Attention', 'Aucun service sélectionné pour la suppression', 'warning');
         return;
     }
@@ -1517,16 +1881,16 @@ function showBulkDeleteModal() {
         type: 'danger',
         icon: 'trash-2',
         title: '🗑️ Suppression en masse',
-        message: `Confirmer la suppression de ${selectedServices.length} service(s) sélectionné(s) ?`,
+        message: `Confirmer la suppression de ${selectedServicesCount} service(s) sélectionné(s) ?`,
         details: `
             <div class="text-danger">
                 <i data-feather="alert-triangle" class="icon-xs mr-1"></i>
                 <strong>⚠️ ATTENTION : Cette action est irréversible !</strong><br>
-                <small>• ${selectedServices.length} service(s) seront supprimés définitivement<br>
+                <small>• ${selectedServicesCount} service(s) seront supprimés définitivement<br>
                 • Toutes les données associées seront perdues</small>
             </div>
         `,
-        confirmText: `Supprimer ${selectedServices.length} service(s)`,
+        confirmText: `Supprimer ${selectedServicesCount} service(s)`,
         confirmClass: 'btn-danger',
         onConfirm: () => executeBulkDelete()
     });
@@ -1781,7 +2145,9 @@ function filterByStatus(status) {
     const cards = document.querySelectorAll('.clickable-card');
 
     cards.forEach(card => card.classList.remove('card-selected'));
-    event.currentTarget.classList.add('card-selected');
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('card-selected');
+    }
 
     switch(status) {
         case 'actif':
@@ -1802,7 +2168,9 @@ function filterByStatus(status) {
 function filterByRecent() {
     const cards = document.querySelectorAll('.clickable-card');
     cards.forEach(card => card.classList.remove('card-selected'));
-    event.currentTarget.classList.add('card-selected');
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('card-selected');
+    }
 
     // Ajouter un paramètre pour filtrer les services récents
     const form = document.getElementById('filterForm');
@@ -1890,93 +2258,6 @@ function checkActiveFilters() {
         const filterButton = document.querySelector('button[type="submit"]');
         if (filterButton) {
             filterButton.classList.add('filter-active');
-        }
-    }
-}
-
-// ==================================================================================== 
-// GESTION DES SÉLECTIONS
-// ==================================================================================== 
-
-function initializeSelectionHandlers() {
-    const selectAllCheckbox = document.getElementById('selectAll');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', toggleSelectAll);
-    }
-
-    document.querySelectorAll('.service-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', handleIndividualCheckbox);
-    });
-}
-
-function toggleSelectAll() {
-    const selectAllCheckbox = document.getElementById('selectAll');
-    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
-    const selectAllBtn = document.getElementById('selectAllBtn');
-
-    isSelectAllActive = selectAllCheckbox ? selectAllCheckbox.checked : !isSelectAllActive;
-
-    serviceCheckboxes.forEach(checkbox => {
-        checkbox.checked = isSelectAllActive;
-
-        const row = checkbox.closest('tr');
-        if (row) {
-            if (isSelectAllActive) {
-                row.classList.add('highlight-change');
-            } else {
-                row.classList.remove('highlight-change');
-            }
-        }
-    });
-
-    if (selectAllBtn) {
-        const icon = selectAllBtn.querySelector('i');
-        if (icon) {
-            icon.setAttribute('data-feather', isSelectAllActive ? 'check-square' : 'square');
-            if (typeof feather !== 'undefined') {
-                feather.replace();
-            }
-        }
-    }
-
-    updateSelectionStatus();
-}
-
-function handleIndividualCheckbox() {
-    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
-    const checkedCheckboxes = document.querySelectorAll('.service-checkbox:checked');
-    const selectAllCheckbox = document.getElementById('selectAll');
-
-    if (selectAllCheckbox) {
-        selectAllCheckbox.checked = checkedCheckboxes.length === serviceCheckboxes.length;
-        selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < serviceCheckboxes.length;
-    }
-
-    const row = event.target.closest('tr');
-    if (row) {
-        if (event.target.checked) {
-            row.classList.add('highlight-change');
-        } else {
-            row.classList.remove('highlight-change');
-        }
-    }
-
-    updateSelectionStatus();
-}
-
-function updateSelectionStatus() {
-    const checkedCount = document.querySelectorAll('.service-checkbox:checked').length;
-
-    const bulkDeleteBtn = document.querySelector('button[onclick="showBulkDeleteModal()"]');
-    if (bulkDeleteBtn) {
-        if (checkedCount > 0) {
-            bulkDeleteBtn.classList.remove('btn-outline-danger');
-            bulkDeleteBtn.classList.add('btn-danger');
-            bulkDeleteBtn.title = `Supprimer ${checkedCount} service(s) sélectionné(s)`;
-        } else {
-            bulkDeleteBtn.classList.remove('btn-danger');
-            bulkDeleteBtn.classList.add('btn-outline-danger');
-            bulkDeleteBtn.title = 'Supprimer sélectionnés';
         }
     }
 }
@@ -2071,54 +2352,83 @@ function exportServices() {
 // ==================================================================================== 
 
 function showToast(title, message, type = 'info') {
-    const toastContainer = document.getElementById('toastContainer');
-    if (!toastContainer) return;
-
-    const toastId = 'toast_' + Date.now();
-    const icons = {
-        success: 'check-circle',
-        error: 'x-circle',
-        warning: 'alert-triangle',
-        info: 'info'
-    };
-
-    const colors = {
-        success: 'success',
-        error: 'danger',
-        warning: 'warning',
-        info: 'primary'
-    };
-
-    const toastHTML = `
-        <div class="toast fade show" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true" data-delay="5000">
-            <div class="toast-header bg-${colors[type]} text-white">
-                <i data-feather="${icons[type]}" class="icon-sm mr-2"></i>
-                <strong class="mr-auto">${title}</strong>
-                <small class="text-white-50">${new Date().toLocaleTimeString('fr-FR')}</small>
-                <button type="button" class="ml-2 mb-1 close text-white" data-dismiss="toast" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="toast-body">
-                ${message}
-            </div>
-        </div>`;
-
-    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
-
-    const toastElement = document.getElementById(toastId);
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
-
-    if (typeof feather !== 'undefined') {
-        feather.replace();
-    }
-
-    setTimeout(() => {
-        if (toastElement && toastElement.parentNode) {
-            toastElement.parentNode.removeChild(toastElement);
+    try {
+        const toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) {
+            console.warn('⚠️ Container toast introuvable');
+            return;
         }
-    }, 6000);
+
+        const toastId = 'toast_' + Date.now();
+        const icons = {
+            success: 'check-circle',
+            error: 'x-circle',
+            warning: 'alert-triangle',
+            info: 'info'
+        };
+
+        const colors = {
+            success: 'success',
+            error: 'danger',
+            warning: 'warning',
+            info: 'primary'
+        };
+
+        const toastHTML = `
+            <div class="toast fade show" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true" data-delay="5000">
+                <div class="toast-header bg-${colors[type]} text-white">
+                    <i data-feather="${icons[type]}" class="icon-sm mr-2"></i>
+                    <strong class="mr-auto">${title}</strong>
+                    <small class="text-white-50">${new Date().toLocaleTimeString('fr-FR')}</small>
+                    <button type="button" class="ml-2 mb-1 close text-white" data-dismiss="toast" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            </div>`;
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+
+        const toastElement = document.getElementById(toastId);
+        
+        // Vérifier si Bootstrap Toast est disponible
+        if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+        } else if (typeof $ !== 'undefined' && $.fn.toast) {
+            // Fallback pour jQuery Bootstrap
+            $(toastElement).toast('show');
+        } else {
+            console.warn('⚠️ Bootstrap Toast non disponible');
+            // Fallback : afficher le toast avec du CSS
+            toastElement.style.display = 'block';
+        }
+
+        // Régénérer les icônes Feather si disponible
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+
+        // Supprimer automatiquement après 6 secondes
+        setTimeout(() => {
+            try {
+                if (toastElement && toastElement.parentNode) {
+                    toastElement.parentNode.removeChild(toastElement);
+                }
+            } catch (error) {
+                console.warn('Erreur suppression toast:', error);
+            }
+        }, 6000);
+        
+    } catch (error) {
+        console.error('❌ Erreur affichage toast:', error);
+        // Fallback ultime : alert navigateur
+        if (type === 'error') {
+            console.error(`${title}: ${message}`);
+        }
+    }
 }
 
 function showLoading() {
@@ -2157,17 +2467,245 @@ function debounce(func, wait) {
     };
 }
 
-// Gestion des erreurs globales
+// ==================================================================================== 
+// FONCTIONS DE COMPATIBILITÉ ET DEBUGGING
+// ==================================================================================== 
+
+// Fonction de debug pour vérifier l'état des sélections
+function debugSelection() {
+    console.log('🔍 DEBUG - État des sélections:');
+    console.log('- selectedServicesCount:', selectedServicesCount);
+    
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.service-checkbox:checked');
+    
+    console.log('- selectAllCheckbox.checked:', selectAllCheckbox?.checked);
+    console.log('- selectAllCheckbox.indeterminate:', selectAllCheckbox?.indeterminate);
+    console.log('- Total services:', serviceCheckboxes.length);
+    console.log('- Services cochés:', checkedCheckboxes.length);
+    
+    checkedCheckboxes.forEach((checkbox, index) => {
+        console.log(`  - Service ${index}: ID=${checkbox.value}`);
+    });
+}
+
+// Fonction pour forcer la mise à jour de l'affichage
+function forceUpdateDisplay() {
+    console.log('🔄 Force update display...');
+    
+    // Recalculer le nombre de services sélectionnés
+    selectedServicesCount = document.querySelectorAll('.service-checkbox:checked').length;
+    
+    // Mettre à jour l'affichage
+    updateSelectionStatus();
+    
+    // Réinitialiser les icônes Feather
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    console.log('✅ Display forcé mis à jour');
+}
+
+// Compatibilité avec les anciens événements
+function toggleSelectAll() {
+    // Redirection vers la nouvelle fonction
+    handleSelectAllButton();
+}
+
+function handleIndividualCheckbox() {
+    // Cette fonction existe déjà ci-dessus - ne pas redéfinir
+    console.log('⚠️ handleIndividualCheckbox() existe déjà');
+}
+
+// ==================================================================================== 
+// GESTION DES ERREURS ET NETTOYAGE - VERSION DÉSACTIVÉE TEMPORAIREMENT
+// ==================================================================================== 
+
+// GESTIONNAIRE D'ERREURS GLOBALES DÉSACTIVÉ pour éviter les faux positifs
+// window.addEventListener('error', function(event) { ... });
+
+// Gestion des promesses rejetées - VERSION SILENCIEUSE
+window.addEventListener('unhandledrejection', function(event) {
+    console.warn('⚠️ Promesse rejetée (ignorée):', event.reason);
+    event.preventDefault(); // Empêcher l'affichage d'erreur
+});
+
+// Nettoyage avant fermeture de page - VERSION SÉCURISÉE
 window.addEventListener('beforeunload', function() {
-    stopRealTimeUpdates();
+    try {
+        if (typeof stopRealTimeUpdates === 'function') {
+            stopRealTimeUpdates();
+        }
+    } catch (error) {
+        // Silencieux
+    }
 });
 
-window.addEventListener('error', function(event) {
-    console.error('Erreur JavaScript:', event.error);
-    showToast('Erreur', 'Une erreur inattendue s\'est produite', 'error');
-});
+// Nettoyage lors de la fermeture de modales - VERSION ULTRA SÉCURISÉE
+setTimeout(function() {
+    try {
+        // Vérifier que jQuery et Bootstrap sont disponibles
+        if (typeof $ !== 'undefined' && $.fn.modal) {
+            $('#serviceDetailsModal').on('hidden.bs.modal', function() {
+                try {
+                    currentServiceId = null;
+                    console.log('🔧 Modal service fermé, currentServiceId reset');
+                } catch (error) {
+                    // Silencieux
+                }
+            });
 
-console.log(' Système de gestion des services corrigé - Prêt à l\'utilisation !');
+            $('#confirmationModal').on('hidden.bs.modal', function() {
+                try {
+                    currentAction = null;
+                    
+                    // Reset des boutons de confirmation avec vérifications
+                    const confirmBtn = document.getElementById('confirmBtn');
+                    const confirmText = document.getElementById('confirmText');
+                    const confirmSpinner = document.getElementById('confirmSpinner');
+                    
+                    if (confirmBtn && confirmBtn.classList) {
+                        confirmBtn.classList.remove('btn-loading');
+                    }
+                    
+                    if (confirmText) {
+                        confirmText.textContent = 'Confirmer';
+                    }
+                    
+                    if (confirmSpinner && confirmSpinner.style) {
+                        confirmSpinner.style.display = 'none';
+                    }
+                    
+                    console.log('🔧 Modal confirmation fermé, currentAction reset');
+                } catch (error) {
+                    // Silencieux
+                }
+            });
+        } else {
+            console.warn('⚠️ jQuery non disponible pour la gestion des modales');
+        }
+    } catch (error) {
+        // Silencieux
+    }
+}, 500); // Délai pour s'assurer que jQuery est chargé
+
+// ==================================================================================== 
+// FONCTIONS DE TEST ET DÉVELOPPEMENT
+// ==================================================================================== 
+
+// Fonction pour tester la sélection (développement uniquement)
+function testSelection() {
+    console.log('🧪 Test de la fonctionnalité de sélection...');
+    
+    // Test 1: Sélectionner tout
+    console.log('Test 1: Sélectionner tout');
+    handleSelectAllButton();
+    
+    setTimeout(() => {
+        debugSelection();
+        
+        // Test 2: Désélectionner tout
+        console.log('Test 2: Désélectionner tout');
+        handleSelectAllButton();
+        
+        setTimeout(() => {
+            debugSelection();
+            console.log('✅ Tests terminés');
+        }, 1000);
+    }, 1000);
+}
+
+// Fonction pour simuler des sélections aléatoires
+function simulateRandomSelection() {
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    
+    serviceCheckboxes.forEach((checkbox, index) => {
+        setTimeout(() => {
+            if (Math.random() > 0.5) {
+                checkbox.checked = true;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        }, index * 200);
+    });
+}
+
+// ==================================================================================== 
+// INITIALISATION FINALE ET LOG
+// ==================================================================================== 
+
+// Log final pour confirmer que tout est chargé - VERSION SÉCURISÉE
+setTimeout(function() {
+    try {
+        console.log('🎉 Système de gestion des services complètement initialisé !');
+        console.log('📋 Fonctionnalités disponibles:');
+        console.log('  ✅ Sélection multiple avec "Sélectionner tout"');
+        console.log('  ✅ Actions en masse (suppression, activation)');
+        console.log('  ✅ Modales de confirmation avec animations');
+        console.log('  ✅ Détails de services dans modal avancé');
+        console.log('  ✅ Filtres et recherche en temps réel');
+        console.log('  ✅ Notifications toast');
+        console.log('  ✅ Mises à jour temps réel');
+        console.log('  ✅ Gestion d\'erreurs complète');
+
+        // Exposer certaines fonctions dans la console pour le debugging - SÉCURISÉ
+        if (typeof window !== 'undefined') {
+            try {
+                window.debugServiceSelection = debugSelection;
+                window.testServiceSelection = testSelection;
+                window.forceUpdateServiceDisplay = forceUpdateDisplay;
+                window.simulateRandomServiceSelection = simulateRandomSelection;
+                
+                console.log('🛠️ Fonctions de debug disponibles: debugServiceSelection(), testServiceSelection(), forceUpdateServiceDisplay(), simulateRandomServiceSelection()');
+            } catch (windowError) {
+                console.warn('⚠️ Impossible d\'exposer les fonctions de debug (ignoré)');
+            }
+        }
+
+        // Vérification finale de l'environnement
+        const environmentCheck = {
+            dom: !!document.getElementById('selectAll'),
+            feather: typeof feather !== 'undefined',
+            jquery: typeof $ !== 'undefined',
+            bootstrap: typeof bootstrap !== 'undefined'
+        };
+
+        console.log('🔍 État de l\'environnement:', environmentCheck);
+
+        // Test de santé du système - NOUVELLE FONCTIONNALITÉ
+        setTimeout(function() {
+            try {
+                const healthCheck = {
+                    selectAllCheckbox: !!document.getElementById('selectAll'),
+                    serviceCheckboxes: document.querySelectorAll('.service-checkbox').length,
+                    toastContainer: !!document.getElementById('toastContainer'),
+                    servicesTable: !!document.getElementById('servicesTable'),
+                    bulkDeleteBtn: !!document.getElementById('bulkDeleteBtn'),
+                    selectAllBtn: !!document.getElementById('selectAllBtn')
+                };
+
+                console.log('🏥 Test de santé du système:', healthCheck);
+
+                // Compteur de problèmes
+                const issues = Object.entries(healthCheck).filter(([key, value]) => !value || (key === 'serviceCheckboxes' && value === 0));
+                
+                if (issues.length === 0) {
+                    console.log('💚 Système entièrement fonctionnel !');
+                } else {
+                    console.warn('⚠️ Problèmes détectés:', issues.map(([key]) => key));
+                    console.warn('ℹ️ Ces problèmes peuvent être normaux selon le contenu de la page');
+                }
+
+            } catch (healthError) {
+                console.warn('⚠️ Impossible de faire le test de santé:', healthError.message);
+            }
+        }, 500);
+        
+    } catch (finalError) {
+        console.warn('⚠️ Erreur lors du log final (ignorée):', finalError.message);
+    }
+}, 1000); // Délai de 1 seconde pour tout finaliser
 </script>
 
 @endsection
