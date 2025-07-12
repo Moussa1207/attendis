@@ -141,7 +141,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * Dashboard utilisateur normal (layouts/app-users.blade.php)
+     * 🆕 NOUVELLE LOGIQUE : Dashboard utilisateur avec différenciation selon le type
+     * - POSTE ECRAN → Interface sans sidebar + grille services
+     * - ACCUEIL/CONSEILLER → Interface actuelle adaptée
      */
     public function userDashboard()
     {
@@ -154,27 +156,183 @@ class DashboardController extends Controller
         }
 
         try {
-            // Statistiques personnelles pour l'utilisateur (cohérent avec app-users)
-            $userStats = [
-                'days_since_creation' => $user->created_at->diffInDays(now()),
-                'account_age_formatted' => $user->created_at->diffForHumans(),
-                'is_recently_created' => $user->created_at->diffInDays(now()) < 7,
-                'creator_info' => $user->getCreationInfo(),
-                'login_count_today' => 1,
-                'last_password_change' => $user->updated_at->diffForHumans(),
-            ];
-
-            return view('layouts.app-users', compact('userStats'));
+            // 🎯 DIFFÉRENCIATION SELON LE TYPE D'UTILISATEUR
+            if ($user->isEcranUser()) {
+                return $this->ecranDashboard($user);
+            } else {
+                return $this->normalUserDashboard($user);
+            }
 
         } catch (\Exception $e) {
             \Log::error('User dashboard error', [
                 'user_id' => Auth::id(),
+                'user_type' => $user->getUserRole(),
                 'error' => $e->getMessage()
             ]);
 
             return redirect()->route('login')
-                ->with('error', 'Erreur lors du chargement de votre espace personnel.');
+                ->with('error', 'Erreur lors du chargement de votre espace.');
         }
+    }
+
+    /**
+     * 🆕 Dashboard pour utilisateurs POSTE ECRAN
+     * Interface sans sidebar + grille de services créés par l'admin
+     */
+    private function ecranDashboard(User $user)
+    {
+        try {
+            // Récupérer l'admin créateur de cet utilisateur
+            $creator = $user->getCreator();
+            
+            if (!$creator) {
+                \Log::warning("Utilisateur écran sans créateur détecté", [
+                    'user_id' => $user->id,
+                    'username' => $user->username
+                ]);
+                
+                return view('layouts.app-ecran', [
+                    'services' => collect(),
+                    'userInfo' => $this->getUserInfo($user),
+                    'noCreator' => true
+                ]);
+            }
+
+            // Récupérer TOUS les services créés par l'admin (actifs et inactifs)
+            $services = $creator->createdServices()
+                              ->orderBy('statut', 'desc') // Actifs en premier
+                              ->orderBy('created_at', 'desc')
+                              ->get();
+
+            // Statistiques des services pour l'interface écran
+            $serviceStats = [
+                'total_services' => $services->count(),
+                'active_services' => $services->where('statut', 'actif')->count(),
+                'inactive_services' => $services->where('statut', 'inactif')->count(),
+                'recent_services' => $services->where('created_at', '>=', now()->subDays(7))->count(),
+            ];
+
+            \Log::info("Interface écran chargée", [
+                'user_id' => $user->id,
+                'creator_id' => $creator->id,
+                'services_count' => $services->count()
+            ]);
+
+            return view('layouts.app-ecran', [
+                'services' => $services,
+                'serviceStats' => $serviceStats,
+                'userInfo' => $this->getUserInfo($user),
+                'creatorInfo' => [
+                    'username' => $creator->username,
+                    'company' => $creator->company,
+                    'email' => $creator->email
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur dashboard écran', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return view('layouts.app-ecran', [
+                'services' => collect(),
+                'userInfo' => $this->getUserInfo($user),
+                'error' => 'Erreur lors du chargement des services'
+            ]);
+        }
+    }
+
+    /**
+     * 🆕 Dashboard pour utilisateurs ACCUEIL et CONSEILLER
+     * Interface actuelle app-users.blade.php adaptée selon le type
+     */
+    private function normalUserDashboard(User $user)
+    {
+        // Statistiques personnelles pour l'utilisateur
+        $userStats = [
+            'days_since_creation' => $user->created_at->diffInDays(now()),
+            'account_age_formatted' => $user->created_at->diffForHumans(),
+            'is_recently_created' => $user->created_at->diffInDays(now()) < 7,
+            'creator_info' => $user->getCreationInfo(),
+            'login_count_today' => 1,
+            'last_password_change' => $user->updated_at->diffForHumans(),
+        ];
+
+        // Statistiques adaptées selon le type
+        $typeSpecificData = $this->getTypeSpecificData($user);
+
+        return view('layouts.app-users', [
+            'userStats' => $userStats,
+            'typeSpecificData' => $typeSpecificData,
+            'userInfo' => $this->getUserInfo($user)
+        ]);
+    }
+
+    /**
+     * 🆕 Données spécifiques selon le type d'utilisateur
+     */
+    private function getTypeSpecificData(User $user): array
+    {
+        $data = [
+            'type_description' => '',
+            'type_features' => [],
+            'type_recommendations' => []
+        ];
+
+        if ($user->isAccueilUser()) {
+            $data['type_description'] = 'Poste Accueil - Réception et orientation des visiteurs';
+            $data['type_features'] = [
+                'Accueil des visiteurs',
+                'Orientation et information',
+                'Gestion des rendez-vous',
+                'Communication interne'
+            ];
+            $data['type_recommendations'] = [
+                'Vérifiez régulièrement les nouveaux visiteurs',
+                'Tenez à jour les informations d\'orientation',
+                'Communiquez avec l\'équipe de gestion'
+            ];
+        } elseif ($user->isConseillerUser()) {
+            $data['type_description'] = 'Poste Conseiller - Support et assistance client';
+            $data['type_features'] = [
+                'Support client avancé',
+                'Résolution de problèmes',
+                'Conseils personnalisés',
+                'Suivi client'
+            ];
+            $data['type_recommendations'] = [
+                'Restez à jour sur les procédures',
+                'Documentez les interactions clients',
+                'Collaborez avec l\'équipe support'
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
+     * 🆕 Informations utilisateur formatées
+     */
+    private function getUserInfo(User $user): array
+    {
+        return [
+            'id' => $user->id,
+            'username' => $user->username,
+            'email' => $user->email,
+            'mobile_number' => $user->mobile_number,
+            'company' => $user->company,
+            'type_info' => $user->getTypeInfo(),
+            'status_info' => $user->getStatusInfo(),
+            'creation_info' => $user->getCreationInfo(),
+            'agency' => $user->agency ? [
+                'name' => $user->agency->name,
+                'city' => $user->agency->city,
+                'country' => $user->agency->country
+            ] : null,
+            'login_info' => $user->getLastLoginInfo(),
+            'password_info' => $user->getPasswordInfo()
+        ];
     }
 
     // ===============================================
@@ -561,72 +719,72 @@ class DashboardController extends Controller
      * ✅ CORRIGÉ : Actions en masse seulement sur ses utilisateurs
      */
     public function bulkActivate(Request $request)
-{
-    if (!Auth::user()->isAdmin()) {
-        return response()->json([
-            'success' => false, 
-            'message' => 'Accès non autorisé'
-        ], 403);
-    }
-
-    try {
-        $userIds = $request->input('user_ids', []);
-        $currentAdminId = Auth::id();
-        
-        // 🔒 Récupérer les utilisateurs de l'admin connecté
-        $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
-                                     ->pluck('user_id')
-                                     ->toArray();
-
-        // ✅ NOUVEAU : Si aucun user_ids, activer TOUS les inactifs
-        if (empty($userIds)) {
-            // Activer tous les utilisateurs inactifs de cet admin
-            $count = User::whereIn('id', $myUserIds)
-                        ->where('status_id', 1) // Seulement les inactifs
-                        ->update(['status_id' => 2]);
-
-            if ($count === 0) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Aucun utilisateur en attente d\'activation.'
-                ]);
-            }
-
+    {
+        if (!Auth::user()->isAdmin()) {
             return response()->json([
-                'success' => true,
-                'message' => "{$count} utilisateur(s) en attente activé(s) avec succès !"
-            ]);
-        }
-
-        // ✅ EXISTANT : Mode sélection (gardé intact)
-        // Vérifier que tous les utilisateurs appartiennent à l'admin
-        $validUserIds = array_intersect($userIds, $myUserIds);
-        
-        if (empty($validUserIds)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Aucun utilisateur autorisé dans la sélection.'
+                'success' => false, 
+                'message' => 'Accès non autorisé'
             ], 403);
         }
 
-        $count = User::whereIn('id', $validUserIds)
-                    ->where('status_id', '!=', 2)
-                    ->update(['status_id' => 2]);
+        try {
+            $userIds = $request->input('user_ids', []);
+            $currentAdminId = Auth::id();
+            
+            // 🔒 Récupérer les utilisateurs de l'admin connecté
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
+                                         ->pluck('user_id')
+                                         ->toArray();
 
-        return response()->json([
-            'success' => true,
-            'message' => "{$count} de vos utilisateur(s) activé(s) avec succès !"
-        ]);
+            // ✅ NOUVEAU : Si aucun user_ids, activer TOUS les inactifs
+            if (empty($userIds)) {
+                // Activer tous les utilisateurs inactifs de cet admin
+                $count = User::whereIn('id', $myUserIds)
+                            ->where('status_id', 1) // Seulement les inactifs
+                            ->update(['status_id' => 2]);
 
-    } catch (\Exception $e) {
-        \Log::error("Erreur activation en masse: " . $e->getMessage());
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors de l\'activation en masse.'
-        ], 500);
+                if ($count === 0) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Aucun utilisateur en attente d\'activation.'
+                    ]);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "{$count} utilisateur(s) en attente activé(s) avec succès !"
+                ]);
+            }
+
+            // ✅ EXISTANT : Mode sélection (gardé intact)
+            // Vérifier que tous les utilisateurs appartiennent à l'admin
+            $validUserIds = array_intersect($userIds, $myUserIds);
+            
+            if (empty($validUserIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun utilisateur autorisé dans la sélection.'
+                ], 403);
+            }
+
+            $count = User::whereIn('id', $validUserIds)
+                        ->where('status_id', '!=', 2)
+                        ->update(['status_id' => 2]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$count} de vos utilisateur(s) activé(s) avec succès !"
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Erreur activation en masse: " . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'activation en masse.'
+            ], 500);
+        }
     }
-}
 
     /**
      * ✅ CORRIGÉ : Suppression en masse seulement sur ses utilisateurs

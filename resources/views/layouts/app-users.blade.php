@@ -17,7 +17,7 @@
                         <!-- Top Search Bar -->
                         <div class="app-search-topbar">
                             <form action="#" method="get">
-                                <input type="search" name="search" class="from-control top-search mb-0" placeholder="Rechercher dans mes données...">
+                                <input type="search" name="search" class="from-control top-search mb-0" placeholder="Rechercher dans mon espace...">
                                 <button type="submit"><i class="ti-search"></i></button>
                             </form>
                         </div>
@@ -43,7 +43,7 @@
                                     </div>
                                     <div class="media-body align-self-center ml-2 text-truncate">
                                         <h6 class="my-0 font-weight-normal text-dark">Bienvenue !</h6>
-                                        <small class="text-muted mb-0">Votre compte est maintenant actif</small>
+                                        <small class="text-muted mb-0">Votre poste {{ Auth::user()->getTypeName() }} est configuré</small>
                                     </div>
                                 </div>
                             </a>
@@ -65,11 +65,11 @@
                                 <small class="float-right text-muted pl-2">2 hrs ago</small>
                                 <div class="media">
                                     <div class="avatar-md bg-soft-info">
-                                        <i data-feather="info" class="align-self-center icon-xs"></i>
+                                        <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="align-self-center icon-xs"></i>
                                     </div>
                                     <div class="media-body align-self-center ml-2 text-truncate">
-                                        <h6 class="my-0 font-weight-normal text-dark">Information</h6>
-                                        <small class="text-muted mb-0">Découvrez votre espace personnel</small>
+                                        <h6 class="my-0 font-weight-normal text-dark">{{ Auth::user()->getTypeName() }}</h6>
+                                        <small class="text-muted mb-0">{{ $typeSpecificData['type_description'] ?? 'Votre poste est opérationnel' }}</small>
                                     </div>
                                 </div>
                             </a>
@@ -87,6 +87,11 @@
                         <img src="{{asset('frontend/assets/images/users/user-5.jpg')}}" alt="profile-user" class="rounded-circle" />                                 
                     </a>
                     <div class="dropdown-menu dropdown-menu-right">
+                        <div class="dropdown-header">
+                            <h6 class="text-dark mb-0">{{ Auth::user()->getTypeName() }}</h6>
+                            <small class="text-muted">{{ Auth::user()->email }}</small>
+                        </div>
+                        <div class="dropdown-divider"></div>
                         <a class="dropdown-item" href="{{ route('layouts.app-users') }}"><i data-feather="home" class="align-self-center icon-xs icon-dual mr-1"></i> Dashboard</a>
                         <a class="dropdown-item" href="{{ route('layouts.app-users') }}"><i data-feather="activity" class="align-self-center icon-xs icon-dual mr-1"></i> Mon espace</a>
                         <div class="dropdown-divider mb-0"></div>
@@ -131,10 +136,12 @@
                     <div class="page-title-box">
                         <div class="row">
                             <div class="col">
-                                <h4 class="page-title">Mon Espace</h4>
+                                <h4 class="page-title">
+                                    {{ Auth::user()->getTypeEmoji() }} Mon Espace {{ Auth::user()->getTypeName() }}
+                                </h4>
                                 <ol class="breadcrumb">
                                     <li class="breadcrumb-item"><a href="{{ route('layouts.app-users') }}">Dashboard</a></li>
-                                    <li class="breadcrumb-item active">Mon espace</li>
+                                    <li class="breadcrumb-item active">{{ Auth::user()->getTypeName() }}</li>
                                 </ol>
                             </div><!--end col-->
                             <div class="col-auto align-self-center">
@@ -163,7 +170,25 @@
             </div>
             @endif
 
-            <!-- Statistiques personnelles -->
+            <!-- 🆕 Bannière spécifique au type d'utilisateur -->
+            @if(isset($typeSpecificData) && !empty($typeSpecificData['type_description']))
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="icon-md text-info"></i>
+                    </div>
+                    <div class="flex-grow-1 ml-3">
+                        <h6 class="alert-heading mb-1">{{ Auth::user()->getTypeName() }}</h6>
+                        <p class="mb-0">{{ $typeSpecificData['type_description'] }}</p>
+                    </div>
+                </div>
+                <button type="button" class="close" data-dismiss="alert">
+                    <span>&times;</span>
+                </button>
+            </div>
+            @endif
+
+            <!-- Statistiques personnelles adaptées -->
             <div class="row justify-content-center">
                 <div class="col-md-6 col-lg-3">
                     <div class="card report-card">
@@ -171,7 +196,7 @@
                             <div class="row d-flex justify-content-center">
                                 <div class="col">
                                     <p class="text-dark mb-1 font-weight-semibold">Jours d'activité</p>
-                                    <h3 class="my-2">{{ Auth::user()->created_at->diffInDays(now()) }}</h3>
+                                    <h3 class="my-2">{{ $userStats['days_since_creation'] ?? Auth::user()->created_at->diffInDays(now()) }}</h3>
                                     <p class="mb-0 text-truncate text-muted"><span class="text-success"><i class="mdi mdi-trending-up"></i>8.5%</span> Depuis l'inscription</p>
                                 </div>
                                 <div class="col-auto align-self-center">
@@ -188,9 +213,9 @@
                         <div class="card-body">
                             <div class="row d-flex justify-content-center">                                                
                                 <div class="col">
-                                    <p class="text-dark mb-1 font-weight-semibold">Statut compte</p>
+                                    <p class="text-dark mb-1 font-weight-semibold">Statut poste</p>
                                     <h3 class="my-2 text-success">{{ Auth::user()->getStatusName() }}</h3>
-                                    <p class="mb-0 text-truncate text-muted"><span class="text-success"><i class="mdi mdi-trending-up"></i>1.5%</span> Compte opérationnel</p>
+                                    <p class="mb-0 text-truncate text-muted"><span class="text-success"><i class="mdi mdi-trending-up"></i>1.5%</span> Poste opérationnel</p>
                                 </div>
                                 <div class="col-auto align-self-center">
                                     <div class="report-main-icon bg-light-alt">
@@ -206,13 +231,13 @@
                         <div class="card-body">
                             <div class="row d-flex justify-content-center">                                                
                                 <div class="col">
-                                    <p class="text-dark mb-1 font-weight-semibold">Type utilisateur</p>
-                                    <h3 class="my-2">{{ Auth::user()->getTypeName() }}</h3>
-                                    <p class="mb-0 text-truncate text-muted"><span class="text-info"><i class="mdi mdi-trending-down"></i>35%</span> Accès standard</p>
+                                    <p class="text-dark mb-1 font-weight-semibold">Type de poste</p>
+                                    <h3 class="my-2">{{ Auth::user()->getTypeEmoji() }}</h3>
+                                    <p class="mb-0 text-truncate text-muted"><span class="text-info"><i class="mdi mdi-trending-down"></i>35%</span> {{ Auth::user()->getTypeShortDescription() }}</p>
                                 </div>
                                 <div class="col-auto align-self-center">
                                     <div class="report-main-icon bg-light-alt">
-                                        <i data-feather="user" class="align-self-center text-muted icon-md"></i>  
+                                        <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="align-self-center text-muted icon-md"></i>  
                                     </div>
                                 </div> 
                             </div>
@@ -245,7 +270,7 @@
                         <div class="card-header">
                             <div class="row align-items-center">
                                 <div class="col">                      
-                                    <h4 class="card-title">Aperçu de mon activité</h4>                      
+                                    <h4 class="card-title">Aperçu de mon activité - {{ Auth::user()->getTypeName() }}</h4>                      
                                 </div><!--end col-->
                                 <div class="col-auto"> 
                                     <div class="dropdown">
@@ -296,8 +321,8 @@
                                 <hr class="hr-dashed w-25 mt-0">                                                                            
                             </div>    
                             <div class="text-center">
-                                <h4>{{ Auth::user()->created_at->diffInDays(now()) }} jours d'activité</h4>
-                                <p class="text-muted mt-2">Votre compte est actif depuis {{ Auth::user()->created_at->format('d/m/Y') }}</p>
+                                <h4>{{ $userStats['days_since_creation'] ?? Auth::user()->created_at->diffInDays(now()) }} jours d'activité</h4>
+                                <p class="text-muted mt-2">Votre poste est actif depuis {{ Auth::user()->created_at->format('d/m/Y') }}</p>
                                 <button type="button" class="btn btn-sm btn-outline-primary px-3 mt-2" onclick="showPasswordModal()">Changer mot de passe</button>
                            </div>                                    
                         </div><!--end card-body--> 
@@ -311,7 +336,7 @@
                         <div class="card-header">
                             <div class="row align-items-center">
                                 <div class="col">                      
-                                    <h4 class="card-title">Mes informations personnelles</h4>                      
+                                    <h4 class="card-title">Mes informations - {{ Auth::user()->getTypeName() }}</h4>                      
                                 </div><!--end col-->
                                 <div class="col-auto"> 
                                     <div class="dropdown">
@@ -320,7 +345,7 @@
                                         </a>
                                         <div class="dropdown-menu dropdown-menu-right">
                                             <a class="dropdown-item" href="#" onclick="showPasswordModal()">Changer mot de passe</a>
-                                            <a class="dropdown-item" href="#">Mes paramètres</a>
+                                            <a class="dropdown-item" href="#" onclick="showTypeGuide()">Guide du {{ Auth::user()->getTypeName() }}</a>
                                         </div>
                                     </div>          
                                 </div><!--end col-->
@@ -350,9 +375,9 @@
                                         </tr>
                                         <tr>
                                             <td class="font-weight-semibold">
-                                                <i data-feather="shield" class="icon-xs mr-2"></i>Type de compte:
+                                                <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="icon-xs mr-2"></i>Type de poste:
                                             </td>
-                                            <td><span class="badge badge-info">{{ Auth::user()->getTypeName() }}</span></td>
+                                            <td><span class="badge badge-{{ Auth::user()->getTypeBadgeColor() }}">{{ Auth::user()->getTypeName() }}</span></td>
                                         </tr>
                                         <tr>
                                             <td class="font-weight-semibold">
@@ -368,6 +393,14 @@
                                             <td>{{ Auth::user()->getCreator()->username ?? 'Administrateur' }}</td>
                                         </tr>
                                         @endif
+                                        @if(Auth::user()->agency)
+                                        <tr>
+                                            <td class="font-weight-semibold">
+                                                <i data-feather="home" class="icon-xs mr-2"></i>Agence:
+                                            </td>
+                                            <td>{{ Auth::user()->agency->name }}</td>
+                                        </tr>
+                                        @endif
                                     </tbody>
                                 </table>
                             </div>
@@ -376,6 +409,11 @@
                                 <button class="btn btn-primary btn-sm waves-effect" onclick="showPasswordModal()">
                                     <i data-feather="key" class="icon-xs mr-1"></i>Changer mon mot de passe
                                 </button>
+                                @if(isset($typeSpecificData) && !empty($typeSpecificData['type_features']))
+                                <button class="btn btn-info btn-sm waves-effect ml-2" onclick="showTypeGuide()">
+                                    <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="icon-xs mr-1"></i>Guide {{ Auth::user()->getTypeName() }}
+                                </button>
+                                @endif
                             </div>
                         </div><!--end card-body--> 
                     </div><!--end card-body-->
@@ -396,6 +434,7 @@
                                         <div class="dropdown-menu dropdown-menu-right">
                                             <a class="dropdown-item" href="#">Connexions</a>
                                             <a class="dropdown-item" href="#">Modifications</a>
+                                            <a class="dropdown-item" href="#">{{ Auth::user()->getTypeName() }}</a>
                                         </div>
                                     </div>          
                                 </div><!--end col-->
@@ -411,15 +450,15 @@
                                         <div class="activity-info-text">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <p class="text-muted mb-0 font-13 w-75">
-                                                    <span class="text-dark font-weight-semibold">Connexion réussie</span><br>
-                                                    Vous vous êtes connecté à votre compte
+                                                    <span class="text-dark font-weight-semibold">Connexion {{ Auth::user()->getTypeName() }}</span><br>
+                                                    Vous vous êtes connecté à votre poste
                                                 </p>
                                                 <small class="text-muted">Maintenant</small>
                                             </div>    
                                         </div>
                                     </div>   
 
-                                    @if(Auth::user()->created_at->diffInHours(now()) < 24)
+                                    @if($userStats['is_recently_created'] ?? Auth::user()->created_at->diffInHours(now()) < 24)
                                     <div class="activity-info">
                                         <div class="icon-info-activity">
                                             <i class="mdi mdi-account-plus bg-soft-primary"></i>
@@ -427,8 +466,8 @@
                                         <div class="activity-info-text">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <p class="text-muted mb-0 font-13 w-75">
-                                                    <span class="text-dark font-weight-semibold">Compte créé</span><br>
-                                                    Votre compte a été créé par {{ Auth::user()->getCreator()->username ?? 'un administrateur' }}
+                                                    <span class="text-dark font-weight-semibold">Poste {{ Auth::user()->getTypeName() }} créé</span><br>
+                                                    Votre poste a été configuré par {{ Auth::user()->getCreator()->username ?? 'un administrateur' }}
                                                 </p>
                                                 <small class="text-muted">{{ Auth::user()->created_at->diffForHumans() }}</small>
                                             </div>    
@@ -443,8 +482,8 @@
                                         <div class="activity-info-text">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <p class="text-muted mb-0 font-13 w-75">
-                                                    <span class="text-dark font-weight-semibold">Compte activé</span><br>
-                                                    Votre compte est maintenant opérationnel
+                                                    <span class="text-dark font-weight-semibold">Poste activé</span><br>
+                                                    Votre {{ Auth::user()->getTypeName() }} est maintenant opérationnel
                                                 </p>
                                                 <small class="text-muted">{{ Auth::user()->created_at->diffForHumans() }}</small>
                                             </div>    
@@ -467,6 +506,23 @@
                                         </div>
                                     </div>
                                     @endif
+
+                                    @if(isset($typeSpecificData) && !empty($typeSpecificData['type_recommendations']))
+                                    <div class="activity-info">
+                                        <div class="icon-info-activity">
+                                            <i class="mdi mdi-lightbulb-outline bg-soft-info"></i>
+                                        </div>
+                                        <div class="activity-info-text">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <p class="text-muted mb-0 font-13 w-75">
+                                                    <span class="text-dark font-weight-semibold">Conseil {{ Auth::user()->getTypeName() }}</span><br>
+                                                    {{ $typeSpecificData['type_recommendations'][0] ?? 'Consultez le guide de votre poste' }}
+                                                </p>
+                                                <small class="text-muted">Recommandation</small>
+                                            </div>    
+                                        </div>
+                                    </div>
+                                    @endif
                                 </div><!--end activity-->
                             </div><!--end analytics-dash-activity-->
                         </div>  <!--end card-body-->                                     
@@ -474,10 +530,81 @@
                 </div><!--end col--> 
             </div><!--end row-->
 
+            <!-- 🆕 Section spécifique au type d'utilisateur -->
+            @if(isset($typeSpecificData) && (!empty($typeSpecificData['type_features']) || !empty($typeSpecificData['type_recommendations'])))
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="row align-items-center">
+                                <div class="col">
+                                    <h4 class="card-title">
+                                        <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="mr-2"></i>
+                                        Guide {{ Auth::user()->getTypeName() }}
+                                    </h4>
+                                </div>
+                                <div class="col-auto">
+                                    <span class="badge badge-{{ Auth::user()->getTypeBadgeColor() }} badge-pill">
+                                        {{ Auth::user()->getTypeEmoji() }} {{ Auth::user()->getTypeName() }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                @if(!empty($typeSpecificData['type_features']))
+                                <div class="col-md-6">
+                                    <h6 class="text-primary mb-3">
+                                        <i data-feather="check-square" class="mr-2"></i>Fonctionnalités de votre poste
+                                    </h6>
+                                    <ul class="list-unstyled">
+                                        @foreach($typeSpecificData['type_features'] as $feature)
+                                        <li class="mb-2">
+                                            <i data-feather="check" class="text-success mr-2 icon-xs"></i>
+                                            {{ $feature }}
+                                        </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                                @endif
+
+                                @if(!empty($typeSpecificData['type_recommendations']))
+                                <div class="col-md-6">
+                                    <h6 class="text-info mb-3">
+                                        <i data-feather="lightbulb" class="mr-2"></i>Recommandations
+                                    </h6>
+                                    <ul class="list-unstyled">
+                                        @foreach($typeSpecificData['type_recommendations'] as $recommendation)
+                                        <li class="mb-2">
+                                            <i data-feather="arrow-right" class="text-info mr-2 icon-xs"></i>
+                                            {{ $recommendation }}
+                                        </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                                @endif
+                            </div>
+
+                            <div class="text-center mt-4">
+                                <button class="btn btn-outline-primary btn-sm" onclick="showTypeGuide()">
+                                    <i data-feather="book-open" class="mr-1"></i>
+                                    Guide complet {{ Auth::user()->getTypeName() }}
+                                </button>
+                                <button class="btn btn-outline-success btn-sm ml-2" onclick="showPasswordModal()">
+                                    <i data-feather="key" class="mr-1"></i>
+                                    Sécuriser mon poste
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
         </div><!-- container -->
 
         <footer class="footer text-center text-sm-left">
-            &copy; {{ date('Y') }} Attendis <span class="d-none d-sm-inline-block float-right">{{ Auth::user()->username }} - Espace personnel</span>
+            &copy; {{ date('Y') }} Attendis <span class="d-none d-sm-inline-block float-right">{{ Auth::user()->username }} - {{ Auth::user()->getTypeName() }}</span>
         </footer><!--end footer-->
     </div>
     <!-- end page content -->
@@ -496,8 +623,123 @@
                     <span>&times;</span>
                 </button>
             </div>
-            
-            
+            <form id="passwordForm" method="POST" action="{{ route('password.change') }}">
+                @csrf
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Mot de passe actuel</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" name="current_password" id="current_password" required>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('current_password')">
+                                    <i data-feather="eye" id="toggleIcon-current_password"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Nouveau mot de passe</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" name="new_password" id="new_password" required>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('new_password')">
+                                    <i data-feather="eye" id="toggleIcon-new_password"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Confirmer le nouveau mot de passe</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" name="new_password_confirmation" id="new_password_confirmation" required>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('new_password_confirmation')">
+                                    <i data-feather="eye" id="toggleIcon-new_password_confirmation"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-feather="save" class="mr-1"></i> Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 🆕 Modal Guide du poste -->
+<div class="modal fade" id="typeGuideModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="mr-2"></i>
+                    Guide {{ Auth::user()->getTypeName() }}
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div class="avatar-lg mx-auto mb-3" style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <i data-feather="{{ Auth::user()->getTypeIcon() }}" class="text-white" style="width: 32px; height: 32px;"></i>
+                    </div>
+                    <h4>{{ Auth::user()->getTypeName() }}</h4>
+                    <p class="text-muted">{{ $typeSpecificData['type_description'] ?? Auth::user()->getTypeShortDescription() }}</p>
+                </div>
+
+                @if(isset($typeSpecificData) && !empty($typeSpecificData['type_features']))
+                <div class="mb-4">
+                    <h6 class="text-primary">
+                        <i data-feather="check-square" class="mr-2"></i>Vos responsabilités
+                    </h6>
+                    <div class="row">
+                        @foreach($typeSpecificData['type_features'] as $index => $feature)
+                        <div class="col-md-6 mb-2">
+                            <div class="d-flex align-items-center">
+                                <span class="badge badge-soft-primary mr-2">{{ $index + 1 }}</span>
+                                {{ $feature }}
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
+                @if(isset($typeSpecificData) && !empty($typeSpecificData['type_recommendations']))
+                <div class="mb-4">
+                    <h6 class="text-success">
+                        <i data-feather="lightbulb" class="mr-2"></i>Bonnes pratiques
+                    </h6>
+                    @foreach($typeSpecificData['type_recommendations'] as $index => $recommendation)
+                    <div class="alert alert-soft-success d-flex align-items-center" role="alert">
+                        <i data-feather="check-circle" class="text-success mr-2"></i>
+                        {{ $recommendation }}
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+
+                <div class="alert alert-info" role="alert">
+                    <div class="d-flex align-items-center">
+                        <i data-feather="info" class="text-info mr-2"></i>
+                        <div>
+                            <strong>Besoin d'aide ?</strong><br>
+                            Contactez votre administrateur {{ Auth::user()->getCreator()->username ?? 'système' }} pour toute question.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-dismiss="modal">
+                    <i data-feather="check" class="mr-1"></i> Compris
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -507,7 +749,7 @@
     <div id="toastContainer"></div>
 </div>
 
-<!-- CSS -->
+<!-- CSS personnalisé -->
 <style>
 .icon-xs {
     width: 16px;
@@ -562,6 +804,38 @@
     background-color: rgba(255, 193, 7, 0.1);
     color: #ffc107;
 }
+
+.bg-soft-info {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+}
+
+.alert-soft-success {
+    background-color: rgba(40, 167, 69, 0.1);
+    border-color: rgba(40, 167, 69, 0.2);
+    color: #155724;
+}
+
+.badge-soft-primary {
+    background-color: rgba(0, 123, 255, 0.1);
+    color: #007bff;
+}
+
+/* Animation pour les cartes */
+.card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+}
+
+/* Styles pour les badges de type */
+.badge-info { background-color: #17a2b8; }
+.badge-success { background-color: #28a745; }
+.badge-warning { background-color: #ffc107; color: #212529; }
+.badge-primary { background-color: #007bff; }
 </style>
 
 <!-- JavaScript -->
@@ -572,11 +846,18 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
+
+    console.log('Interface {{ Auth::user()->getTypeName() }} initialisée');
 });
 
 // Afficher le modal de changement de mot de passe
 function showPasswordModal() {
     $('#passwordModal').modal('show');
+}
+
+// Afficher le guide du type d'utilisateur
+function showTypeGuide() {
+    $('#typeGuideModal').modal('show');
 }
 
 // Basculer l'affichage du mot de passe
@@ -599,7 +880,7 @@ function togglePasswordField(fieldId) {
 
 // Exporter mes données
 function exportMyData() {
-    showToast('Info', 'Export de vos données en cours...', 'info');
+    showToast('Info', 'Export de vos données {{ Auth::user()->getTypeName() }} en cours...', 'info');
     
     setTimeout(() => {
         showToast('Succès', 'Vos données ont été exportées !', 'success');
@@ -607,21 +888,44 @@ function exportMyData() {
 }
 
 // Gestion du formulaire de mot de passe
-document.getElementById('passwordForm').addEventListener('submit', function(e) {
-    const newPassword = document.getElementById('new_password').value;
-    const confirmPassword = document.getElementById('new_password_confirmation').value;
+$('#passwordForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const form = $(this);
+    const newPassword = $('#new_password').val();
+    const confirmPassword = $('#new_password_confirmation').val();
     
     if (newPassword !== confirmPassword) {
-        e.preventDefault();
         showToast('Erreur', 'Les mots de passe ne correspondent pas', 'error');
         return false;
     }
     
     if (newPassword.length < 6) {
-        e.preventDefault();
         showToast('Erreur', 'Le mot de passe doit contenir au moins 6 caractères', 'error');
         return false;
     }
+
+    const formData = form.serialize();
+    
+    $.ajax({
+        url: form.attr('action'),
+        method: 'POST',
+        data: formData,
+        success: function(response) {
+            if (response.success) {
+                $('#passwordModal').modal('hide');
+                showToast('Succès', 'Mot de passe modifié avec succès', 'success');
+                form[0].reset();
+            } else {
+                showToast('Erreur', response.message || 'Erreur lors du changement de mot de passe', 'error');
+            }
+        },
+        error: function(xhr) {
+            const response = xhr.responseJSON;
+            const message = response?.message || 'Erreur lors du changement de mot de passe';
+            showToast('Erreur', message, 'error');
+        }
+    });
 });
 
 // Fonction toast
@@ -661,6 +965,13 @@ function showToast(title, message, type = 'info') {
         feather.replace();
     }
 }
+
+// Configuration CSRF pour requêtes AJAX
+$.ajaxSetup({
+    headers: {
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    }
+});
 </script>
 
 @endsection
