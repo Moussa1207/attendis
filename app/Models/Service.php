@@ -15,7 +15,7 @@ class Service extends Model
      */
     protected $fillable = [
         'nom',
-        'code',
+        'letter_of_service',
         'statut',
         'description',
         'created_by',
@@ -54,7 +54,7 @@ class Service extends Model
     {
         return $query->where(function($q) use ($search) {
             $q->where('nom', 'LIKE', "%{$search}%")
-              ->orWhere('code', 'LIKE', "%{$search}%")
+              ->orWhere('letter_of_service', 'LIKE', "%{$search}%")
               ->orWhere('description', 'LIKE', "%{$search}%");
         });
     }
@@ -128,7 +128,7 @@ class Service extends Model
         return [
             'id' => $this->id,
             'nom' => $this->nom,
-            'code' => $this->code,
+            'letter_of_service' => $this->letter_of_service,
             'statut' => $this->statut,
             'statut_emoji' => $this->getStatusWithEmoji(),
             'status_badge_color' => $this->getStatusBadgeColor(),
@@ -153,7 +153,7 @@ class Service extends Model
     {
         return [
             'nom' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:services,code,' . $serviceId,
+            'letter_of_service' => 'required|string|max:5|unique:services,letter_of_service,' . $serviceId,
             'statut' => 'required|in:actif,inactif',
             'description' => 'nullable|string|max:1000',
         ];
@@ -167,9 +167,9 @@ class Service extends Model
         return [
             'nom.required' => 'Le nom du service est obligatoire.',
             'nom.max' => 'Le nom ne peut pas dépasser 255 caractères.',
-            'code.required' => 'Le code du service est obligatoire.',
-            'code.unique' => 'Ce code existe déjà. Veuillez en choisir un autre.',
-            'code.max' => 'Le code ne peut pas dépasser 50 caractères.',
+            'letter_of_service.required' => 'La lettre de service est obligatoire.',
+            'letter_of_service.unique' => 'Cette lettre de service est déjà utilisée. Veuillez en choisir une autre.',
+            'letter_of_service.max' => 'La lettre de service ne peut pas dépasser 5 caractères.',
             'statut.required' => 'Le statut est obligatoire.',
             'statut.in' => 'Le statut doit être "actif" ou "inactif".',
             'description.max' => 'La description ne peut pas dépasser 1000 caractères.',
@@ -193,24 +193,78 @@ class Service extends Model
     }
 
     /**
+     * ✅ Génération automatique de la lettre de service
+     */
+    public static function generateLetterOfService($serviceName, $excludeId = null): string
+    {
+        // Prendre la première lettre du nom en majuscule
+        $firstLetter = strtoupper(substr($serviceName, 0, 1));
+        
+        // Vérifier si cette lettre est déjà utilisée
+        $query = self::where('letter_of_service', $firstLetter);
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        
+        if (!$query->exists()) {
+            return $firstLetter;
+        }
+        
+        // Si la première lettre est prise, essayer les suivantes
+        for ($i = 1; $i < 26; $i++) {
+            $ascii = ord($firstLetter) + $i;
+            if ($ascii > 90) { // Si on dépasse Z, recommencer avec A
+                $ascii = 65 + ($i - (90 - ord($firstLetter) + 1));
+            }
+            
+            $testLetter = chr($ascii);
+            $query = self::where('letter_of_service', $testLetter);
+            if ($excludeId) {
+                $query->where('id', '!=', $excludeId);
+            }
+            
+            if (!$query->exists()) {
+                return $testLetter;
+            }
+        }
+        
+        // Si toutes les lettres simples sont prises, utiliser des combinaisons
+        $counter = 1;
+        do {
+            $testLetter = $firstLetter . $counter;
+            $query = self::where('letter_of_service', $testLetter);
+            if ($excludeId) {
+                $query->where('id', '!=', $excludeId);
+            }
+            $counter++;
+        } while ($query->exists());
+        
+        return $testLetter;
+    }
+
+    /**
+     * ✅ Vérifier si une lettre de service est disponible
+     */
+    public static function isLetterOfServiceAvailable($letter, $excludeId = null): bool
+    {
+        $query = self::where('letter_of_service', $letter);
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        return !$query->exists();
+    }
+
+    /**
      * ✅ Boot method pour les événements
      */
     protected static function boot()
     {
         parent::boot();
 
-        // Générer le code automatiquement si vide
+        // Générer la lettre de service automatiquement si vide
         static::creating(function ($service) {
-            if (empty($service->code)) {
-                $service->code = Str::slug($service->nom);
-            }
-            
-            // S'assurer de l'unicité
-            $originalCode = $service->code;
-            $counter = 1;
-            while (static::where('code', $service->code)->exists()) {
-                $service->code = $originalCode . '-' . $counter;
-                $counter++;
+            if (empty($service->letter_of_service)) {
+                $service->letter_of_service = self::generateLetterOfService($service->nom);
             }
         });
 
@@ -231,6 +285,7 @@ class Service extends Model
             \Log::warning('Service deleted', [
                 'service_id' => $service->id,
                 'service_name' => $service->nom,
+                'letter_of_service' => $service->letter_of_service,
                 'deleted_by' => auth()->id(),
             ]);
         });
@@ -342,8 +397,8 @@ class Service extends Model
         $attributes = $this->getAttributes();
         unset($attributes['id'], $attributes['created_at'], $attributes['updated_at']);
 
-        // Générer un nouveau code unique
-        $attributes['code'] = $attributes['code'] . '-copy';
+        // Générer une nouvelle lettre de service unique
+        $attributes['letter_of_service'] = self::generateLetterOfService($attributes['nom']);
         $attributes['nom'] = $attributes['nom'] . ' (Copie)';
 
         // Appliquer les overrides
@@ -360,7 +415,7 @@ class Service extends Model
         return [
             'ID' => $this->id,
             'Nom' => $this->nom,
-            'Code' => $this->code,
+            'Lettre de service' => $this->letter_of_service,
             'Statut' => $this->getStatusWithEmoji(),
             'Description' => $this->description ?: 'Aucune description',
             'Créé par' => $this->creator_name,

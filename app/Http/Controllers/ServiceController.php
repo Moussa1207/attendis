@@ -10,7 +10,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Exception;
 
 class ServiceController extends Controller
 {
@@ -19,32 +22,53 @@ class ServiceController extends Controller
      */
     public function index(Request $request): View
     {
-        // 🔒 ISOLATION : Filtrer par admin connecté
-        $query = Service::where('created_by', Auth::id())->with('creator');
+        try {
+            // 🔒 ISOLATION : Filtrer par admin connecté
+            $query = Service::where('created_by', Auth::id())->with('creator');
 
-        // Recherche (sur ses propres services)
-        if ($request->filled('search')) {
-            $query->search($request->search);
+            // Recherche (sur ses propres services) - MISE À JOUR pour letter_of_service
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('nom', 'LIKE', "%{$search}%")
+                      ->orWhere('letter_of_service', 'LIKE', "%{$search}%")
+                      ->orWhere('description', 'LIKE', "%{$search}%");
+                });
+            }
+
+            // Filtrage par statut (sur ses propres services)
+            if ($request->filled('statut')) {
+                $query->where('statut', $request->statut);
+            }
+
+            // Filtre par période récente
+            if ($request->filled('recent')) {
+                $days = (int) $request->recent;
+                $query->where('created_at', '>=', now()->subDays($days));
+            }
+
+            // Tri
+            $sortBy = $request->get('sort', 'created_at');
+            $sortOrder = $request->get('order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            // Pagination
+            $services = $query->paginate(15)->appends($request->query());
+
+            return view('service.service-list', compact('services'));
+
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la récupération des services: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'request_data' => $request->all()
+            ]);
+            
+            return redirect()->back()->with('error', 'Erreur lors du chargement des services.');
         }
-
-        // Filtrage par statut (sur ses propres services)
-        if ($request->filled('statut')) {
-            $query->where('statut', $request->statut);
-        }
-
-        // Tri
-        $sortBy = $request->get('sort', 'created_at');
-        $sortOrder = $request->get('order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
-
-        // Pagination
-        $services = $query->paginate(15)->appends($request->query());
-
-        return view('service.service-list', compact('services'));
     }
 
     /**
-     * Formulaire de création (pas de changement)
+     * Formulaire de création
      */
     public function create(): View
     {
@@ -52,64 +76,85 @@ class ServiceController extends Controller
     }
 
     /**
-     * Créer un service (pas de changement - déjà correct)
+     * ✅ MISE À JOUR : Créer un service avec letter_of_service
      */
     public function store(Request $request): RedirectResponse
     {
-        $validator = Validator::make($request->all(), [
-            'nom' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:services,code',
-            'statut' => 'required|in:actif,inactif',
-            'description' => 'nullable|string|max:1000',
-        ], [
-            'nom.required' => 'Le nom du service est obligatoire.',
-            'nom.max' => 'Le nom ne peut pas dépasser 255 caractères.',
-            'code.required' => 'Le code du service est obligatoire.',
-            'code.unique' => 'Ce code existe déjà. Veuillez en choisir un autre.',
-            'code.max' => 'Le code ne peut pas dépasser 50 caractères.',
-            'statut.required' => 'Le statut est obligatoire.',
-            'statut.in' => 'Le statut doit être "actif" ou "inactif".',
-            'description.max' => 'La description ne peut pas dépasser 1000 caractères.',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
         try {
-            // Générer automatiquement le code si pas fourni ou nettoyer celui fourni
-            $code = $request->code;
-            if (empty($code)) {
-                $code = Str::slug($request->nom);
-            } else {
-                $code = Str::slug($code);
+            // Validation avec nouvelles règles pour letter_of_service
+            $validator = Validator::make($request->all(), [
+                'nom' => 'required|string|max:255',
+                'letter_of_service' => [
+                    'required',
+                    'string',
+                    'max:5',
+                    function ($attribute, $value, $fail) {
+                        // Vérifier l'unicité dans les services de l'admin connecté
+                        if (Service::where('created_by', Auth::id())
+                                  ->where('letter_of_service', strtoupper(trim($value)))
+                                  ->exists()) {
+                            $fail('Cette lettre de service est déjà utilisée dans vos services.');
+                        }
+                    }
+                ],
+                'statut' => 'required|in:actif,inactif',
+                'description' => 'nullable|string|max:1000',
+            ], [
+                'nom.required' => 'Le nom du service est obligatoire.',
+                'nom.max' => 'Le nom ne peut pas dépasser 255 caractères.',
+                'letter_of_service.required' => 'La lettre de service est obligatoire.',
+                'letter_of_service.max' => 'La lettre de service ne peut pas dépasser 5 caractères.',
+                'statut.required' => 'Le statut est obligatoire.',
+                'statut.in' => 'Le statut doit être "actif" ou "inactif".',
+                'description.max' => 'La description ne peut pas dépasser 1000 caractères.',
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
             }
 
-            // Vérifier l'unicité après transformation
-            $originalCode = $code;
-            $counter = 1;
-            while (Service::where('code', $code)->exists()) {
-                $code = $originalCode . '-' . $counter;
-                $counter++;
+            // Normaliser la lettre de service
+            $letterOfService = strtoupper(trim($request->letter_of_service));
+
+            // Vérification finale de l'unicité dans les services de l'admin
+            if (Service::where('created_by', Auth::id())
+                      ->where('letter_of_service', $letterOfService)
+                      ->exists()) {
+                return redirect()->back()
+                    ->withErrors(['letter_of_service' => 'Cette lettre de service est déjà utilisée dans vos services.'])
+                    ->withInput();
             }
 
+            // Création du service
             $service = Service::create([
-                'nom' => $request->nom,
-                'code' => $code,
+                'nom' => trim($request->nom),
+                'letter_of_service' => $letterOfService,
                 'statut' => $request->statut,
-                'description' => $request->description,
-                'created_by' => Auth::id(), // ✅ Déjà correct
+                'description' => $request->description ? trim($request->description) : null,
+                'created_by' => Auth::id(),
+            ]);
+
+            Log::info('Service créé avec succès', [
+                'service_id' => $service->id,
+                'service_name' => $service->nom,
+                'letter_of_service' => $service->letter_of_service,
+                'created_by' => Auth::user()->username,
             ]);
 
             return redirect()->route('service.service-list')
-                ->with('success', "Service '{$service->nom}' créé avec succès !\nCode généré : {$service->code}");
+                ->with('success', "✅ Service '{$service->nom}' créé avec succès !\nLettre attribuée : {$letterOfService}");
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la création du service: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'user_id' => Auth::id(),
+            ]);
+
             return redirect()->back()
-                ->with('error', 'Erreur lors de la création du service : ' . $e->getMessage())
-                ->withInput();
+                ->withInput()
+                ->with('error', 'Erreur lors de la création du service. Veuillez réessayer.');
         }
     }
 
@@ -132,7 +177,8 @@ class ServiceController extends Controller
                 'success' => true,
                 'service' => $service->toApiArray()
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la récupération des détails: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des détails.'
@@ -153,7 +199,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Vérifier l'autorisation pour mettre à jour
+     * ✅ MISE À JOUR : Mettre à jour avec letter_of_service
      */
     public function update(Request $request, Service $service): RedirectResponse
     {
@@ -162,39 +208,66 @@ class ServiceController extends Controller
                 ->with('error', 'Vous ne pouvez pas modifier ce service.');
         }
 
-        $validator = Validator::make($request->all(), [
-            'nom' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:services,code,' . $service->id,
-            'statut' => 'required|in:actif,inactif',
-            'description' => 'nullable|string|max:1000',
-        ], [
-            'nom.required' => 'Le nom du service est obligatoire.',
-            'code.required' => 'Le code du service est obligatoire.',
-            'code.unique' => 'Ce code existe déjà.',
-            'statut.in' => 'Le statut doit être "actif" ou "inactif".',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
         try {
+            // Validation avec exclusion du service actuel pour letter_of_service
+            $validator = Validator::make($request->all(), [
+                'nom' => 'required|string|max:255',
+                'letter_of_service' => [
+                    'required',
+                    'string',
+                    'max:5',
+                    function ($attribute, $value, $fail) use ($service) {
+                        // Vérifier l'unicité dans les services de l'admin connecté (sauf le service actuel)
+                        if (Service::where('created_by', Auth::id())
+                                  ->where('letter_of_service', strtoupper(trim($value)))
+                                  ->where('id', '!=', $service->id)
+                                  ->exists()) {
+                            $fail('Cette lettre de service est déjà utilisée dans vos services.');
+                        }
+                    }
+                ],
+                'statut' => 'required|in:actif,inactif',
+                'description' => 'nullable|string|max:1000',
+            ], [
+                'nom.required' => 'Le nom du service est obligatoire.',
+                'letter_of_service.required' => 'La lettre de service est obligatoire.',
+                'letter_of_service.max' => 'La lettre de service ne peut pas dépasser 5 caractères.',
+                'statut.in' => 'Le statut doit être "actif" ou "inactif".',
+                'description.max' => 'La description ne peut pas dépasser 1000 caractères.',
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
+            }
+
+            // Normaliser la lettre de service
+            $letterOfService = strtoupper(trim($request->letter_of_service));
+
+            // Mise à jour
             $service->update([
-                'nom' => $request->nom,
-                'code' => Str::slug($request->code),
+                'nom' => trim($request->nom),
+                'letter_of_service' => $letterOfService,
                 'statut' => $request->statut,
-                'description' => $request->description,
+                'description' => $request->description ? trim($request->description) : null,
+            ]);
+
+            Log::info('Service mis à jour', [
+                'service_id' => $service->id,
+                'service_name' => $service->nom,
+                'letter_of_service' => $service->letter_of_service,
+                'updated_by' => Auth::user()->username,
             ]);
 
             return redirect()->route('service.service-list')
-                ->with('success', "Service '{$service->nom}' mis à jour avec succès !");
+                ->with('success', "✅ Service '{$service->nom}' mis à jour avec succès !");
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la mise à jour du service: ' . $e->getMessage());
             return redirect()->back()
-                ->with('error', 'Erreur lors de la mise à jour : ' . $e->getMessage())
-                ->withInput();
+                ->withInput()
+                ->with('error', 'Erreur lors de la mise à jour du service.');
         }
     }
 
@@ -211,19 +284,142 @@ class ServiceController extends Controller
         }
 
         try {
+            if (!$service->canBeDeleted()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce service ne peut pas être supprimé car il est utilisé ailleurs.'
+                ], 422);
+            }
+
             $serviceName = $service->nom;
+            $letterOfService = $service->letter_of_service;
+
             $service->delete();
+
+            Log::warning('Service supprimé', [
+                'service_name' => $serviceName,
+                'letter_of_service' => $letterOfService,
+                'deleted_by' => Auth::user()->username,
+            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => "Service '{$serviceName}' supprimé avec succès !"
+                'message' => "Service '{$serviceName}' (lettre: {$letterOfService}) supprimé avec succès !"
             ]);
-        } catch (\Exception $e) {
+
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la suppression du service: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression : ' . $e->getMessage()
+                'message' => 'Erreur lors de la suppression du service.'
             ], 500);
         }
+    }
+
+    /**
+     * ✅ NOUVELLE MÉTHODE : Vérifier la disponibilité d'une lettre de service (dans les services de l'admin)
+     */
+    public function checkLetterAvailability(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'letter' => 'required|string|max:5',
+                'exclude_id' => 'nullable|integer|exists:services,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'available' => false,
+                    'message' => 'Lettre invalide.'
+                ], 422);
+            }
+
+            $letter = strtoupper(trim($request->letter));
+            $excludeId = $request->exclude_id;
+
+            // 🔒 SÉCURITÉ : Vérifier seulement dans les services de l'admin connecté
+            $query = Service::where('created_by', Auth::id())
+                           ->where('letter_of_service', $letter);
+            
+            if ($excludeId) {
+                $query->where('id', '!=', $excludeId);
+            }
+
+            $available = !$query->exists();
+
+            $response = [
+                'available' => $available,
+                'letter' => $letter
+            ];
+
+            if (!$available) {
+                // Générer des suggestions alternatives pour cet admin
+                $suggestions = $this->generateLetterSuggestions($letter, $excludeId);
+                $response['suggestions'] = $suggestions;
+                $response['message'] = "La lettre '{$letter}' est déjà utilisée dans vos services.";
+            } else {
+                $response['message'] = "La lettre '{$letter}' est disponible.";
+            }
+
+            return response()->json($response);
+
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la vérification de disponibilité: ' . $e->getMessage());
+            return response()->json([
+                'available' => false,
+                'message' => 'Erreur lors de la vérification.'
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ MISE À JOUR : Générer des suggestions de lettres alternatives (pour l'admin connecté)
+     */
+    private function generateLetterSuggestions($baseLetter, $excludeId = null, $limit = 5): array
+    {
+        $suggestions = [];
+        $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        
+        // Commencer par essayer les lettres suivantes dans l'alphabet
+        $baseIndex = strpos($alphabet, $baseLetter);
+        
+        if ($baseIndex !== false) {
+            // Essayer les lettres suivantes
+            for ($i = 1; $i < 26 && count($suggestions) < $limit; $i++) {
+                $nextIndex = ($baseIndex + $i) % 26;
+                $testLetter = $alphabet[$nextIndex];
+                
+                // 🔒 SÉCURITÉ : Vérifier seulement dans les services de l'admin
+                $query = Service::where('created_by', Auth::id())
+                               ->where('letter_of_service', $testLetter);
+                if ($excludeId) {
+                    $query->where('id', '!=', $excludeId);
+                }
+                
+                if (!$query->exists()) {
+                    $suggestions[] = $testLetter;
+                }
+            }
+        }
+        
+        // Si pas assez de suggestions, essayer des combinaisons
+        if (count($suggestions) < $limit) {
+            for ($i = 2; $i <= 9 && count($suggestions) < $limit; $i++) {
+                $testLetter = $baseLetter . $i;
+                
+                $query = Service::where('created_by', Auth::id())
+                               ->where('letter_of_service', $testLetter);
+                if ($excludeId) {
+                    $query->where('id', '!=', $excludeId);
+                }
+                
+                if (!$query->exists()) {
+                    $suggestions[] = $testLetter;
+                }
+            }
+        }
+        
+        return $suggestions;
     }
 
     /**
@@ -239,13 +435,22 @@ class ServiceController extends Controller
         }
 
         try {
+            if ($service->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce service est déjà actif.'
+                ]);
+            }
+
             $service->activate();
 
             return response()->json([
                 'success' => true,
                 'message' => "Service '{$service->nom}' activé avec succès !"
             ]);
-        } catch (\Exception $e) {
+
+        } catch (Exception $e) {
+            Log::error('Erreur lors de l\'activation du service: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'activation.'
@@ -266,13 +471,22 @@ class ServiceController extends Controller
         }
 
         try {
+            if ($service->isInactive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce service est déjà inactif.'
+                ]);
+            }
+
             $service->deactivate();
 
             return response()->json([
                 'success' => true,
                 'message' => "Service '{$service->nom}' désactivé avec succès !"
             ]);
-        } catch (\Exception $e) {
+
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la désactivation du service: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la désactivation.'
@@ -281,7 +495,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Détails seulement pour ses propres services
+     * ✅ MISE À JOUR : Détails seulement pour ses propres services avec letter_of_service
      */
     public function details(Service $service): JsonResponse
     {
@@ -306,7 +520,7 @@ class ServiceController extends Controller
                 'service' => [
                     'id' => $service->id,
                     'nom' => $service->nom,
-                    'code' => $service->code,
+                    'letter_of_service' => $service->letter_of_service,
                     'statut' => $service->statut,
                     'statut_emoji' => $service->getStatusWithEmoji(),
                     'status_badge_color' => $service->getStatusBadgeColor(),
@@ -324,7 +538,8 @@ class ServiceController extends Controller
                     'updated_at_relative' => $service->updated_at->diffForHumans(),
                 ]
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la récupération des détails: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des détails.'
@@ -333,7 +548,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Recherche seulement dans ses propres services
+     * ✅ MISE À JOUR : Recherche seulement dans ses propres services avec letter_of_service
      */
     public function searchServices(Request $request): JsonResponse
     {
@@ -354,11 +569,11 @@ class ServiceController extends Controller
         }
 
         try {
-            // 🔒 RECHERCHE : Seulement dans ses propres services
+            // 🔒 RECHERCHE : Seulement dans ses propres services avec letter_of_service
             $services = Service::where('created_by', Auth::id())
                 ->where(function($query) use ($search) {
                     $query->where('nom', 'LIKE', "%{$search}%")
-                          ->orWhere('code', 'LIKE', "%{$search}%")
+                          ->orWhere('letter_of_service', 'LIKE', "%{$search}%")
                           ->orWhere('description', 'LIKE', "%{$search}%");
                 })
                 ->with('creator')
@@ -369,7 +584,7 @@ class ServiceController extends Controller
                 return [
                     'id' => $service->id,
                     'text' => $service->nom,
-                    'code' => $service->code,
+                    'letter_of_service' => $service->letter_of_service,
                     'statut' => $service->statut,
                     'description' => Str::limit($service->description, 50),
                     'creator' => $service->creator ? $service->creator->username : 'Système'
@@ -381,7 +596,8 @@ class ServiceController extends Controller
                 'suggestions' => $suggestions
             ]);
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la recherche: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la recherche'
@@ -399,11 +615,17 @@ class ServiceController extends Controller
                            ->where('statut', 'inactif')
                            ->update(['statut' => 'actif']);
 
+            Log::info('Activation en masse effectuée', [
+                'services_activated' => $count,
+                'activated_by' => Auth::user()->username,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => "{$count} de vos service(s) activé(s) avec succès !"
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de l\'activation en masse: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'activation en masse.'
@@ -423,15 +645,39 @@ class ServiceController extends Controller
 
         try {
             // 🔒 SÉCURITÉ : Vérifier que tous les services appartiennent à l'admin
-            $count = Service::whereIn('id', $request->service_ids)
-                           ->where('created_by', Auth::id())
-                           ->delete();
+            $services = Service::whereIn('id', $request->service_ids)
+                              ->where('created_by', Auth::id())
+                              ->get();
+
+            $count = 0;
+            $errors = [];
+
+            foreach ($services as $service) {
+                if ($service->canBeDeleted()) {
+                    $service->delete();
+                    $count++;
+                } else {
+                    $errors[] = "Le service '{$service->nom}' ne peut pas être supprimé.";
+                }
+            }
+
+            Log::warning('Suppression en masse effectuée', [
+                'services_deleted' => $count,
+                'deleted_by' => Auth::user()->username,
+                'errors' => $errors,
+            ]);
+
+            $message = "{$count} de vos service(s) supprimé(s) avec succès !";
+            if (!empty($errors)) {
+                $message .= " Erreurs: " . implode(' ', $errors);
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => "{$count} de vos service(s) supprimé(s) avec succès !"
+                'message' => $message
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la suppression en masse: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression en masse.'
@@ -440,7 +686,7 @@ class ServiceController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Export seulement des services de l'admin
+     * ✅ MISE À JOUR : Export seulement des services de l'admin avec letter_of_service
      */
     public function export(): \Symfony\Component\HttpFoundation\StreamedResponse
     {
@@ -465,7 +711,7 @@ class ServiceController extends Controller
                 fputcsv($file, [
                     'ID',
                     'Nom',
-                    'Code',
+                    'Lettre de service',
                     'Statut',
                     'Description',
                     'Créé par',
@@ -478,7 +724,7 @@ class ServiceController extends Controller
                     fputcsv($file, [
                         $service->id,
                         $service->nom,
-                        $service->code,
+                        $service->letter_of_service,
                         $service->statut,
                         $service->description ?: 'Aucune description',
                         $service->creator ? $service->creator->username : 'Système',
@@ -492,7 +738,8 @@ class ServiceController extends Controller
 
             return response()->stream($callback, 200, $headers);
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de l\'export: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'export : ' . $e->getMessage()
@@ -531,7 +778,8 @@ class ServiceController extends Controller
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la récupération des statistiques: ' . $e->getMessage());
             return response()->json([
                 'success' => false, 
                 'message' => 'Erreur lors de la récupération des statistiques'
@@ -575,7 +823,8 @@ class ServiceController extends Controller
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la récupération des statistiques par type: ' . $e->getMessage());
             return response()->json([
                 'success' => false, 
                 'message' => 'Erreur lors de la récupération des statistiques par type'

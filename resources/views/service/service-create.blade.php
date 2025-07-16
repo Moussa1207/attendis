@@ -156,10 +156,10 @@
                                     <h6 class="text-info mb-1 font-weight-semibold">Informations Importantes</h6>
                                     <p class="text-muted mb-0">
                                         • Le service sera créé avec le <strong>statut que vous choisissez</strong><br>
-                                        • Un <strong>code unique</strong> sera généré automatiquement si non fourni<br>
+                                        • Une <strong>lettre unique</strong> sera générée automatiquement si non fournie<br>
                                         • La <strong>description est optionnelle</strong> mais recommandée<br>
                                         • Vous serez enregistré comme <strong>créateur</strong> de ce service<br>
-                                        • Le <strong>code doit être unique</strong> dans le système
+                                        • La <strong>lettre doit être unique</strong> dans le système
                                     </p>
                                 </div>
                             </div>
@@ -200,7 +200,7 @@
                                                     <i data-feather="tag" class="icon-xs"></i>
                                                 </span>
                                             </div>
-                                            <input type="text" class="form-control @error('nom') is-invalid @enderror" name="nom" id="service_nom" value="{{ old('nom') }}" placeholder="ex: Service client" required>
+                                            <input type="text" class="form-control @error('nom') is-invalid @enderror" name="nom" id="service_nom" value="{{ old('nom') }}" placeholder="ex: Marketing" required>
                                             @error('nom')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>
@@ -210,15 +210,20 @@
                                     </div>
 
                                     <div class="form-group">
-                                        <label for="service_code">Code du service</label>
+                                        <label for="service_letter">Lettre de service <span class="text-danger">*</span></label>
                                         <div class="input-group mb-3">
                                             <div class="input-group-prepend">
                                                 <span class="input-group-text bg-light">
-                                                    <i data-feather="hash" class="icon-xs"></i>
+                                                    <i data-feather="type" class="icon-xs"></i>
                                                 </span>
                                             </div>
-                                            <input type="text" class="form-control @error('code') is-invalid @enderror" name="code" id="service_code" value="{{ old('code') }}" placeholder="ex: service-client (généré automatiquement si vide)">
-                                            @error('code')
+                                            <input type="text" class="form-control @error('letter_of_service') is-invalid @enderror" name="letter_of_service" id="service_letter" value="{{ old('letter_of_service') }}" placeholder="ex: M (première lettre du nom)" maxlength="5" style="text-transform: uppercase;">
+                                            <div class="input-group-append">
+                                                <button type="button" class="btn btn-outline-secondary" id="checkAvailabilityBtn">
+                                                    <i data-feather="search" class="icon-xs"></i> Vérifier
+                                                </button>
+                                            </div>
+                                            @error('letter_of_service')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>
                                             </span>
@@ -226,8 +231,9 @@
                                         </div>
                                         <small class="text-muted">
                                             <i data-feather="info" class="icon-xs mr-1"></i>
-                                            Laissez vide pour générer automatiquement depuis le nom
+                                            <span id="letterInfo">Génération automatique depuis la première lettre du nom</span>
                                         </small>
+                                        <div id="availabilityStatus" class="mt-2" style="display: none;"></div>
                                     </div>
 
                                     <div class="form-group">
@@ -348,18 +354,20 @@
                 <h6>📋 Processus de Création</h6>
                 <ol class="pl-3">
                     <li>Saisissez le nom du service (obligatoire)</li>
-                    <li>Définissez un code unique (optionnel, généré automatiquement)</li>
+                    <li>Vérifiez la lettre de service générée automatiquement</li>
+                    <li>Modifiez la lettre manuellement si nécessaire</li>
                     <li>Choisissez le statut initial (actif/inactif)</li>
                     <li>Ajoutez une description détaillée (optionnel)</li>
                     <li>Validez la création</li>
                 </ol>
                 
-                <h6 class="mt-3">🏷️ À propos du code</h6>
+                <h6 class="mt-3">🏷️ À propos de la lettre de service</h6>
                 <ul class="pl-3">
-                    <li>Le code doit être <strong>unique</strong> dans le système</li>
-                    <li>Il sera automatiquement formaté (minuscules, tirets)</li>
-                    <li>Si laissé vide, il sera généré depuis le nom</li>
-                    <li>Exemples : <code>service-client</code>, <code>support-technique</code></li>
+                    <li>La lettre doit être <strong>unique</strong> dans le système</li>
+                    <li>Elle est générée automatiquement depuis la première lettre du nom</li>
+                    <li>Vous pouvez la <strong>modifier manuellement</strong> si nécessaire</li>
+                    <li>Maximum 5 caractères autorisés</li>
+                    <li>Exemples : <code>M</code> pour Marketing, <code>C</code> pour Comptabilité</li>
                 </ul>
 
                 <h6 class="mt-3">⚙️ Statuts disponibles</h6>
@@ -482,6 +490,31 @@
 option {
     padding: 8px;
 }
+
+/* Style pour le statut de disponibilité */
+.availability-success {
+    color: #28a745;
+    background-color: rgba(40, 167, 69, 0.1);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+.availability-error {
+    color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.1);
+    border: 1px solid rgba(220, 53, 69, 0.2);
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+.availability-checking {
+    color: #6c757d;
+    background-color: rgba(108, 117, 125, 0.1);
+    border: 1px solid rgba(108, 117, 125, 0.2);
+    padding: 8px 12px;
+    border-radius: 4px;
+}
 </style>
 
 <!-- JavaScript -->
@@ -493,29 +526,54 @@ document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
     }
 
-    // Génération automatique du code depuis le nom
+    // Génération automatique de la lettre depuis le nom
     const nomInput = document.getElementById('service_nom');
-    const codeInput = document.getElementById('service_code');
+    const letterInput = document.getElementById('service_letter');
 
-    if (nomInput && codeInput) {
+    if (nomInput && letterInput) {
         nomInput.addEventListener('input', function() {
-            if (!codeInput.value || codeInput.dataset.autoGenerated) {
-                const code = this.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9\s]/g, '')
-                    .replace(/\s+/g, '-')
-                    .replace(/-+/g, '-')
-                    .replace(/^-|-$/g, '');
+            if (!letterInput.value || letterInput.dataset.autoGenerated) {
+                const firstLetter = this.value.trim().charAt(0).toUpperCase();
                 
-                codeInput.value = code;
-                codeInput.dataset.autoGenerated = 'true';
+                if (firstLetter) {
+                    letterInput.value = firstLetter;
+                    letterInput.dataset.autoGenerated = 'true';
+                    
+                    // Vérifier la disponibilité automatiquement
+                    checkLetterAvailability(firstLetter);
+                } else {
+                    letterInput.value = '';
+                    hideAvailabilityStatus();
+                }
             }
         });
 
-        // Marquer le code comme modifié manuellement
-        codeInput.addEventListener('input', function() {
+        // Marquer la lettre comme modifiée manuellement
+        letterInput.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
             if (this.value !== '') {
                 this.dataset.autoGenerated = 'false';
+                
+                // Vérifier la disponibilité après un délai
+                clearTimeout(this.checkTimeout);
+                this.checkTimeout = setTimeout(() => {
+                    checkLetterAvailability(this.value);
+                }, 500);
+            } else {
+                hideAvailabilityStatus();
+            }
+        });
+    }
+
+    // Bouton vérification manuelle
+    const checkBtn = document.getElementById('checkAvailabilityBtn');
+    if (checkBtn) {
+        checkBtn.addEventListener('click', function() {
+            const letter = letterInput.value.trim();
+            if (letter) {
+                checkLetterAvailability(letter);
+            } else {
+                showToast('Attention', 'Veuillez saisir une lettre à vérifier', 'warning');
             }
         });
     }
@@ -546,6 +604,64 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Fonction pour vérifier la disponibilité d'une lettre
+function checkLetterAvailability(letter) {
+    if (!letter || letter.length === 0) return;
+    
+    const statusDiv = document.getElementById('availabilityStatus');
+    const letterInfo = document.getElementById('letterInfo');
+    
+    // Afficher le statut de vérification
+    showAvailabilityStatus('checking', 'Vérification en cours...');
+    
+    // Faire l'appel AJAX pour vérifier la disponibilité
+    fetch('/admin/services/check-letter-availability', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ letter: letter })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.available) {
+            showAvailabilityStatus('success', `✅ La lettre "${letter}" est disponible`);
+        } else {
+            showAvailabilityStatus('error', `❌ La lettre "${letter}" est déjà utilisée`);
+            
+            // Proposer des alternatives si disponibles
+            if (data.suggestions && data.suggestions.length > 0) {
+                const suggestions = data.suggestions.slice(0, 3).join(', ');
+                showAvailabilityStatus('error', `❌ La lettre "${letter}" est déjà utilisée. Suggestions: ${suggestions}`);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Erreur lors de la vérification:', error);
+        showAvailabilityStatus('error', '❌ Erreur lors de la vérification');
+    });
+}
+
+// Afficher le statut de disponibilité
+function showAvailabilityStatus(type, message) {
+    const statusDiv = document.getElementById('availabilityStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.className = `availability-${type}`;
+    statusDiv.innerHTML = `<small><i data-feather="${type === 'success' ? 'check' : type === 'error' ? 'x' : 'loader'}" class="icon-xs mr-1"></i>${message}</small>`;
+    
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+// Masquer le statut de disponibilité
+function hideAvailabilityStatus() {
+    const statusDiv = document.getElementById('availabilityStatus');
+    statusDiv.style.display = 'none';
+}
+
 // Afficher l'aide
 function showHelp() {
     $('#helpModal').modal('show');
@@ -554,11 +670,18 @@ function showHelp() {
 // Validation côté client
 document.getElementById('createServiceForm').addEventListener('submit', function(e) {
     const nom = document.getElementById('service_nom').value.trim();
+    const letter = document.getElementById('service_letter').value.trim();
     const statut = document.getElementById('service_statut').value;
 
     if (!nom) {
         e.preventDefault();
         showToast('Erreur', 'Le nom du service est obligatoire', 'error');
+        return false;
+    }
+
+    if (!letter) {
+        e.preventDefault();
+        showToast('Erreur', 'La lettre de service est obligatoire', 'error');
         return false;
     }
 

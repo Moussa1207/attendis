@@ -1278,6 +1278,7 @@ class DashboardController extends Controller
         return $password;
     }
 
+    
     /**
      * Formater l'âge du compte
      */
@@ -1300,4 +1301,5 @@ class DashboardController extends Controller
             return $years . ' an' . ($years > 1 ? 's' : '');
         }
     }
+    
 }

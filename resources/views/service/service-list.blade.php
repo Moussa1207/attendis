@@ -234,7 +234,7 @@
                 </div> <!--end col-->                               
             </div><!--end row-->
 
-            <!-- ✅ FILTRES CORRIGÉS - SANS CRÉATEUR -->
+            <!-- ✅ FILTRES CORRIGÉS - AVEC LETTER_OF_SERVICE -->
             <div class="row">
                 <div class="col-lg-12">
                     <div class="card">
@@ -255,14 +255,14 @@
                         <div class="card-body">
                             <form id="filterForm" action="{{ url()->current() }}" method="GET">
                                 <div class="row">
-                                    <!-- ✅ RECHERCHE ÉLARGIE -->
+                                    <!-- ✅ RECHERCHE ÉLARGIE AVEC LETTER_OF_SERVICE -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="search">
                                                 <i data-feather="search" class="icon-xs mr-1"></i>Recherche Intelligente
                                             </label>
                                             <input type="text" name="search" id="search" class="form-control" 
-                                                   placeholder="Nom, code, description..." 
+                                                   placeholder="Nom, lettre de service, description..." 
                                                    value="{{ request('search') }}"
                                                    onkeyup="liveSearch()" autocomplete="off">
                                             <div id="searchSuggestions" class="search-suggestions"></div>
@@ -355,13 +355,13 @@
                                     <table class="table table-hover mb-0" id="servicesTable">
                                         <thead class="thead-light">
                                             <tr>
-                                                <!-- ✅ COLONNES SIMPLIFIÉES (sans créateur) -->
+                                                <!-- ✅ COLONNES AVEC LETTER_OF_SERVICE -->
                                                 <th class="border-top-0">
                                                     <!-- ✅ CORRIGÉ: Checkbox principale sans onclick -->
                                                     <input type="checkbox" id="selectAll" class="mr-2"> 
                                                     Service
                                                 </th>
-                                                <th class="border-top-0">Code</th>
+                                                <th class="border-top-0">Lettre de service</th>
                                                 <th class="border-top-0">Statut</th>
                                                 <th class="border-top-0">Description</th>
                                                 <th class="border-top-0">Création</th>
@@ -377,7 +377,10 @@
                                                         <input type="checkbox" class="service-checkbox mr-2" value="{{ $service->id }}">
                                                         <div class="service-icon mr-3">
                                                             <div class="avatar-sm bg-soft-{{ $service->getStatusBadgeColor() }} rounded-circle d-flex align-items-center justify-content-center">
-                                                                <i data-feather="briefcase" class="icon-xs text-{{ $service->getStatusBadgeColor() }}"></i>
+                                                                <!-- ✅ AFFICHAGE DE LA LETTRE AU LIEU DE L'ICÔNE -->
+                                                                <span class="font-weight-bold text-{{ $service->getStatusBadgeColor() }}" style="font-size: 0.8rem;">
+                                                                    {{ strtoupper($service->letter_of_service ?? 'S') }}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                         <div class="media-body align-self-center">
@@ -387,7 +390,10 @@
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <code class="text-{{ $service->getStatusBadgeColor() }}">{{ $service->code }}</code>
+                                                    <!-- ✅ AFFICHAGE DE LA LETTRE DE SERVICE AVEC BADGE -->
+                                                    <span class="badge badge-{{ $service->getStatusBadgeColor() }} badge-lg font-weight-bold letter-display" style="font-size: 1.1em; padding: 0.6rem 0.8rem;">
+                                                        {{ strtoupper($service->letter_of_service ?? 'N/A') }}
+                                                    </span>
                                                 </td>
                                                 <td>
                                                     @if($service->isActive())
@@ -415,12 +421,12 @@
                                                         <!-- ACTIONS SELON LE STATUT -->
                                                         @if($service->isInactive())
                                                             <button class="btn btn-soft-success waves-effect" title="Activer" 
-                                                                    onclick="showActivateServiceModal({{ $service->id }}, '{{ $service->nom }}')">
+                                                                    onclick="showActivateServiceModal({{ $service->id }}, '{{ addslashes($service->nom) }}')">
                                                                 <i data-feather="check-circle" class="icon-xs"></i>
                                                             </button>
                                                         @else
                                                             <button class="btn btn-soft-warning waves-effect" title="Désactiver" 
-                                                                    onclick="showDeactivateServiceModal({{ $service->id }}, '{{ $service->nom }}')">
+                                                                    onclick="showDeactivateServiceModal({{ $service->id }}, '{{ addslashes($service->nom) }}')">
                                                                 <i data-feather="pause-circle" class="icon-xs"></i>
                                                             </button>
                                                         @endif
@@ -431,7 +437,7 @@
                                                         </button>
                                                         
                                                         <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
-                                                                onclick="showDeleteServiceModal({{ $service->id }}, '{{ $service->nom }}')">
+                                                                onclick="showDeleteServiceModal({{ $service->id }}, '{{ addslashes($service->nom) }}')">
                                                             <i data-feather="trash-2" class="icon-xs"></i>
                                                         </button>
                                                     </div>
@@ -543,7 +549,8 @@
                 <div class="d-flex align-items-center flex-grow-1">
                     <div class="service-icon-modal mr-3">
                         <div class="avatar-md bg-white rounded-circle d-flex align-items-center justify-content-center">
-                            <i data-feather="briefcase" class="icon-sm text-primary"></i>
+                            <!-- ✅ AFFICHAGE DE LA LETTRE DANS LE MODAL -->
+                            <span class="text-primary font-weight-bold" id="serviceLetterIcon" style="font-size: 1.5rem;">S</span>
                         </div>
                         <div class="service-status-indicator" id="serviceStatusIndicator"></div>
                     </div>
@@ -551,7 +558,7 @@
                         <h5 class="modal-title mb-0" id="modalServiceName">
                             <i data-feather="briefcase" class="icon-sm mr-2"></i>Chargement...
                         </h5>
-                        <small class="text-white-50" id="modalServiceCode">Informations service</small>
+                        <small class="text-white-50" id="modalServiceLetter">Informations service</small>
                     </div>
                 </div>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fermer">
@@ -580,13 +587,14 @@
                                     <div class="d-flex align-items-center">
                                         <div class="service-avatar-large mr-4">
                                             <div class="avatar-lg bg-primary rounded-circle d-flex align-items-center justify-content-center shadow">
-                                                <i data-feather="briefcase" class="icon-lg text-white"></i>
+                                                <!-- ✅ AFFICHAGE GRANDE LETTRE -->
+                                                <span class="text-white font-weight-bold" id="serviceLetterLarge" style="font-size: 2rem;">S</span>
                                             </div>
                                             <div class="status-badge" id="serviceStatusBadge"></div>
                                         </div>
                                         <div>
                                             <h4 class="mb-1 font-weight-bold" id="serviceFullName">Nom du service</h4>
-                                            <p class="text-muted mb-2" id="serviceCode">code-service</p>
+                                            <p class="text-muted mb-2" id="serviceLetterCode">lettre-service</p>
                                             <div class="d-flex align-items-center">
                                                 <span class="badge mr-2" id="serviceStatusBadgeText">Statut</span>
                                             </div>
@@ -642,8 +650,10 @@
                                                     <span class="info-value" id="detailServiceName">--</span>
                                                 </div>
                                                 <div class="info-item">
-                                                    <span class="info-label">Code:</span>
-                                                    <span class="info-value"><code id="detailServiceCode">--</code></span>
+                                                    <span class="info-label">Lettre de service:</span>
+                                                    <span class="info-value">
+                                                        <span class="badge badge-primary font-weight-bold" id="detailServiceLetter" style="font-size: 0.9rem;">--</span>
+                                                    </span>
                                                 </div>
                                                 <div class="info-item">
                                                     <span class="info-label">Identifiant:</span>
@@ -812,7 +822,7 @@
 
 <!-- CSS STYLES ET JAVASCRIPT COMPLET -->
 <style>
-/* CSS existant plus améliorations - IDENTIQUE À users-list.blade.php */
+/* CSS existant plus améliorations - IDENTIQUE À votre fichier original */
 .card {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     transition: background-color 0.3s ease, transform 0.2s ease;
@@ -899,6 +909,23 @@
 @keyframes countUpdate {
     0% { transform: scale(1.2); opacity: 0.8; }
     100% { transform: scale(1); opacity: 1; }
+}
+
+/* ✅ NOUVEAU : Style pour les lettres de service */
+.badge-lg {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.95rem;
+    border-radius: 8px;
+}
+
+.letter-display {
+    min-width: 45px;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* Z-INDEX pour modales */
@@ -1239,6 +1266,12 @@
         min-width: auto !important;
         width: 100% !important;
     }
+    
+    .letter-display {
+        min-width: 35px;
+        font-size: 0.9em !important;
+        padding: 0.4rem 0.6rem !important;
+    }
 }
 
 /* Autres styles */
@@ -1357,7 +1390,7 @@
 }
 </style>
 
-<!-- ✅ JAVASCRIPT COMPLET CORRIGÉ - SÉLECTION FONCTIONNELLE -->
+<!-- ✅ JAVASCRIPT COMPLET AVEC ADAPTATIONS LETTER_OF_SERVICE -->
 <script>
 // Variables globales pour services
 let searchTimeout;
@@ -2019,7 +2052,7 @@ function executeBulkDelete() {
 }
 
 // ==================================================================================== 
-// MODAL DÉTAILS SERVICE
+// MODAL DÉTAILS SERVICE - ADAPTÉ POUR LETTER_OF_SERVICE
 // ==================================================================================== 
 
 function showServiceDetails(serviceId) {
@@ -2063,13 +2096,29 @@ function loadServiceDetails(serviceId) {
 function populateServiceDetails(service) {
     console.log('✅ Remplissage des détails service:', service);
 
+    // ✅ ADAPTATION LETTER_OF_SERVICE: Extraction et formatage de la lettre
+    const serviceLetter = service.letter_of_service || service.code || 'S';
+    const formattedLetter = serviceLetter.toString().toUpperCase();
+
     // En-tête
     document.getElementById('modalServiceName').textContent = `⚙️ ${service.nom || 'Service'}`;
-    document.getElementById('modalServiceCode').textContent = service.code || 'code-service';
+    document.getElementById('modalServiceLetter').textContent = `Lettre: ${formattedLetter}`;
+
+    // ✅ NOUVELLE FONCTIONNALITÉ: Mise à jour des icônes avec la lettre
+    const serviceLetterIcon = document.getElementById('serviceLetterIcon');
+    const serviceLetterLarge = document.getElementById('serviceLetterLarge');
+    
+    if (serviceLetterIcon) {
+        serviceLetterIcon.textContent = formattedLetter;
+    }
+    
+    if (serviceLetterLarge) {
+        serviceLetterLarge.textContent = formattedLetter;
+    }
 
     // Informations principales
     document.getElementById('serviceFullName').textContent = service.nom || 'N/A';
-    document.getElementById('serviceCode').textContent = service.code || 'N/A';
+    document.getElementById('serviceLetterCode').textContent = `Lettre: ${formattedLetter}`;
 
     // Badge de statut
     const statusBadge = document.getElementById('serviceStatusBadgeText');
@@ -2078,7 +2127,14 @@ function populateServiceDetails(service) {
 
     // Détails dans les onglets
     document.getElementById('detailServiceName').textContent = service.nom || 'N/A';
-    document.getElementById('detailServiceCode').textContent = service.code || 'N/A';
+    
+    // ✅ ADAPTATION: Affichage de la lettre de service au lieu du code
+    const detailServiceLetter = document.getElementById('detailServiceLetter');
+    if (detailServiceLetter) {
+        detailServiceLetter.textContent = formattedLetter;
+        detailServiceLetter.className = `badge badge-${service.status_badge_color || 'primary'} font-weight-bold`;
+    }
+    
     document.getElementById('detailServiceId').textContent = `#${service.id}`;
     document.getElementById('detailServiceStatus').textContent = service.statut || 'Non défini';
 
@@ -2095,9 +2151,21 @@ function populateServiceDetails(service) {
     document.getElementById('creatorName').textContent = service.created_by || 'Système';
     document.getElementById('creationDate').textContent = service.created_at || 'Non disponible';
 
+    // ✅ NOUVELLE FONCTIONNALITÉ: Compteur de services du créateur
+    const creatorServicesCount = document.getElementById('creatorServicesCount');
+    if (creatorServicesCount) {
+        creatorServicesCount.textContent = service.creator_services_count || '-- services créés';
+    }
+
     // Activité
     document.getElementById('activityCreationDate').textContent = service.created_at || 'Non disponible';
     document.getElementById('activityUpdateDate').textContent = service.updated_at || 'Non disponible';
+
+    // ✅ ADAPTATION: Indicateur de statut dans le modal
+    const serviceStatusIndicator = document.getElementById('serviceStatusIndicator');
+    if (serviceStatusIndicator) {
+        serviceStatusIndicator.className = `service-status-indicator ${service.statut === 'actif' ? 'active' : 'inactive'}`;
+    }
 
     // Mise à jour du timestamp
     document.getElementById('modalLastUpdate').textContent = new Date().toLocaleString('fr-FR');
@@ -2107,7 +2175,7 @@ function populateServiceDetails(service) {
         feather.replace();
     }
 
-    console.log('✅ Détails service remplis avec succès');
+    console.log('✅ Détails service remplis avec succès - Lettre de service:', formattedLetter);
 }
 
 // Actions rapides depuis le modal
@@ -2137,7 +2205,7 @@ function refreshServiceDetails() {
 }
 
 // ==================================================================================== 
-// SYSTÈME DE FILTRES ET RECHERCHE
+// SYSTÈME DE FILTRES ET RECHERCHE - ADAPTÉ POUR LETTER_OF_SERVICE
 // ==================================================================================== 
 
 function filterByStatus(status) {
@@ -2219,16 +2287,27 @@ function resetFilters() {
     }
 }
 
-// Fonction de recherche optimisée
-const optimizedLiveSearch = debounce(function() {
-    const query = document.getElementById('search').value;
-    if (query.length >= 2 || query.length === 0) {
-        document.getElementById('filterForm').submit();
-    }
-}, 300);
-
+// ✅ RECHERCHE AMÉLIORÉE: Prise en compte des lettres de service
 function liveSearch() {
-    optimizedLiveSearch();
+    const query = document.getElementById('search').value;
+    
+    // Effacer le timeout précédent
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+    
+    // ✅ NOUVELLE LOGIQUE: Recherche optimisée pour les lettres
+    searchTimeout = setTimeout(() => {
+        if (query.length >= 1 || query.length === 0) {
+            // Si la recherche est une seule lettre, on peut rechercher immédiatement
+            // pour les lettres de service
+            if (query.length === 1 && /^[A-Za-z]$/.test(query)) {
+                console.log('🔍 Recherche par lettre de service:', query.toUpperCase());
+            }
+            
+            document.getElementById('filterForm').submit();
+        }
+    }, query.length === 1 ? 500 : 300); // Délai plus long pour les lettres uniques
 }
 
 function quickSearchServices() {
@@ -2239,7 +2318,8 @@ function quickSearchServices() {
     }
 
     searchTimeout = setTimeout(() => {
-        if (query.length >= 2) {
+        if (query.length >= 1) {
+            // ✅ AMÉLIORATION: Recherche rapide inclut les lettres de service
             window.location.href = `${window.location.pathname}?search=${encodeURIComponent(query)}`;
         }
     }, 300);
@@ -2258,6 +2338,12 @@ function checkActiveFilters() {
         const filterButton = document.querySelector('button[type="submit"]');
         if (filterButton) {
             filterButton.classList.add('filter-active');
+        }
+        
+        // ✅ NOUVELLE FONCTIONNALITÉ: Affichage des filtres actifs
+        const searchValue = urlParams.get('search');
+        if (searchValue) {
+            console.log('🔍 Filtre actif - Recherche:', searchValue);
         }
     }
 }
@@ -2467,6 +2553,29 @@ function debounce(func, wait) {
     };
 }
 
+// ✅ NOUVELLE FONCTION: Validation des lettres de service
+function validateServiceLetter(letter) {
+    if (!letter || letter.length === 0) {
+        return { valid: false, message: 'La lettre de service est requise' };
+    }
+    
+    if (letter.length > 3) {
+        return { valid: false, message: 'La lettre de service ne peut pas dépasser 3 caractères' };
+    }
+    
+    if (!/^[A-Za-z0-9]+$/.test(letter)) {
+        return { valid: false, message: 'La lettre de service ne peut contenir que des lettres et des chiffres' };
+    }
+    
+    return { valid: true, message: 'Lettre de service valide' };
+}
+
+// ✅ NOUVELLE FONCTION: Formater l'affichage des lettres
+function formatServiceLetter(letter) {
+    if (!letter) return 'N/A';
+    return letter.toString().toUpperCase().trim();
+}
+
 // ==================================================================================== 
 // FONCTIONS DE COMPATIBILITÉ ET DEBUGGING
 // ==================================================================================== 
@@ -2514,17 +2623,9 @@ function toggleSelectAll() {
     handleSelectAllButton();
 }
 
-function handleIndividualCheckbox() {
-    // Cette fonction existe déjà ci-dessus - ne pas redéfinir
-    console.log('⚠️ handleIndividualCheckbox() existe déjà');
-}
-
 // ==================================================================================== 
-// GESTION DES ERREURS ET NETTOYAGE - VERSION DÉSACTIVÉE TEMPORAIREMENT
+// GESTION DES ERREURS ET NETTOYAGE - VERSION SÉCURISÉE
 // ==================================================================================== 
-
-// GESTIONNAIRE D'ERREURS GLOBALES DÉSACTIVÉ pour éviter les faux positifs
-// window.addEventListener('error', function(event) { ... });
 
 // Gestion des promesses rejetées - VERSION SILENCIEUSE
 window.addEventListener('unhandledrejection', function(event) {
@@ -2592,46 +2693,6 @@ setTimeout(function() {
 }, 500); // Délai pour s'assurer que jQuery est chargé
 
 // ==================================================================================== 
-// FONCTIONS DE TEST ET DÉVELOPPEMENT
-// ==================================================================================== 
-
-// Fonction pour tester la sélection (développement uniquement)
-function testSelection() {
-    console.log('🧪 Test de la fonctionnalité de sélection...');
-    
-    // Test 1: Sélectionner tout
-    console.log('Test 1: Sélectionner tout');
-    handleSelectAllButton();
-    
-    setTimeout(() => {
-        debugSelection();
-        
-        // Test 2: Désélectionner tout
-        console.log('Test 2: Désélectionner tout');
-        handleSelectAllButton();
-        
-        setTimeout(() => {
-            debugSelection();
-            console.log('✅ Tests terminés');
-        }, 1000);
-    }, 1000);
-}
-
-// Fonction pour simuler des sélections aléatoires
-function simulateRandomSelection() {
-    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
-    
-    serviceCheckboxes.forEach((checkbox, index) => {
-        setTimeout(() => {
-            if (Math.random() > 0.5) {
-                checkbox.checked = true;
-                checkbox.dispatchEvent(new Event('change'));
-            }
-        }, index * 200);
-    });
-}
-
-// ==================================================================================== 
 // INITIALISATION FINALE ET LOG
 // ==================================================================================== 
 
@@ -2648,16 +2709,17 @@ setTimeout(function() {
         console.log('  ✅ Notifications toast');
         console.log('  ✅ Mises à jour temps réel');
         console.log('  ✅ Gestion d\'erreurs complète');
+        console.log('  🆕 Support complet des lettres de service');
 
         // Exposer certaines fonctions dans la console pour le debugging - SÉCURISÉ
         if (typeof window !== 'undefined') {
             try {
                 window.debugServiceSelection = debugSelection;
-                window.testServiceSelection = testSelection;
                 window.forceUpdateServiceDisplay = forceUpdateDisplay;
-                window.simulateRandomServiceSelection = simulateRandomSelection;
+                window.validateServiceLetter = validateServiceLetter;
+                window.formatServiceLetter = formatServiceLetter;
                 
-                console.log('🛠️ Fonctions de debug disponibles: debugServiceSelection(), testServiceSelection(), forceUpdateServiceDisplay(), simulateRandomServiceSelection()');
+                console.log('🛠️ Fonctions de debug disponibles: debugServiceSelection(), forceUpdateServiceDisplay(), validateServiceLetter(), formatServiceLetter()');
             } catch (windowError) {
                 console.warn('⚠️ Impossible d\'exposer les fonctions de debug (ignoré)');
             }
@@ -2682,13 +2744,14 @@ setTimeout(function() {
                     toastContainer: !!document.getElementById('toastContainer'),
                     servicesTable: !!document.getElementById('servicesTable'),
                     bulkDeleteBtn: !!document.getElementById('bulkDeleteBtn'),
-                    selectAllBtn: !!document.getElementById('selectAllBtn')
+                    selectAllBtn: !!document.getElementById('selectAllBtn'),
+                    letterDisplays: document.querySelectorAll('.letter-display').length
                 };
 
                 console.log('🏥 Test de santé du système:', healthCheck);
 
                 // Compteur de problèmes
-                const issues = Object.entries(healthCheck).filter(([key, value]) => !value || (key === 'serviceCheckboxes' && value === 0));
+                const issues = Object.entries(healthCheck).filter(([key, value]) => !value || (key.includes('Count') && value === 0));
                 
                 if (issues.length === 0) {
                     console.log('💚 Système entièrement fonctionnel !');
@@ -2696,6 +2759,17 @@ setTimeout(function() {
                     console.warn('⚠️ Problèmes détectés:', issues.map(([key]) => key));
                     console.warn('ℹ️ Ces problèmes peuvent être normaux selon le contenu de la page');
                 }
+
+                // ✅ NOUVELLE VÉRIFICATION: Test des lettres de service
+                const letterElements = document.querySelectorAll('.letter-display');
+                console.log(`🔤 Lettres de service détectées: ${letterElements.length}`);
+                
+                letterElements.forEach((element, index) => {
+                    const letter = element.textContent.trim();
+                    if (letter && letter !== 'N/A') {
+                        console.log(`  📝 Service ${index + 1}: ${letter}`);
+                    }
+                });
 
             } catch (healthError) {
                 console.warn('⚠️ Impossible de faire le test de santé:', healthError.message);

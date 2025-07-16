@@ -647,4 +647,5 @@ if (app()->environment('local')) {
             ]);
         });
     });
+
 }

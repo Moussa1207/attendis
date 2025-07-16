@@ -142,33 +142,7 @@
             display: none !important;
         }
 
-        /* ==================================================================================== */
-        /* ✅ BANNIÈRE DE BIENVENUE CONSERVÉE */
-        /* ==================================================================================== */
-
-        .welcome-banner {
-            background: #ffffff;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            text-align: center;
-        }
-
-        .user-avatar {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #007bff, #6c757d);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 15px;
-        }
+        
 
         /* ==================================================================================== */
         /* ✅ CARTES DE SERVICES AMÉLIORÉES - MAXIMUM 4 PAR LIGNE */
