@@ -232,6 +232,57 @@
                                                 </div>
                                             </div>
                                         </div>
+
+                                        <!-- ✅ 4. NOUVEAU PARAMÈTRE : Temps d'attente configurable (File d'attente unique) -->
+                                        <div class="form-group mb-4">
+                                            <div class="card bg-light border-info">
+                                                <div class="card-header bg-info text-white">
+                                                    <h6 class="mb-0">
+                                                        <i class="mdi mdi-clock-outline mr-2"></i>
+                                                        <strong>Configuration de la file d'attente unique</strong>
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row align-items-center">
+                                                        <div class="col-md-5">
+                                                            <label for="default_waiting_time_minutes" class="form-label mb-0">
+                                                                <strong>Temps d'attente par défaut (minutes)</strong>
+                                                            </label>
+                                                            <small class="form-text text-muted">
+                                                                Durée estimée entre chaque ticket dans la file d'attente unique
+                                                            </small>
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <div class="input-group">
+                                                                <input type="number" 
+                                                                       class="form-control @error('default_waiting_time_minutes') is-invalid @enderror"
+                                                                       id="default_waiting_time_minutes"
+                                                                       name="default_waiting_time_minutes"
+                                                                       value="{{ isset($userManagementSettings['default_waiting_time_minutes']) ? $userManagementSettings['default_waiting_time_minutes']->value : '5' }}"
+                                                                       min="1"
+                                                                       max="60"
+                                                                       step="1"
+                                                                       required>
+                                                                <div class="input-group-append">
+                                                                    <span class="input-group-text">min</span>
+                                                                </div>
+                                                            </div>
+                                                            @error('default_waiting_time_minutes')
+                                                                <div class="invalid-feedback">{{ $message }}</div>
+                                                            @enderror
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <div class="alert alert-info mb-0 py-2">
+                                                                <small>
+                                                                    <i class="mdi mdi-information-outline mr-1"></i>
+                                                                    <strong>Important :</strong> Ce paramètre détermine le temps d'attente calculé pour chaque position dans la file unique.
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -457,6 +508,17 @@ document.getElementById('settingsForm').addEventListener('submit', function(e) {
     const sessionClosure = document.getElementById('enable_auto_session_closure').checked;
     const closureTime = document.getElementById('auto_session_closure_time').value;
     
+    // ✅ NOUVEAU : Validation du temps d'attente
+    const waitingTime = document.getElementById('default_waiting_time_minutes').value;
+    const waitingTimeInt = parseInt(waitingTime);
+    
+    if (!waitingTime || waitingTimeInt < 1 || waitingTimeInt > 60) {
+        e.preventDefault();
+        showAlert('Le temps d\'attente doit être entre 1 et 60 minutes.', 'warning');
+        document.getElementById('default_waiting_time_minutes').focus();
+        return false;
+    }
+    
     // Validation de l'heure si la fermeture auto est activée
     if (sessionClosure && !closureTime) {
         e.preventDefault();
@@ -644,13 +706,14 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('=== PAGE PARAMÈTRES CHARGÉE ===');
     console.log('État initial des checkboxes:');
     
-    // Logger l'état initial
+    // Logger l'état initial avec le nouveau paramètre
     ['auto_detect_available_advisors', 'auto_assign_all_services_to_advisors', 'enable_auto_session_closure'].forEach(id => {
         const checkbox = document.getElementById(id);
         console.log(`${id}: ${checkbox.checked ? 'checked' : 'unchecked'}`);
     });
     
     console.log('Heure de fermeture:', document.getElementById('auto_session_closure_time').value);
+    console.log('Temps d\'attente configuré:', document.getElementById('default_waiting_time_minutes').value + ' minutes');
 
     // Vérifier que le token CSRF est présent
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 

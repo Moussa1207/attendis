@@ -142,8 +142,6 @@
             display: none !important;
         }
 
-        
-
         /* ==================================================================================== */
         /* ✅ CARTES DE SERVICES AMÉLIORÉES - MAXIMUM 4 PAR LIGNE */
         /* ==================================================================================== */
@@ -199,17 +197,18 @@
             overflow: hidden;
             position: relative;
             cursor: pointer;
+            height: 280px; /* ✅ Hauteur fixe pour uniformité */
         }
 
         .service-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+            transform: translateY(-5px);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
             border-color: #007bff;
         }
 
         .card-img-top {
             width: 100%;
-            height: 160px;
+            height: 200px; /* ✅ Hauteur fixe pour images */
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             display: flex;
             align-items: center;
@@ -230,76 +229,36 @@
             position: relative;
         }
 
-        /* ✅ OVERLAY POUR AMÉLIORER LA LISIBILITÉ DES ICÔNES SUR LES IMAGES */
-        .card-img-top::before {
+        /* ✅ FALLBACK pour images manquantes */
+        .card-img-top::after {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.3);
-            opacity: 0;
-            transition: opacity 0.3s ease;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23007bff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>') center/50px no-repeat;
+            opacity: 0.3;
             z-index: 1;
         }
 
-        .card-img-top.has-image::before {
-            opacity: 1;
+        /* ✅ STYLE UNIFORME POUR TOUS LES SERVICES */
+        .service-card .card-img-top:not(.has-image) {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         }
 
-        .card-img-top.has-image i {
-            color: white !important;
-            opacity: 1;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
-        }
-
-        /* ✅ NOUVEAUX ÉTATS VISUELS POUR LES SERVICES */
-        .service-card.actif .card-img-top {
-            border-left: 4px solid #28a745;
-        }
-
-        .service-card.actif .card-img-top:not(.has-image) {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-        }
-
-        .service-card.actif .card-img-top:not(.has-image) i {
-            color: #28a745;
-        }
-
-        .service-card.inactif .card-img-top {
-            border-left: 4px solid #ffc107;
-        }
-
-        .service-card.inactif .card-img-top:not(.has-image) {
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-        }
-
-        .service-card.inactif .card-img-top:not(.has-image) i {
-            color: #ffc107;
-        }
-
-        .service-card.ferme {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .service-card.ferme .card-img-top {
-            border-left: 4px solid #dc3545;
-        }
-
-        .service-card.ferme .card-img-top:not(.has-image) {
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-        }
-
-        .service-card.ferme .card-img-top:not(.has-image) i {
-            color: #dc3545;
+        .service-card .card-img-top:not(.has-image) i {
+            color: #007bff;
         }
 
         .card-header {
             background: transparent;
             border: none;
-            padding: 20px 20px 15px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 80px; /* ✅ Hauteur fixe pour le titre */
         }
 
         .card-title {
@@ -307,6 +266,9 @@
             font-weight: 600;
             color: #343a40;
             margin-bottom: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .card-body {
@@ -318,73 +280,6 @@
             font-size: 0.9rem;
             line-height: 1.5;
             margin-bottom: 16px;
-        }
-
-        /* ✅ NOUVELLES STATISTIQUES DE FILE D'ATTENTE */
-        .service-stats {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 16px;
-            padding: 12px;
-            background: #f8f9fa;
-            border-radius: 6px;
-        }
-
-        .service-stat {
-            text-align: center;
-            flex: 1;
-        }
-
-        .stat-number {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #007bff;
-            margin-bottom: 2px;
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: #6c757d;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* ✅ BOUTON DE PRISE DE TICKET */
-        .take-ticket-btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #007bff, #0056b3);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 8px;
-        }
-
-        .take-ticket-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
-        }
-
-        .take-ticket-btn:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .take-ticket-btn.success {
-            background: linear-gradient(135deg, #28a745, #1e7e34);
-        }
-
-        .take-ticket-btn.warning {
-            background: linear-gradient(135deg, #ffc107, #e0a800);
-            color: #212529;
         }
 
         /* ==================================================================================== */
@@ -633,10 +528,65 @@
             background-color: rgba(40, 167, 69, 0.15) !important;
             border-radius: 6px;
         }
+
+        /* ==================================================================================== */
+        /* ✅ NOUVEAUX STYLES POUR LES STATISTIQUES EN TEMPS RÉEL */
+        /* ==================================================================================== */
+
+        .realtime-stats {
+            position: fixed;
+            top: 90px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            min-width: 250px;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .realtime-stats.show {
+            transform: translateX(0);
+        }
+
+        .stats-toggle {
+            position: fixed;
+            top: 90px;
+            right: 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+            cursor: pointer;
+            z-index: 1001;
+            transition: all 0.3s ease;
+        }
+
+        .stats-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
     </style>
 
     <!-- ==================================================================================== -->
-    <!-- ✅ JAVASCRIPT AMÉLIORÉ AVEC TÉLÉCHARGEMENT -->
+    <!-- ✅ JAVASCRIPT AMÉLIORÉ AVEC VRAI APPEL AJAX -->
     <!-- ==================================================================================== -->
     <script>
         // ==================================================================================== 
@@ -757,16 +707,11 @@
         }
 
         // ==================================================================================== 
-        // ✅ NOUVELLES FONCTIONS POUR PRISE DE TICKET
+        // ✅ NOUVELLES FONCTIONS POUR PRISE DE TICKET AVEC AJAX RÉEL
         // ==================================================================================== 
 
         function selectService(serviceId, serviceName, statut) {
-            console.log('🎫 selectService() appelée pour:', serviceId, serviceName, statut);
-            
-            if (statut !== 'actif') {
-                showToast('Service', 'Ce service n\'est pas disponible actuellement', 'warning');
-                return;
-            }
+            console.log('🎫 selectService() appelée pour:', serviceId, serviceName);
 
             currentService = {
                 id: serviceId,
@@ -815,51 +760,48 @@
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-2"></span>Génération...';
             submitBtn.disabled = true;
 
-            // TODO: Remplacer par un vrai appel AJAX vers votre backend
-            // $.ajax({
-            //     url: '/ecran/generate-ticket',
-            //     method: 'POST',
-            //     data: formData,
-            //     processData: false,
-            //     contentType: false,
-            //     success: function(response) {
-            //         displayTicket(response.ticket);
-            //     },
-            //     error: function(xhr) {
-            //         showToast('Erreur', 'Impossible de générer le ticket', 'error');
-            //     },
-            //     complete: function() {
-            //         submitBtn.innerHTML = originalText;
-            //         submitBtn.disabled = false;
-            //     }
-            // });
-
-            // Simulation pour l'instant
-            setTimeout(() => {
-                const ticketData = {
-                    number: generateTicketNumber(),
-                    service: currentService.name,
-                    position: Math.floor(Math.random() * 10) + 1,
-                    estimated_time: Math.floor(Math.random() * 20) + 5,
-                    date: new Date().toLocaleDateString('fr-FR'),
-                    time: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}),
-                    fullName: fullName,
-                    phone: phone,
-                    comment: formData.get('comment') || ''
-                };
-                
-                displayTicket(ticketData);
-                
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }, 2000);
-        }
-
-        function generateTicketNumber() {
-            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            const letter = letters[Math.floor(Math.random() * letters.length)];
-            const number = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
-            return letter + number;
+            // ✅ VRAI APPEL AJAX VERS LE SERVEUR
+            $.ajax({
+                url: '{{ route("ecran.generate-ticket") }}',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    console.log('✅ Ticket généré avec succès:', response);
+                    
+                    if (response.success) {
+                        displayTicket(response.ticket);
+                        
+                        // ✅ ACTUALISER LES STATISTIQUES DU SERVICE
+                        updateServiceStats(currentService.id, response.queue_status);
+                        
+                        showToast('Succès', response.message, 'success');
+                    } else {
+                        showToast('Erreur', response.message || 'Erreur lors de la génération', 'error');
+                    }
+                },
+                error: function(xhr) {
+                    console.error('❌ Erreur génération ticket:', xhr);
+                    
+                    let errorMessage = 'Impossible de générer le ticket';
+                    
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                        // Erreurs de validation
+                        const errors = xhr.responseJSON.errors;
+                        const firstError = Object.values(errors)[0];
+                        errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+                    }
+                    
+                    showToast('Erreur', errorMessage, 'error');
+                },
+                complete: function() {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
         }
 
         function displayTicket(ticketData) {
@@ -880,7 +822,31 @@
             // Afficher le modal de ticket
             $('#ticketDisplayModal').modal('show');
             
-            showToast('Ticket', `Ticket ${ticketData.number} généré avec succès`, 'success');
+            console.log('🎫 Ticket affiché:', ticketData);
+        }
+
+        function updateServiceStats(serviceId, queueStatus) {
+            // Mise à jour des statistiques en temps réel sur la carte du service
+            const serviceCard = document.querySelector(`[data-service-id="${serviceId}"]`);
+            if (serviceCard) {
+                const statsContainer = serviceCard.querySelector('.service-stats');
+                if (statsContainer) {
+                    statsContainer.innerHTML = `
+                        <div class="service-stat">
+                            <div class="stat-number">${queueStatus.total_today}</div>
+                            <div class="stat-label">Aujourd'hui</div>
+                        </div>
+                        <div class="service-stat">
+                            <div class="stat-number">${queueStatus.waiting}</div>
+                            <div class="stat-label">En attente</div>
+                        </div>
+                        <div class="service-stat">
+                            <div class="stat-number">${queueStatus.in_progress}</div>
+                            <div class="stat-label">En cours</div>
+                        </div>
+                    `;
+                }
+            }
         }
 
         function printTicket() {
@@ -1053,11 +1019,6 @@ Merci de votre patience.
             currentService = null;
             currentTicketData = null;
             document.getElementById('ticketForm').reset();
-            
-            // Actualiser les statistiques ou la page
-            setTimeout(() => {
-                refreshServices();
-            }, 1000);
         }
 
         // ==================================================================================== 
@@ -1162,6 +1123,53 @@ Merci de votre patience.
             }
         }
 
+        // ✅ NOUVELLE FONCTION : Gestion des images de services
+        function initializeServiceImages() {
+            console.log('🖼️ Initialisation des images de services...');
+            
+            const serviceCards = document.querySelectorAll('.card-img-top');
+            
+            serviceCards.forEach(function(cardImg) {
+                const backgroundImage = cardImg.style.backgroundImage;
+                
+                if (backgroundImage && backgroundImage !== 'none') {
+                    // Extraire l'URL de l'image
+                    const imageUrl = backgroundImage.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '');
+                    
+                    // Tester si l'image existe
+                    const img = new Image();
+                    img.onload = function() {
+                        // Image trouvée : masquer l'icône fallback
+                        const icon = cardImg.querySelector('i');
+                        if (icon) {
+                            icon.style.display = 'none';
+                        }
+                        console.log('✅ Image service chargée:', imageUrl);
+                    };
+                    
+                    img.onerror = function() {
+                        // Image non trouvée : afficher l'icône fallback
+                        cardImg.style.backgroundImage = 'none';
+                        const icon = cardImg.querySelector('i');
+                        if (icon) {
+                            icon.style.display = 'flex';
+                            icon.style.alignItems = 'center';
+                            icon.style.justifyContent = 'center';
+                        }
+                        console.log('⚠️ Image service non trouvée, fallback activé:', imageUrl);
+                    };
+                    
+                    img.src = imageUrl;
+                } else {
+                    // Pas d'image définie : afficher l'icône par défaut
+                    const icon = cardImg.querySelector('i');
+                    if (icon) {
+                        icon.style.display = 'flex';
+                    }
+                }
+            });
+        }
+
         // ==================================================================================== 
         // ✅ ÉVÉNEMENTS GLOBAUX
         // ==================================================================================== 
@@ -1246,55 +1254,22 @@ Merci de votre patience.
         <!-- Page Content-->
         <div class="page-content">
             <div class="container-fluid">
-                
-                
 
-                
-
-                <!-- ✅ GRILLE DES SERVICES (DYNAMIQUE) AVEC EXEMPLES D'IMAGES - MAXIMUM 4 PAR LIGNE -->
+                <!-- ✅ GRILLE DES SERVICES SIMPLIFIÉE -->
                 <div class="services-grid animate-fade-in" id="services-container">
                     @if(isset($services) && $services->count() > 0)
                         @foreach($services as $service)
-                        <div class="card service-card {{ $service->statut }}" onclick="selectService({{ $service->id }}, '{{ $service->nom }}', '{{ $service->statut }}')">
-                            <!-- ✅ Image d'en-tête avec liens d'images -->
-                            <div class="card-img-top img-fluid bg-light-alt has-image"
-                                style="background-image: url('https://via.placeholder.com/400x200/007bff/ffffff?text={{ urlencode($service->nom) }}')">
-                                <i data-feather="{{ $service->statut === 'actif' ? 'check-circle' : ($service->statut === 'inactif' ? 'pause-circle' : 'x-circle') }}"></i>
+                        <div class="card service-card" data-service-id="{{ $service->id }}" onclick="selectService({{ $service->id }}, '{{ $service->nom }}', '{{ $service->statut }}')">
+                            <!-- ✅ Image d'en-tête pour vraies images -->
+                            <div class="card-img-top img-fluid bg-light-alt"
+                                style="background-image: url('{{ asset('images/services/' . $service->id . '.jpg') }}'); background-size: cover; background-position: center;">
+                                <!-- Fallback icon si pas d'image -->
+                                <i data-feather="briefcase" style="display: none;"></i>
                             </div>
                             
-                            <!-- Header -->
-                            <div class="card-header">
-                                <div class="row align-items-center">
-                                    <div class="col">                      
-                                        <h4 class="card-title">{{ $service->nom }}</h4>               
-                                    </div>
-                                    <div class="col-auto">
-                                        @if($service->statut === 'actif')
-                                            <span class="badge badge-success">Disponible</span>
-                                        @elseif($service->statut === 'inactif')
-                                            <span class="badge badge-warning">Très demandé</span>
-                                        @else
-                                            <span class="badge badge-danger">Fermé</span>
-                                        @endif            
-                                    </div>                                                                         
-                                </div>                                 
-                            </div>
-                            
-                            <!-- Body -->
-                            <div class="card-body">
-
-                                <!-- ✅ BOUTON PRISE DE TICKET -->
-                                @if($service->statut === 'actif')
-                                    
-                                @elseif($service->statut === 'inactif')
-                                    <button class="take-ticket-btn warning">
-                                        <i data-feather="clock" class="mr-1"></i> File d'attente longue
-                                    </button>
-                                @else
-                                    <button class="take-ticket-btn" disabled>
-                                        <i data-feather="x-circle" class="mr-1"></i> Service fermé
-                                    </button>
-                                @endif
+                            <!-- Header simplifié -->
+                            <div class="card-header text-center">
+                                <h4 class="card-title">{{ $service->nom }}</h4>               
                             </div>
                         </div>
                         @endforeach
@@ -1330,9 +1305,9 @@ Merci de votre patience.
                 </div>
 
                 <!-- Footer -->
-                <footer class="footer text-center text-sm-left">
+                <footer class="footer text-center">
                     <div>
-                        &copy; {{ date('Y') }} Attendis - Système de Gestion de File d'Attente
+                        &copy; {{ date('Y') }} Attendis
                     </div>
                 </footer>
             </div>
@@ -1365,7 +1340,7 @@ Merci de votre patience.
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Nom *</label>
+                                    <label>Nom complet *</label>
                                     <input type="text" name="full_name" class="form-control" required placeholder="Votre nom complet">
                                 </div>
                             </div>
@@ -1395,7 +1370,7 @@ Merci de votre patience.
 
     <!-- Modal Affichage Ticket -->
     <div class="modal fade" id="ticketDisplayModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
@@ -1409,30 +1384,35 @@ Merci de votre patience.
                     <div class="ticket-display">
                         <div class="ticket-number" id="displayTicketNumber">A001</div>
                         <div class="ticket-info">
-                            <p><strong>Service:</strong> <span id="displayServiceName">--</span></p>
-                            <p><strong>Date:</strong> <span id="displayTicketDate">--</span></p>
-                            <p><strong>Heure:</strong> <span id="displayTicketTime">--</span></p>
-                        </div>
-                        
-                        <div class="queue-status">
-                            <div class="queue-position">Position dans la file: <span id="displayQueuePosition">--</span></div>
-                            <div class="estimated-time">Temps d'attente estimé: <span id="displayEstimatedTime">--</span></div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <p><strong>Service:</strong> <span id="displayServiceName">--</span></p>
+                                    <p><strong>Date:</strong> <span id="displayTicketDate">--</span></p>
+                                    <p><strong>Heure:</strong> <span id="displayTicketTime">--</span></p>
+                                </div>
+                                <div class="col-6">
+                                    <div class="queue-status">
+                                        <div class="queue-position">Position: <span id="displayQueuePosition">--</span></div>
+                                        <div class="estimated-time">Temps estimé: <span id="displayEstimatedTime">--</span></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="alert alert-success mt-3">
                             <i data-feather="info" class="mr-2"></i>
-                            <strong>Important:</strong> Conservez ce ticket et restez à proximité. Vous serez appelé par votre numéro.
+                            <strong>Important:</strong> Conservez ce ticket et restez à proximité.
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" onclick="downloadTicket()">
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="downloadTicket()">
                         <i data-feather="download" class="mr-1"></i> Télécharger
                     </button>
-                    <button type="button" class="btn btn-outline-primary" onclick="printTicket()">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="printTicket()">
                         <i data-feather="printer" class="mr-1"></i> Imprimer
                     </button>
-                    <button type="button" class="btn btn-success" onclick="closeTicketDisplay()">
+                    <button type="button" class="btn btn-success btn-sm" onclick="closeTicketDisplay()">
                         <i data-feather="check" class="mr-1"></i> Terminé
                     </button>
                 </div>
@@ -1468,6 +1448,9 @@ Merci de votre patience.
 
             // Initialiser le mode d'affichage
             initializeDisplayMode();
+            
+            // ✅ Gérer les images de services (fallback si image manquante)
+            initializeServiceImages();
             
             // Démarrer l'auto-refresh (2 minutes pour une borne)
             startAutoRefresh();

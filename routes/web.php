@@ -112,6 +112,202 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
     // 🆕 API pour les guides métier par type
     Route::get('/api/user/type-guide/{type?}', [DashboardController::class, 'getTypeGuide'])
         ->name('api.user.type-guide');
+
+    /*
+    |--------------------------------------------------------------------------
+    | ✅ SECTION AMÉLIORÉE : GESTION DE FILE D'ATTENTE CHRONOLOGIQUE FIFO
+    |--------------------------------------------------------------------------
+    */
+
+    // 🎫 GÉNÉRATION DE TICKET (Postes Ecran uniquement) - FILE CHRONOLOGIQUE FIFO
+    Route::post('/ecran/generate-ticket', [DashboardController::class, 'generateTicket'])
+        ->name('ecran.generate-ticket');
+
+    // 🎫 API STATISTIQUES TICKETS EN TEMPS RÉEL (Postes Ecran) - AVEC LOGIQUE FIFO
+    Route::get('/api/ecran/queue-stats/{serviceId?}', function($serviceId = null) {
+        if (!auth()->user()->isEcranUser()) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
+        }
+
+        try {
+            $user = auth()->user();
+            $creator = $user->getCreator();
+            
+            if (!$creator) {
+                return response()->json(['success' => false, 'message' => 'Créateur introuvable'], 500);
+            }
+
+            if ($serviceId) {
+                // Statistiques d'un service spécifique avec file chronologique
+                $service = \App\Models\Service::where('id', $serviceId)
+                                            ->where('created_by', $creator->id)
+                                            ->first();
+                
+                if (!$service) {
+                    return response()->json(['success' => false, 'message' => 'Service non autorisé'], 403);
+                }
+
+                $stats = \App\Models\Queue::getServiceStats($serviceId);
+                
+                return response()->json([
+                    'success' => true,
+                    'service' => $service->nom,
+                    'stats' => $stats,
+                    'queue_info' => [
+                        'type' => 'fifo_chronological',
+                        'principle' => 'Premier arrivé, premier servi',
+                        'next_position' => \App\Models\Queue::calculateQueuePosition(),
+                        'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
+                    ],
+                    'timestamp' => now()->format('H:i:s')
+                ]);
+            } else {
+                // Statistiques globales de tous les services avec file chronologique
+                $services = $creator->createdServices()->get();
+                $globalStats = [
+                    'total_tickets_today' => 0,
+                    'total_waiting' => 0,
+                    'total_in_progress' => 0,
+                    'total_completed' => 0,
+                    'services_stats' => []
+                ];  
+
+                foreach ($services as $service) {
+                    $serviceStats = \App\Models\Queue::getServiceStats($service->id);
+                    $globalStats['total_tickets_today'] += $serviceStats['total_tickets'];
+                    $globalStats['total_waiting'] += $serviceStats['en_attente'];
+                    $globalStats['total_in_progress'] += $serviceStats['en_cours'];
+                    $globalStats['total_completed'] += $serviceStats['termines'];
+                    
+                    $globalStats['services_stats'][] = [
+                        'service_id' => $service->id,
+                        'service_name' => $service->nom,
+                        'letter' => $service->letter_of_service,
+                        'stats' => $serviceStats
+                    ];
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'global_stats' => $globalStats,
+                    'queue_info' => [
+                        'type' => 'fifo_chronological',
+                        'principle' => 'Premier arrivé, premier servi',
+                        'global_position' => \App\Models\Queue::calculateQueuePosition(),
+                        'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                        'total_waiting_global' => \App\Models\Queue::where('date', today())->where('statut_global', 'en_attente')->count()
+                    ],
+                    'timestamp' => now()->format('H:i:s')
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur API queue stats - File chronologique FIFO', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur'], 500);
+        }
+    })->name('api.ecran.queue-stats');
+
+    // 🎫 HISTORIQUE DES TICKETS (Postes Ecran - consultation uniquement) - ORDRE CHRONOLOGIQUE
+    Route::get('/api/ecran/tickets-history', function(Request $request) {
+        if (!auth()->user()->isEcranUser()) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
+        }
+
+        try {
+            $user = auth()->user();
+            $creator = $user->getCreator();
+            
+            if (!$creator) {
+                return response()->json(['success' => false, 'message' => 'Créateur introuvable'], 500);
+            }
+
+            $serviceIds = $creator->createdServices()->pluck('id');
+            $date = $request->get('date', today());
+            $limit = min($request->get('limit', 50), 100); // Max 100 tickets
+
+            // 🆕 ORDRE CHRONOLOGIQUE : Tri par created_at (FIFO)
+            $tickets = \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                       ->whereDate('date', $date)
+                                       ->with('service')
+                                       ->orderBy('created_at', 'desc') // Plus récents en premier pour l'historique
+                                       ->limit($limit)
+                                       ->get()
+                                       ->map(function($ticket) {
+                                           return $ticket->toTicketArray();
+                                       });
+
+            return response()->json([
+                'success' => true,
+                'tickets' => $tickets,
+                'date' => \Carbon\Carbon::parse($date)->format('d/m/Y'),
+                'total_count' => $tickets->count(),
+                'queue_info' => [
+                    'type' => 'fifo_chronological',
+                    'principle' => 'Premier arrivé, premier servi',
+                    'order_note' => 'Historique trié par heure d\'arrivée (plus récents en premier)'
+                ],
+                'timestamp' => now()->format('H:i:s')
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur API tickets history - File chronologique', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur'], 500);
+        }
+    })->name('api.ecran.tickets-history');
+
+    // 🆕 API POUR L'ORDRE CHRONOLOGIQUE DE LA FILE (Postes Ecran)
+    Route::get('/api/ecran/chronological-queue', function(Request $request) {
+        if (!auth()->user()->isEcranUser()) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
+        }
+
+        try {
+            $user = auth()->user();
+            $creator = $user->getCreator();
+            
+            if (!$creator) {
+                return response()->json(['success' => false, 'message' => 'Créateur introuvable'], 500);
+            }
+
+            $serviceIds = $creator->createdServices()->pluck('id');
+            $date = $request->get('date', today());
+            
+            // 🎯 ORDRE CHRONOLOGIQUE FIFO : Tous tickets en attente triés par heure d'arrivée
+            $chronologicalQueue = \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                  ->whereDate('date', $date)
+                                                  ->where('statut_global', 'en_attente')
+                                                  ->orderBy('created_at', 'asc') // FIFO : Premier arrivé, premier servi
+                                                  ->with('service')
+                                                  ->get()
+                                                  ->map(function($ticket, $index) {
+                                                      $ticketArray = $ticket->toTicketArray();
+                                                      $ticketArray['rang_chronologique'] = $index + 1; // Position dans la file
+                                                      $ticketArray['heure_arrivee'] = $ticket->heure_d_enregistrement ?: $ticket->created_at->format('H:i:s');
+                                                      return $ticketArray;
+                                                  });
+
+            return response()->json([
+                'success' => true,
+                'chronological_queue' => $chronologicalQueue,
+                'queue_stats' => [
+                    'total_waiting' => $chronologicalQueue->count(),
+                    'next_to_serve' => $chronologicalQueue->first(),
+                    'last_in_queue' => $chronologicalQueue->last(),
+                    'estimated_wait_next' => \App\Models\Queue::estimateWaitingTime(1)
+                ],
+                'queue_info' => [
+                    'type' => 'fifo_chronological',
+                    'principle' => 'Premier arrivé, premier servi',
+                    'order_explanation' => 'Les tickets sont traités dans l\'ordre chronologique d\'arrivée, peu importe le service'
+                ],
+                'date' => \Carbon\Carbon::parse($date)->format('d/m/Y'),
+                'timestamp' => now()->format('H:i:s')
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur API chronological queue', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur'], 500);
+        }
+    })->name('api.ecran.chronological-queue');
     
     /*
     |--------------------------------------------------------------------------
@@ -163,7 +359,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         // Route alternative pour compatibility
         Route::get('/settings', function() {
             return redirect()->route('layouts.setting');
-        });
+        });  
 
         /*
         |--------------------------------------------------------------------------
@@ -229,10 +425,250 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
 
         /*
         |--------------------------------------------------------------------------
+        | ✅ AMÉLIORÉ : GESTION DES FILES D'ATTENTE CHRONOLOGIQUE (ADMIN)
+        |--------------------------------------------------------------------------
+        */
+
+        Route::prefix('admin/queue')->group(function () {
+            
+            // 📊 Tableau de bord des files d'attente avec logique chronologique FIFO
+            Route::get('/dashboard', function() {
+                $admin = auth()->user();
+                $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
+                
+                $todayStats = [
+                    'total_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->count(),
+                    'waiting_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->where('statut_global', 'en_attente')->count(),
+                    'processing_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->where('statut_global', 'en_cours')->count(),
+                    'completed_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->where('statut_global', 'termine')->count(),
+                    'average_wait_time' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->avg('temps_attente_estime') ?? 0,
+                    // 🆕 NOUVEAU : Statistiques de la file chronologique
+                    'next_global_position' => \App\Models\Queue::calculateQueuePosition(),
+                    'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                ];
+
+                $services = \App\Models\Service::where('created_by', $admin->id)
+                                             ->with(['queues' => function($q) {
+                                                 $q->whereDate('date', today());
+                                             }])
+                                             ->get()
+                                             ->map(function($service) {
+                                                 $service->today_stats = \App\Models\Queue::getServiceStats($service->id);
+                                                 return $service;
+                                             });
+
+                // 🆕 NOUVEAU : File d'attente chronologique globale
+                $chronologicalQueue = \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                      ->whereDate('date', today())
+                                                      ->where('statut_global', 'en_attente')
+                                                      ->orderBy('created_at', 'asc') // FIFO
+                                                      ->with('service')
+                                                      ->limit(20)
+                                                      ->get();
+
+                return view('admin.queue.dashboard', compact('todayStats', 'services', 'chronologicalQueue'));
+            })->name('admin.queue.dashboard');
+
+            // 📋 Liste des tickets avec ordre chronologique
+            Route::get('/tickets', function(Request $request) {
+                $admin = auth()->user();
+                $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
+                
+                $query = \App\Models\Queue::whereIn('service_id', $serviceIds)->with('service');
+                
+                // Filtres
+                if ($request->filled('date')) {
+                    $query->whereDate('date', $request->date);
+                } else {
+                    $query->whereDate('date', today());
+                }
+                
+                if ($request->filled('service_id')) {
+                    $query->where('service_id', $request->service_id);
+                }
+                
+                if ($request->filled('statut')) {
+                    $query->where('statut_global', $request->statut);
+                }
+                
+                if ($request->filled('search')) {
+                    $search = $request->search;
+                    $query->where(function($q) use ($search) {
+                        $q->where('numero_ticket', 'LIKE', "%{$search}%")
+                          ->orWhere('prenom', 'LIKE', "%{$search}%")
+                          ->orWhere('telephone', 'LIKE', "%{$search}%");
+                    });
+                }
+                
+                // 🆕 TRI CHRONOLOGIQUE : Par défaut, ordre d'arrivée (FIFO)
+                $sortBy = $request->get('sort', 'created_at');
+                $sortOrder = $request->get('order', 'asc'); // ASC pour FIFO
+                $query->orderBy($sortBy, $sortOrder);
+                
+                $tickets = $query->paginate(20);
+                $services = \App\Models\Service::where('created_by', $admin->id)->get();
+                
+                return view('admin.queue.tickets', compact('tickets', 'services'));
+            })->name('admin.queue.tickets');
+
+            // 📈 Statistiques avancées avec file chronologique
+            Route::get('/stats', function(Request $request) {
+                $admin = auth()->user();
+                $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
+                
+                $period = $request->get('period', 'today');
+                $dateRange = match($period) {
+                    'today' => [today(), today()],
+                    'week' => [now()->startOfWeek(), now()->endOfWeek()],
+                    'month' => [now()->startOfMonth(), now()->endOfMonth()],
+                    default => [today(), today()]
+                };
+                
+                $stats = [
+                    'period_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                        ->whereBetween('date', $dateRange)
+                                                        ->count(),
+                    'period_completed' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                          ->whereBetween('date', $dateRange)
+                                                          ->where('statut_global', 'termine')
+                                                          ->count(),
+                    'average_processing_time' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                                 ->whereBetween('date', $dateRange)
+                                                                 ->whereNotNull('heure_de_fin')
+                                                                 ->avg(\DB::raw('TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60')) ?? 0,
+                    'busiest_service' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                         ->whereBetween('date', $dateRange)
+                                                         ->select('service_id', \DB::raw('COUNT(*) as ticket_count'))
+                                                         ->groupBy('service_id')
+                                                         ->orderBy('ticket_count', 'desc')
+                                                         ->with('service')
+                                                         ->first(),
+                    // 🆕 NOUVEAU : Statistiques spécifiques à la file chronologique
+                    'chronological_stats' => [
+                        'queue_type' => 'fifo_chronological',
+                        'principle' => 'Premier arrivé, premier servi',
+                        'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                        'peak_hours' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                        ->whereBetween('date', $dateRange)
+                                                        ->selectRaw('HOUR(heure_d_enregistrement) as hour, COUNT(*) as count')
+                                                        ->groupBy('hour')
+                                                        ->orderBy('count', 'desc')
+                                                        ->limit(3)
+                                                        ->get()
+                                                        ->toArray()
+                    ]
+                ];
+                
+                return view('admin.queue.stats', compact('stats', 'period'));
+            })->name('admin.queue.stats');
+
+            // 🗂️ Export des données avec ordre chronologique
+            Route::get('/export', function(Request $request) {
+                $admin = auth()->user();
+                $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
+                
+                $date = $request->get('date', today());
+                
+                // 🆕 TRI CHRONOLOGIQUE pour l'export
+                $tickets = \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                          ->whereDate('date', $date)
+                                          ->with('service')
+                                          ->orderBy('created_at', 'asc') // FIFO dans l'export
+                                          ->get();
+                
+                $filename = 'tickets_chronological_' . \Carbon\Carbon::parse($date)->format('Y-m-d') . '.csv';
+                
+                $headers = [
+                    'Content-Type' => 'text/csv; charset=utf-8',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ];
+
+                $callback = function() use ($tickets) {
+                    $file = fopen('php://output', 'w');
+                    fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
+                    
+                    fputcsv($file, [
+                        'Rang Chronologique',
+                        'Numéro Ticket',
+                        'Service',
+                        'Client',
+                        'Téléphone',
+                        'Date',
+                        'Heure Arrivée',
+                        'Position Globale',
+                        'Temps Attente Estimé',
+                        'Statut',
+                        'Conseiller',
+                        'Commentaire'
+                    ], ';');
+                    
+                    foreach ($tickets as $index => $ticket) {
+                        fputcsv($file, [
+                            $index + 1, // Rang chronologique
+                            $ticket->numero_ticket,
+                            $ticket->service ? $ticket->service->nom : 'N/A',
+                            $ticket->prenom,
+                            $ticket->telephone,
+                            $ticket->date->format('d/m/Y'),
+                            $ticket->heure_d_enregistrement,
+                            $ticket->position_file,
+                            $ticket->temps_attente_estime . ' min',
+                            $ticket->getStatutLibelle(),
+                            $ticket->conseillerClient ? $ticket->conseillerClient->username : 'N/A',
+                            $ticket->commentaire ?: ''
+                        ], ';');
+                    }
+                    
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            })->name('admin.queue.export');
+
+            // 🆕 NOUVEAU : API pour la file chronologique globale (Admin)
+            Route::get('/api/chronological-global', function(Request $request) {
+                $admin = auth()->user();
+                $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
+                $date = $request->get('date', today());
+                
+                $globalStats = \App\Models\Queue::getGlobalQueueStats($date);
+                $chronologicalOrder = \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                      ->whereDate('date', $date)
+                                                      ->where('statut_global', 'en_attente')
+                                                      ->orderBy('created_at', 'asc')
+                                                      ->with('service')
+                                                      ->get()
+                                                      ->map(function($ticket, $index) {
+                                                          return [
+                                                              'rang' => $index + 1,
+                                                              'numero_ticket' => $ticket->numero_ticket,
+                                                              'service' => $ticket->service->nom,
+                                                              'client' => $ticket->prenom,
+                                                              'heure_arrivee' => $ticket->heure_d_enregistrement,
+                                                              'temps_attente_estime' => $ticket->temps_attente_estime
+                                                          ];
+                                                      });
+
+                return response()->json([
+                    'success' => true,
+                    'global_stats' => $globalStats,
+                    'chronological_order' => $chronologicalOrder,
+                    'queue_info' => [
+                        'type' => 'fifo_chronological',
+                        'principle' => 'Premier arrivé, premier servi',
+                        'note' => 'Ordre de traitement basé sur l\'heure d\'arrivée'
+                    ],
+                    'timestamp' => now()->format('H:i:s')
+                ]);
+            })->name('admin.queue.api.chronological-global');
+        });
+                                  
+        /*
+        |--------------------------------------------------------------------------
         | GESTION DES UTILISATEURS
         |--------------------------------------------------------------------------
         */
-        
+                                                
         // Liste des utilisateurs 
         Route::get('/user/users-list', [DashboardController::class, 'usersList'])
             ->name('user.users-list');
@@ -242,7 +678,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             ->name('User.user-create');
         Route::post('/admin/user/store', [UserManagementController::class, 'store'])
             ->name('User.user.store');
-         
+              
         // Mes utilisateurs créés
         Route::get('/admin/users/my-created', [UserManagementController::class, 'myCreatedUsers'])
             ->name('User.user.my-created');
@@ -274,7 +710,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             ->name('admin.users.suspend');
         Route::patch('/admin/users/{user}/reactivate', [DashboardController::class, 'reactivateUser'])
             ->name('admin.users.reactivate');
-        
+              
         // Routes POST alternatives pour le JavaScript (compatibilité)
         Route::post('/admin/users/{user}/activate', [DashboardController::class, 'activateUser'])
             ->name('admin.users.activate.post');
@@ -303,11 +739,11 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         
         /*
         |--------------------------------------------------------------------------
-        | API AJAX POUR ADMINS
+        | API AJAX POUR ADMINS (avec statistiques file chronologique)
         |--------------------------------------------------------------------------
         */
         
-        // Statistiques en temps réel
+        // Statistiques en temps réel (incluant file chronologique)
         Route::get('/admin/api/stats', [DashboardController::class, 'getStats'])
             ->name('admin.api.stats');
         Route::get('/admin/api/advanced-stats', [DashboardController::class, 'getAdvancedStats'])
@@ -322,7 +758,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             ->name('admin.api.user-details');
         Route::get('/admin/users/{user}/details', [DashboardController::class, 'getUserDetails'])
             ->name('admin.users.details');
-        
+         
         // Statistiques admin personnalisées (UserManagementController)
         Route::get('/admin/api/my-stats', [UserManagementController::class, 'getMyUserStats'])
             ->name('admin.api.my-stats');
@@ -390,7 +826,11 @@ Route::prefix('api/settings')->group(function () {
             'app_version' => Setting::get('app_version', '1.0.0'),
             'maintenance_mode' => Setting::get('maintenance_mode', false),
             'auto_session_closure' => Setting::isAutoSessionClosureEnabled(),
-            'closure_time' => Setting::getSessionClosureTime()
+            'closure_time' => Setting::getSessionClosureTime(),
+            // 🆕 NOUVEAU : Paramètres de la file d'attente
+            'queue_type' => 'fifo_chronological',
+            'queue_principle' => 'Premier arrivé, premier servi',
+            'default_wait_time' => Setting::getDefaultWaitingTimeMinutes()
         ]);
     });
     
@@ -400,7 +840,8 @@ Route::prefix('api/settings')->group(function () {
             'auto_detect_available_advisors',
             'auto_assign_all_services_to_advisors', 
             'enable_auto_session_closure',
-            'maintenance_mode'
+            'maintenance_mode',
+            'default_waiting_time_minutes' // 🆕 NOUVEAU paramètre
         ];
         
         if (!in_array($key, $allowedKeys)) {
@@ -413,11 +854,22 @@ Route::prefix('api/settings')->group(function () {
             'active' => (bool) Setting::get($key)
         ]);
     });
+
+    // 🆕 NOUVEAU : API pour les paramètres de file d'attente
+    Route::get('/queue-settings', function() {
+        return response()->json([
+            'queue_type' => 'fifo_chronological',
+            'principle' => 'Premier arrivé, premier servi',
+            'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
+            'admin_can_configure' => true,
+            'description' => 'Les tickets sont traités dans l\'ordre chronologique d\'arrivée, peu importe le service'
+        ]);
+    });
 });
 
 /*
 |--------------------------------------------------------------------------
-| 🆕 ROUTES API UTILITAIRES POUR LES INTERFACES
+| 🆕 ROUTES API UTILITAIRES POUR LES INTERFACES (avec file chronologique)
 |--------------------------------------------------------------------------
 */
 
@@ -428,7 +880,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         $user = Auth::user();
         
         if ($user->isEcranUser()) {
-            // Données pour interface Poste Ecran
+            // Données pour interface Poste Ecran avec file chronologique
             $creator = $user->getCreator();
             $services = $creator ? $creator->createdServices()->get() : collect();
             
@@ -441,6 +893,13 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                     'inactive_services' => $services->where('statut', 'inactif')->count(),
                     'recent_services' => $services->where('created_at', '>=', now()->subDays(7))->count(),
                     'last_update' => now()->format('H:i:s'),
+                    // 🆕 NOUVEAU : Informations sur la file chronologique
+                    'queue_info' => [
+                        'type' => 'fifo_chronological',
+                        'principle' => 'Premier arrivé, premier servi',
+                        'next_position' => \App\Models\Queue::calculateQueuePosition(),
+                        'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
+                    ]
                 ]
             ]);
             
@@ -468,7 +927,9 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             'ecran' => [
                 'Vérifiez régulièrement les nouveaux services',
                 'Utilisez la recherche pour trouver rapidement un service',
-                'L\'interface se met à jour automatiquement toutes les 5 minutes'
+                'L\'interface se met à jour automatiquement toutes les 5 minutes',
+                '🆕 Les tickets sont traités par ordre d\'arrivée (FIFO)',
+                '🆕 Le temps d\'attente est configuré par votre administrateur'
             ],
             'accueil' => [
                 'Accueillez chaleureusement tous les visiteurs',
@@ -600,22 +1061,129 @@ if (app()->environment('local')) {
         ]);
     })->middleware('auth');
 
+    // ✅ AMÉLIORÉ : Test de génération de tickets avec file chronologique FIFO
+    Route::get('/dev/test-ticket-generation-fifo', function () {
+        if (!auth()->check()) {
+            return response()->json(['error' => 'Non connecté']);
+        }
+        
+        $user = auth()->user();
+        $creator = $user->getCreator();
+        
+        if (!$creator) {
+            return response()->json(['error' => 'Pas de créateur trouvé']);
+        }
+    
+        $services = $creator->createdServices()->get();
+        
+        if ($services->isEmpty()) {
+            return response()->json(['error' => 'Aucun service trouvé']);
+        }
+        
+        $service = $services->first();
+        
+        try {
+            // Test de génération de ticket avec file chronologique
+            $ticketData = [
+                'service_id' => $service->id,
+                'prenom' => 'Test Client FIFO',
+                'telephone' => '0123456789',
+                'commentaire' => 'Test de génération automatique - File chronologique FIFO'
+            ];
+            
+            $ticket = \App\Models\Queue::createTicket($ticketData);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket de test généré avec succès - File chronologique FIFO',
+                'ticket' => $ticket->toTicketArray(),
+                'service' => [
+                    'id' => $service->id,
+                    'nom' => $service->nom,
+                    'letter_of_service' => $service->letter_of_service
+                ],
+                'queue_stats' => \App\Models\Queue::getServiceStats($service->id),
+                'queue_info' => [
+                    'type' => 'fifo_chronological',
+                    'principle' => 'Premier arrivé, premier servi',
+                    'next_position' => \App\Models\Queue::calculateQueuePosition(),
+                    'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
+                ],
+                'chronological_queue' => \App\Models\Queue::getChronologicalQueue(),
+                'global_stats' => \App\Models\Queue::getGlobalQueueStats()
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Erreur génération ticket FIFO: ' . $e->getMessage()
+            ]);
+        }
+    })->middleware('auth');
+
+    // 🆕 NOUVEAU : Test de la file chronologique
+    Route::get('/dev/test-chronological-queue', function () {
+        if (!auth()->check()) {
+            return response()->json(['error' => 'Non connecté']);
+        }
+        
+        try {
+            $user = auth()->user();
+            $creator = $user->getCreator();
+            
+            if (!$creator) {
+                return response()->json(['error' => 'Pas de créateur trouvé']);
+            }
+            
+            $serviceIds = $creator->createdServices()->pluck('id');
+            
+            return response()->json([
+                'success' => true,
+                'queue_type' => 'fifo_chronological',
+                'principle' => 'Premier arrivé, premier servi',
+                'chronological_queue' => \App\Models\Queue::getChronologicalQueue(),
+                'next_ticket_global' => \App\Models\Queue::getNextTicketGlobal(),
+                'global_queue_stats' => \App\Models\Queue::getGlobalQueueStats(),
+                'services_queue_stats' => $serviceIds->map(function($serviceId) {
+                    return [
+                        'service_id' => $serviceId,
+                        'stats' => \App\Models\Queue::getServiceStats($serviceId),
+                        'chronological_queue' => \App\Models\Queue::getServiceQueueChronological($serviceId)
+                    ];
+                })->toArray(),
+                'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                'next_global_position' => \App\Models\Queue::calculateQueuePosition()
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Erreur test file chronologique: ' . $e->getMessage()
+            ]);
+        }
+    })->middleware('auth');
+
     /*
     |--------------------------------------------------------------------------
-    | ROUTES DE DÉVELOPPEMENT POUR LES PARAMÈTRES
+    | ROUTES DE DÉVELOPPEMENT POUR LES PARAMÈTRES (avec file chronologique)
     |--------------------------------------------------------------------------
     */
 
     Route::prefix('dev/settings')->middleware(['auth', 'admin'])->group(function () {
         
-        // Tester tous les paramètres
+        // Tester tous les paramètres (incluant file d'attente)
         Route::get('/test-all', function() {
             return response()->json([
                 'user_management' => Setting::getUserManagementSettings(),
                 'security' => Setting::getSecuritySettings(),
                 'all_settings' => Setting::getAllSettings(),
                 'stats' => Setting::getStats(),
-                'consistency_check' => Setting::checkConsistency()
+                'consistency_check' => Setting::checkConsistency(),
+                // 🆕 NOUVEAU : Paramètres de file d'attente
+                'queue_settings' => [
+                    'type' => 'fifo_chronological',
+                    'principle' => 'Premier arrivé, premier servi',
+                    'default_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
+                    'admin_configurable' => true
+                ]
             ]);
         });
         
@@ -646,6 +1214,22 @@ if (app()->environment('local')) {
                 'should_close_now' => Setting::shouldCloseSessionsNow()
             ]);
         });
-    });
 
+        // 🆕 NOUVEAU : Tester les paramètres de temps d'attente
+        Route::post('/test-wait-time/{minutes}', function($minutes) {
+            Setting::set('default_waiting_time_minutes', (int)$minutes, 'integer');
+            
+            // Tester le calcul avec le nouveau temps
+            $position = 5; // Exemple : 5ème en file
+            $estimatedTime = \App\Models\Queue::estimateWaitingTime($position);
+            
+            return response()->json([
+                'message' => 'Temps d\'attente modifié pour test',
+                'configured_time' => (int)$minutes,
+                'position_test' => $position,
+                'estimated_time_calculated' => $estimatedTime,
+                'calculation_formula' => "({$position} - 1) × {$minutes} = {$estimatedTime} minutes"
+            ]);
+        });
+    });
 }

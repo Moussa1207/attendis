@@ -9,10 +9,13 @@ use App\Models\Status;
 use App\Models\AdministratorUser;
 use App\Models\Agency;
 use App\Models\Service;
+use App\Models\Queue; // ✅ Import du modèle Queue
 use Illuminate\Support\Facades\Hash; 
 use Illuminate\Support\Facades\Log;  
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\JsonResponse;
 
 class DashboardController extends Controller
 {
@@ -55,7 +58,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Dashboard admin avec statistiques ISOLÉES
+     * ✅ Dashboard admin avec statistiques ISOLÉES
      * Chaque admin ne voit que SES statistiques d'utilisateurs créés
      */
     public function adminDashboard()
@@ -95,6 +98,23 @@ class DashboardController extends Controller
                 'my_active_agencies' => Agency::where('created_by', $currentAdminId)->where('status', 'active')->count(),
                 'my_services' => Service::where('created_by', $currentAdminId)->count(),
                 'my_active_services' => Service::where('created_by', $currentAdminId)->where('statut', 'actif')->count(),
+                
+                // 🆕 NOUVEAU : Statistiques des tickets avec file chronologique
+                'my_tickets_today' => Queue::whereIn('service_id', Service::where('created_by', $currentAdminId)->pluck('id'))
+                                          ->whereDate('date', today())
+                                          ->count(),
+                'my_tickets_waiting' => Queue::whereIn('service_id', Service::where('created_by', $currentAdminId)->pluck('id'))
+                                            ->whereDate('date', today())
+                                            ->where('statut_global', 'en_attente')
+                                            ->count(),
+                'my_tickets_processing' => Queue::whereIn('service_id', Service::where('created_by', $currentAdminId)->pluck('id'))
+                                                ->whereDate('date', today())
+                                                ->where('statut_global', 'en_cours')
+                                                ->count(),
+                'my_tickets_completed' => Queue::whereIn('service_id', Service::where('created_by', $currentAdminId)->pluck('id'))
+                                               ->whereDate('date', today())
+                                               ->where('statut_global', 'termine')
+                                               ->count(),
             ];
 
             // Statistiques personnelles pour l'admin connecté (SES créations)
@@ -105,6 +125,14 @@ class DashboardController extends Controller
                 'users_created_by_me_this_week' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->startOfWeek())->count(),
                 'agencies_created_by_me' => Agency::where('created_by', $currentAdminId)->count(),
                 'services_created_by_me' => Service::where('created_by', $currentAdminId)->count(),
+                
+                // 🆕 NOUVEAU : Statistiques tickets personnelles
+                'tickets_generated_today' => Queue::whereIn('service_id', Service::where('created_by', $currentAdminId)->pluck('id'))
+                                                  ->whereDate('date', today())
+                                                  ->count(),
+                'average_wait_time_today' => Queue::whereIn('service_id', Service::where('created_by', $currentAdminId)->pluck('id'))
+                                                  ->whereDate('date', today())
+                                                  ->avg('temps_attente_estime') ?? 0,
             ];
 
             // Activité récente ISOLÉE (SES utilisateurs seulement)
@@ -122,11 +150,21 @@ class DashboardController extends Controller
                 ->limit(15)
                 ->get();
 
+            // 🆕 NOUVEAU : Activité récente des tickets
+            $myServiceIds = Service::where('created_by', $currentAdminId)->pluck('id');
+            $recentTickets = Queue::whereIn('service_id', $myServiceIds)
+                                 ->whereDate('date', today())
+                                 ->with('service')
+                                 ->orderBy('created_at', 'desc')
+                                 ->limit(10)
+                                 ->get();
+
             return view('layouts.app', compact(
                 'stats', 
                 'personalStats', 
                 'recentActivity', 
-                'pendingUsers'
+                'pendingUsers',
+                'recentTickets'
             ));
 
         } catch (\Exception $e) {
@@ -141,7 +179,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🆕 NOUVELLE LOGIQUE : Dashboard utilisateur avec différenciation selon le type
+     * 🆕 Dashboard utilisateur avec différenciation selon le type
      * - POSTE ECRAN → Interface sans sidebar + grille services
      * - ACCUEIL/CONSEILLER → Interface actuelle adaptée
      */
@@ -198,24 +236,58 @@ class DashboardController extends Controller
                 ]);
             }
 
-            // Récupérer TOUS les services créés par l'admin (actifs et inactifs)
+            // 🎯 RÉCUPÉRER SEULEMENT LES SERVICES ACTIFS
             $services = $creator->createdServices()
-                              ->orderBy('statut', 'desc') // Actifs en premier
+                              ->where('statut', 'actif')  // Filtrage automatique
                               ->orderBy('created_at', 'desc')
                               ->get();
+
+            // ✅ ENRICHIR CHAQUE SERVICE AVEC SES STATISTIQUES (sans numero)
+            $services = $services->map(function($service) {
+                $service->queue_stats = Queue::getServiceStats($service->id);
+                return $service;
+            });
 
             // Statistiques des services pour l'interface écran
             $serviceStats = [
                 'total_services' => $services->count(),
                 'active_services' => $services->where('statut', 'actif')->count(),
-                'inactive_services' => $services->where('statut', 'inactif')->count(),
+                'inactive_services' => 0, // Plus de services inactifs affichés
                 'recent_services' => $services->where('created_at', '>=', now()->subDays(7))->count(),
+                
+                // ✅ NOUVEAU : Statistiques des tickets avec file chronologique
+                'total_tickets_today' => Queue::whereIn('service_id', $services->pluck('id'))
+                                              ->whereDate('date', today())
+                                              ->count(),
+                'tickets_en_attente' => Queue::whereIn('service_id', $services->pluck('id'))
+                                             ->whereDate('date', today())
+                                             ->where('statut_global', 'en_attente')
+                                             ->count(),
+                'tickets_en_cours' => Queue::whereIn('service_id', $services->pluck('id'))
+                                           ->whereDate('date', today())
+                                           ->where('statut_global', 'en_cours')
+                                           ->count(),
+                'tickets_termines' => Queue::whereIn('service_id', $services->pluck('id'))
+                                           ->whereDate('date', today())
+                                           ->where('statut_global', 'termine')
+                                           ->count(),
+                
+                // 🆕 NOUVEAU : Informations sur la file avec numérotation par service
+                'queue_info' => [
+                    'type' => 'service_numbering_chronological',
+                    'principe' => 'Numérotation par service, traitement chronologique',
+                    'prochaine_position' => Queue::calculateQueuePosition(),
+                    'temps_attente_configure' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                ]
             ];
 
-            \Log::info("Interface écran chargée", [
+            \Log::info("Interface écran chargée avec file avec numérotation par service", [
                 'user_id' => $user->id,
                 'creator_id' => $creator->id,
-                'services_count' => $services->count()
+                'services_count' => $services->count(),
+                'tickets_today' => $serviceStats['total_tickets_today'],
+                'only_active_services' => true,
+                'queue_type' => 'service_numbering_chronological'
             ]);
 
             return view('layouts.app-ecran', [
@@ -267,6 +339,219 @@ class DashboardController extends Controller
             'typeSpecificData' => $typeSpecificData,
             'userInfo' => $this->getUserInfo($user)
         ]);
+    }
+
+    // ===============================================
+    // ✅ GÉNÉRATION DE TICKET AVEC FILE CHRONOLOGIQUE FIFO
+    // ===============================================
+
+    /**
+     * 🎫 GÉNÉRATION EFFECTIVE D'UN TICKET EN BASE DE DONNÉES
+     * Utilise la nouvelle logique chronologique FIFO
+     */
+    public function generateTicket(Request $request): JsonResponse
+    {
+        try {
+            // 🔒 VÉRIFICATION : Seuls les utilisateurs Ecran peuvent générer des tickets
+            $user = Auth::user();
+            if (!$user->isEcranUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé. Seuls les postes écran peuvent générer des tickets.'
+                ], 403);
+            }
+
+            // ✅ VALIDATION DES DONNÉES
+            $validator = Validator::make($request->all(), [
+                'service_id' => 'required|integer|exists:services,id',
+                'full_name' => 'required|string|max:100',
+                'phone' => 'required|string|max:20',
+                'comment' => 'nullable|string|max:500'
+            ], [
+                'service_id.required' => 'Le service est obligatoire.',
+                'service_id.exists' => 'Service sélectionné invalide.',
+                'full_name.required' => 'Le nom est obligatoire.',
+                'full_name.max' => 'Le nom ne peut pas dépasser 100 caractères.',
+                'phone.required' => 'Le téléphone est obligatoire.',
+                'phone.max' => 'Le téléphone ne peut pas dépasser 20 caractères.',
+                'comment.max' => 'Le commentaire ne peut pas dépasser 500 caractères.'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation.',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // ✅ VÉRIFICATION : Le service appartient-il à l'admin créateur de cet utilisateur ?
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de configuration : admin créateur introuvable.'
+                ], 500);
+            }
+
+            $service = Service::where('id', $request->service_id)
+                             ->where('created_by', $creator->id)
+                             ->first();
+
+            if (!$service) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Service non autorisé pour cet utilisateur.'
+                ], 403);
+            }
+
+            if (!$service->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce service n\'est pas disponible actuellement.'
+                ], 400);
+            }
+
+            // 🎫 CRÉATION DU TICKET EN BASE avec la logique FIFO chronologique
+            $ticketData = [
+                'service_id' => $service->id,
+                'prenom' => $request->full_name,
+                'telephone' => $request->phone,
+                'commentaire' => $request->comment,
+                'id_agence' => $user->agency_id, // Si l'utilisateur est lié à une agence
+            ];
+
+            $ticket = Queue::createTicket($ticketData);
+
+            // ✅ ENRICHIR AVEC LES STATISTIQUES DE FILE (sans numero)
+            $queueStats = Queue::getServiceStats($service->id);
+
+            // 📊 PRÉPARER LA RÉPONSE POUR LE FRONTEND
+            $response = [
+                'success' => true,
+                'message' => 'Ticket généré avec succès !',
+                'ticket' => [
+                    'id' => $ticket->id,
+                    'number' => $ticket->numero_ticket,
+                    'service' => $service->nom,
+                    'service_letter' => $service->letter_of_service,
+                    'position' => $ticket->position_file,
+                    'estimated_time' => $ticket->temps_attente_estime,
+                    'date' => $ticket->date->format('d/m/Y'),
+                    'time' => \Carbon\Carbon::createFromFormat('H:i:s', $ticket->heure_d_enregistrement)->format('H:i'),
+                    'fullName' => $ticket->prenom,
+                    'phone' => $ticket->telephone,
+                    'comment' => $ticket->commentaire ?: '',
+                    'statut' => $ticket->statut_global,
+                    'queue_stats' => $queueStats,
+                    // 🆕 NOUVEAU : Informations sur la file avec numérotation par service
+                    'queue_info' => [
+                        'type' => 'service_numbering_chronological',
+                        'principle' => 'Numérotation par service, traitement chronologique',
+                        'arrival_time' => $ticket->heure_d_enregistrement,
+                        'global_position' => $ticket->position_file
+                    ]
+                ],
+                'queue_status' => [
+                    'total_today' => $queueStats['total_tickets'],
+                    'waiting' => $queueStats['en_attente'],
+                    'in_progress' => $queueStats['en_cours'],
+                    'completed' => $queueStats['termines']
+                ]
+            ];
+
+            Log::info('Ticket généré via interface Ecran - Numérotation par service avec traitement chronologique', [
+                'ticket_id' => $ticket->id,
+                'numero_ticket' => $ticket->numero_ticket,
+                'service_name' => $service->nom,
+                'user_id' => $user->id,
+                'user_type' => $user->getUserRole(),
+                'creator_admin' => $creator->username,
+                'queue_type' => 'service_numbering_chronological',
+                'position_chronologique' => $ticket->position_file,
+                'heure_arrivee' => $ticket->heure_d_enregistrement
+            ]);
+
+            return response()->json($response, 201);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur génération ticket via Ecran - File chronologique', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du ticket : ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ RAFRAÎCHIR LES STATISTIQUES DES SERVICES (avec file chronologique)
+     */
+    public function refreshUserServices(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isEcranUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Admin créateur introuvable'
+                ], 500);
+            }
+
+            // 🎯 FILTRAGE AUTOMATIQUE : Récupérer seulement les services actifs
+            $services = $creator->createdServices()
+                              ->where('statut', 'actif')  // Filtrage cohérent
+                              ->get()
+                              ->map(function($service) {
+                                  $queueStats = Queue::getServiceStats($service->id);
+                                  return [
+                                      'id' => $service->id,
+                                      'nom' => $service->nom,
+                                      'letter_of_service' => $service->letter_of_service,
+                                      'statut' => $service->statut,
+                                      'queue_stats' => $queueStats
+                                  ];
+                              });
+
+            return response()->json([
+                'success' => true,
+                'services' => $services,
+                'timestamp' => now()->format('H:i:s'),
+                'total_tickets_today' => Queue::whereIn('service_id', $services->pluck('id'))
+                                              ->whereDate('date', today())
+                                              ->count(),
+                'queue_info' => [
+                    'type' => 'service_numbering_chronological',
+                    'principle' => 'Numérotation par service, traitement chronologique',
+                    'next_global_position' => Queue::calculateQueuePosition(),
+                    'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur refresh services Ecran', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du rafraîchissement'
+            ], 500);
+        }
     }
 
     /**
@@ -362,7 +647,7 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * ✅ CORRIGÉ : Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
+     * ✅ Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
      * ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
      */
     public function usersList(Request $request)
@@ -510,7 +795,7 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * ✅ CORRIGÉ : Activer utilisateur (vérification d'autorisation)
+     * ✅ Activer utilisateur (vérification d'autorisation)
      */
     public function activateUser(User $user, Request $request)
     {
@@ -568,7 +853,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Suspendre utilisateur (vérification d'autorisation)
+     * ✅ Suspendre utilisateur (vérification d'autorisation)
      */
     public function suspendUser(User $user, Request $request)
     {
@@ -637,7 +922,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Réactiver utilisateur (alias pour activate)
+     * ✅ Réactiver utilisateur (alias pour activate)
      */
     public function reactivateUser(User $user, Request $request)
     {
@@ -645,7 +930,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Supprimer utilisateur (vérification d'autorisation)
+     * ✅ Supprimer utilisateur (vérification d'autorisation)
      */
     public function deleteUser(User $user, Request $request)
     {
@@ -716,7 +1001,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Actions en masse seulement sur ses utilisateurs
+     * ✅ Actions en masse seulement sur ses utilisateurs
      */
     public function bulkActivate(Request $request)
     {
@@ -736,7 +1021,7 @@ class DashboardController extends Controller
                                          ->pluck('user_id')
                                          ->toArray();
 
-            // ✅ NOUVEAU : Si aucun user_ids, activer TOUS les inactifs
+            // ✅ Si aucun user_ids, activer TOUS les inactifs
             if (empty($userIds)) {
                 // Activer tous les utilisateurs inactifs de cet admin
                 $count = User::whereIn('id', $myUserIds)
@@ -756,7 +1041,7 @@ class DashboardController extends Controller
                 ]);
             }
 
-            // ✅ EXISTANT : Mode sélection (gardé intact)
+            // ✅ Mode sélection (gardé intact)
             // Vérifier que tous les utilisateurs appartiennent à l'admin
             $validUserIds = array_intersect($userIds, $myUserIds);
             
@@ -787,7 +1072,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Suppression en masse seulement sur ses utilisateurs
+     * ✅ Suppression en masse seulement sur ses utilisateurs
      */
     public function bulkDeleteUsers(Request $request)
     {
@@ -849,7 +1134,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Réinitialiser mot de passe (vérification d'autorisation)
+     * ✅ Réinitialiser mot de passe (vérification d'autorisation)
      */
     public function resetUserPassword(User $user, Request $request)
     {
@@ -914,7 +1199,7 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * ✅ CORRIGÉ : Statistiques seulement pour les utilisateurs de l'admin
+     * ✅ Statistiques seulement pour les utilisateurs de l'admin
      */
     public function getStats(Request $request)
     {
@@ -935,6 +1220,9 @@ class DashboardController extends Controller
             
             // Inclure l'admin lui-même
             $myUserIds[] = $currentAdmin->id;
+
+            // 🆕 NOUVEAU : Statistiques des services et tickets
+            $myServiceIds = Service::where('created_by', $currentAdmin->id)->pluck('id');
 
             $stats = [
                 'my_total_users' => count($myUserIds) - 1, // -1 pour exclure l'admin du compte
@@ -957,6 +1245,13 @@ class DashboardController extends Controller
                 'my_active_agencies' => Agency::where('created_by', $currentAdmin->id)->where('status', 'active')->count(),
                 'my_services' => Service::where('created_by', $currentAdmin->id)->count(),
                 'my_active_services' => Service::where('created_by', $currentAdmin->id)->where('statut', 'actif')->count(),
+                
+                // 🆕 NOUVEAU : Statistiques tickets avec file chronologique
+                'my_tickets_today' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->count(),
+                'my_tickets_waiting' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'en_attente')->count(),
+                'my_tickets_processing' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'en_cours')->count(),
+                'my_tickets_completed' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'termine')->count(),
+                'my_average_wait_time' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->avg('temps_attente_estime') ?? 0,
             ];
 
             return response()->json([
@@ -966,6 +1261,11 @@ class DashboardController extends Controller
                     'id' => $currentAdmin->id,
                     'username' => $currentAdmin->username,
                     'email' => $currentAdmin->email
+                ],
+                'queue_info' => [
+                    'type' => 'service_numbering_chronological',
+                    'principle' => 'Numérotation par service, traitement chronologique',
+                    'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
                 ],
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
@@ -981,7 +1281,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Recherche seulement dans ses utilisateurs
+     * ✅ Recherche seulement dans ses utilisateurs
      */
     public function searchUsers(Request $request)
     {
@@ -1046,7 +1346,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ CORRIGÉ : Détails utilisateur (vérification d'autorisation)
+     * ✅ Détails utilisateur (vérification d'autorisation)
      */
     public function getUserDetails(User $user, Request $request)
     {
@@ -1115,7 +1415,7 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * ✅ CORRIGÉ : Statistiques avancées isolées
+     * ✅ Statistiques avancées isolées
      */
     public function getAdvancedStats(Request $request)
     {
@@ -1182,7 +1482,7 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * ✅ CORRIGÉ : Export seulement des utilisateurs de l'admin
+     * ✅ Export seulement des utilisateurs de l'admin
      */
     public function exportUsers(Request $request)
     {
@@ -1293,13 +1593,9 @@ class DashboardController extends Controller
         } elseif ($days < 30) {
             $weeks = floor($days / 7);
             return $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-        } elseif ($days < 365) {
-            $months = floor($days / 30);
-            return $months . ' mois';
         } else {
             $years = floor($days / 365);
             return $years . ' an' . ($years > 1 ? 's' : '');
         }
     }
-    
 }

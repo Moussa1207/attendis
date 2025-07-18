@@ -629,12 +629,12 @@ function checkLetterAvailability(letter) {
         if (data.available) {
             showAvailabilityStatus('success', `✅ La lettre "${letter}" est disponible`);
         } else {
-            showAvailabilityStatus('error', `❌ La lettre "${letter}" est déjà utilisée`);
+            showAvailabilityStatus('error', ` La lettre "${letter}" est déjà utilisée`);
             
             // Proposer des alternatives si disponibles
             if (data.suggestions && data.suggestions.length > 0) {
                 const suggestions = data.suggestions.slice(0, 3).join(', ');
-                showAvailabilityStatus('error', `❌ La lettre "${letter}" est déjà utilisée. Suggestions: ${suggestions}`);
+                showAvailabilityStatus('error', ` La lettre "${letter}" est déjà utilisée. Suggestions: ${suggestions}`);
             }
         }
     })

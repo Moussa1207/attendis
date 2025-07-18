@@ -39,6 +39,9 @@ class Setting extends Model
     const SESSION_TIMEOUT_MINUTES = 'session_timeout_minutes';
     const MAX_LOGIN_ATTEMPTS = 'max_login_attempts';
     const LOCKOUT_DURATION_MINUTES = 'lockout_duration_minutes';
+    
+    // 🆕 NOUVEAU PARAMÈTRE POUR LE TEMPS D'ATTENTE CONFIGURABLE
+    const DEFAULT_WAITING_TIME_MINUTES = 'default_waiting_time_minutes';
 
     // ===============================================
     // MÉTHODES STATIQUES PRINCIPALES
@@ -155,6 +158,27 @@ class Setting extends Model
     }
 
     /**
+     * 🆕 OBTENIR LE TEMPS D'ATTENTE CONFIGURÉ PAR L'ADMIN
+     * Méthode principale utilisée par le modèle Queue pour calculer les temps d'attente
+     */
+    public static function getDefaultWaitingTimeMinutes(): int
+    {
+        return (int) self::get(self::DEFAULT_WAITING_TIME_MINUTES, 5);
+    }
+
+    /**
+     * 🆕 DÉFINIR LE TEMPS D'ATTENTE (pour l'interface admin)
+     */
+    public static function setDefaultWaitingTimeMinutes(int $minutes): bool
+    {
+        if ($minutes < 1 || $minutes > 60) {
+            return false; // Validation : entre 1 et 60 minutes
+        }
+        
+        return self::set(self::DEFAULT_WAITING_TIME_MINUTES, $minutes, 'integer', 'user_management');
+    }
+
+    /**
      * Vérifier si les sessions doivent être fermées maintenant
      * UTILISÉ dans LoginController
      */
@@ -214,6 +238,48 @@ class Setting extends Model
     public static function getLockoutDurationMinutes(): int
     {
         return (int) self::get(self::LOCKOUT_DURATION_MINUTES, 30);
+    }
+
+    // ===============================================
+    // 🆕 MÉTHODES SPÉCIFIQUES POUR LA FILE D'ATTENTE
+    // ===============================================
+
+    /**
+     * 🆕 Obtenir tous les paramètres liés à la gestion de la file d'attente
+     */
+    public static function getQueueManagementSettings(): array
+    {
+        return [
+            'default_waiting_time_minutes' => self::getDefaultWaitingTimeMinutes(),
+            'auto_detect_advisors' => self::isAutoDetectAdvisorsEnabled(),
+            'auto_assign_services' => self::isAutoAssignServicesEnabled(),
+            'enable_session_closure' => self::isAutoSessionClosureEnabled(),
+            'session_closure_time' => self::getSessionClosureTime()
+        ];
+    }
+
+    /**
+     * 🆕 Valider les paramètres de la file d'attente
+     */
+    public static function validateQueueSettings(): array
+    {
+        $settings = self::getQueueManagementSettings();
+        $warnings = [];
+
+        // Validation du temps d'attente
+        if ($settings['default_waiting_time_minutes'] < 2) {
+            $warnings[] = 'Le temps d\'attente configuré est très court (< 2 minutes)';
+        }
+        
+        if ($settings['default_waiting_time_minutes'] > 30) {
+            $warnings[] = 'Le temps d\'attente configuré est très long (> 30 minutes)';
+        }
+
+        return [
+            'settings' => $settings,
+            'warnings' => $warnings,
+            'is_valid' => empty($warnings)
+        ];
     }
 
     // ===============================================
@@ -319,7 +385,7 @@ class Setting extends Model
     }
 
     /**
-     * Valider une valeur selon son type et ses métadonnées
+     * 🆕 VALIDATION AMÉLIORÉE avec support du temps d'attente
      */
     public static function validateValue(string $key, mixed $value): array
     {
@@ -345,6 +411,17 @@ class Setting extends Model
                 }
                 
                 $intValue = (int) $value;
+                
+                // 🆕 Validation spéciale pour le temps d'attente
+                if ($key === self::DEFAULT_WAITING_TIME_MINUTES) {
+                    if ($intValue < 1) {
+                        return ['valid' => false, 'message' => 'Le temps d\'attente doit être au minimum de 1 minute'];
+                    }
+                    if ($intValue > 60) {
+                        return ['valid' => false, 'message' => 'Le temps d\'attente ne peut pas dépasser 60 minutes'];
+                    }
+                }
+                
                 if (isset($meta['min']) && $intValue < $meta['min']) {
                     return ['valid' => false, 'message' => "Valeur minimum: {$meta['min']}"];
                 }

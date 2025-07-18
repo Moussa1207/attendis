@@ -32,12 +32,13 @@ class SettingsController extends Controller
             // Récupérer les paramètres de gestion des utilisateurs pour la vue
             $userManagementSettings = Setting::getGroupFormatted('user_management');
             
-            // S'assurer que tous les paramètres attendus par la vue existent
+            // 🆕 S'assurer que tous les paramètres attendus par la vue existent (y compris le nouveau)
             $expectedSettings = [
                 Setting::AUTO_DETECT_ADVISORS,
                 Setting::AUTO_ASSIGN_SERVICES,
                 Setting::ENABLE_SESSION_CLOSURE,
-                Setting::SESSION_CLOSURE_TIME
+                Setting::SESSION_CLOSURE_TIME,
+                Setting::DEFAULT_WAITING_TIME_MINUTES // 🆕 Nouveau paramètre
             ];
             
             foreach ($expectedSettings as $key) {
@@ -51,9 +52,10 @@ class SettingsController extends Controller
             $userManagementSettings = Setting::getGroupFormatted('user_management');
             
             // Log pour debug
-            Log::info('Settings page loaded', [
+            Log::info('Settings page loaded with queue management', [
                 'admin_id' => Auth::id(),
                 'settings_loaded' => array_keys($userManagementSettings),
+                'queue_settings' => Setting::getQueueManagementSettings(), // 🆕 Log des paramètres file d'attente
                 'settings_values' => collect($userManagementSettings)->map(function($setting) {
                     return [
                         'value' => $setting->value ?? null,
@@ -78,20 +80,20 @@ class SettingsController extends Controller
     }
 
     /**
-     * Mettre à jour les paramètres généraux
+     * 🆕 METTRE À JOUR LES PARAMÈTRES - AVEC SUPPORT DU TEMPS D'ATTENTE
      * Route: PUT /layouts/setting/general
      */
     public function update(Request $request): RedirectResponse
     {
         // Log des données reçues pour debug
-        Log::info('Settings update request received', [
+        Log::info('Settings update request received with queue management', [
             'admin_id' => Auth::id(),
             'request_data' => $request->all(),
             'request_method' => $request->method(),
             'content_type' => $request->header('content-type')
         ]);
 
-        // Validation des données (adaptation pour les strings '0'/'1' des checkboxes)
+        // 🆕 VALIDATION ÉLARGIE avec le nouveau paramètre temps d'attente
         $validator = Validator::make($request->all(), [
             'auto_detect_available_advisors' => 'required|in:0,1',
             'auto_assign_all_services_to_advisors' => 'required|in:0,1', 
@@ -100,17 +102,22 @@ class SettingsController extends Controller
                 'required_if:enable_auto_session_closure,1',
                 'nullable',
                 function ($attribute, $value, $fail) use ($request) {
-                    // Si la fermeture auto est activée, l'heure est obligatoire
                     if ($request->input('enable_auto_session_closure') == '1' && empty($value)) {
                         $fail('L\'heure de fermeture est obligatoire quand la fermeture automatique est activée.');
                         return;
                     }
                     
-                    // Valider le format si une valeur est fournie
                     if (!empty($value) && !preg_match('/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/', $value)) {
                         $fail('L\'heure doit être au format HH:MM (24h).');
                     }
                 }
+            ],
+            // 🆕 VALIDATION DU TEMPS D'ATTENTE
+            'default_waiting_time_minutes' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:60'
             ],
         ], [
             'auto_detect_available_advisors.required' => 'Le paramètre de détection automatique est obligatoire.',
@@ -120,10 +127,15 @@ class SettingsController extends Controller
             'enable_auto_session_closure.required' => 'Le paramètre de fermeture automatique est obligatoire.',
             'enable_auto_session_closure.in' => 'Valeur invalide pour la fermeture automatique.',
             'auto_session_closure_time.required_if' => 'L\'heure de fermeture est obligatoire quand la fermeture automatique est activée.',
+            // 🆕 Messages d'erreur pour le temps d'attente
+            'default_waiting_time_minutes.required' => 'Le temps d\'attente par défaut est obligatoire.',
+            'default_waiting_time_minutes.integer' => 'Le temps d\'attente doit être un nombre entier.',
+            'default_waiting_time_minutes.min' => 'Le temps d\'attente doit être au minimum de 1 minute.',
+            'default_waiting_time_minutes.max' => 'Le temps d\'attente ne peut pas dépasser 60 minutes.',
         ]);
 
         if ($validator->fails()) {
-            Log::warning('Settings validation failed', [
+            Log::warning('Settings validation failed with queue management', [
                 'admin_id' => Auth::id(),
                 'errors' => $validator->errors()->toArray(),
                 'input' => $request->all()
@@ -161,32 +173,42 @@ class SettingsController extends Controller
                 Setting::set(Setting::SESSION_CLOSURE_TIME, $closureTime, 'time', 'user_management');
                 $updatedSettings['Heure de fermeture'] = $closureTime;
             } elseif (!$enableSessionClosure) {
-                // Réinitialiser à la valeur par défaut si désactivé
                 Setting::set(Setting::SESSION_CLOSURE_TIME, '18:00', 'time', 'user_management');
                 $updatedSettings['Heure de fermeture'] = 'Réinitialisée (18:00)';
             }
+
+            // 🆕 TRAITEMENT DU TEMPS D'ATTENTE CONFIGURABLE
+            $waitingTimeMinutes = (int) $request->input('default_waiting_time_minutes');
+            Setting::set(Setting::DEFAULT_WAITING_TIME_MINUTES, $waitingTimeMinutes, 'integer', 'user_management');
+            $updatedSettings['Temps d\'attente par défaut'] = $waitingTimeMinutes . ' minute(s)';
 
             DB::commit();
 
             // Vider le cache des paramètres après mise à jour
             Setting::clearCache();
 
-            // Log de l'action
-            Log::info('Settings updated successfully by admin', [
+            // 🆕 Log enrichi avec les paramètres de file d'attente
+            Log::info('Settings updated successfully by admin with queue management', [
                 'admin_id' => Auth::id(),
                 'admin_username' => Auth::user()->username,
                 'updated_settings' => $updatedSettings,
+                'queue_impact' => [
+                    'waiting_time_changed_to' => $waitingTimeMinutes,
+                    'will_affect_new_tickets' => true,
+                    'queue_management_settings' => Setting::getQueueManagementSettings()
+                ],
                 'raw_input' => $request->only([
                     'auto_detect_available_advisors',
                     'auto_assign_all_services_to_advisors', 
                     'enable_auto_session_closure',
-                    'auto_session_closure_time'
+                    'auto_session_closure_time',
+                    'default_waiting_time_minutes' // 🆕
                 ]),
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent()
             ]);
 
-            // Message de succès détaillé
+            // 🆕 Message de succès enrichi
             $message = 'Paramètres mis à jour avec succès : ' . implode(', ', array_map(
                 fn($key, $value) => "{$key}: {$value}",
                 array_keys($updatedSettings),
@@ -198,7 +220,7 @@ class SettingsController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
-            Log::error('Settings update error', [
+            Log::error('Settings update error with queue management', [
                 'admin_id' => Auth::id(),
                 'error' => $e->getMessage(),
                 'input' => $request->except(['_token', '_method']),
@@ -477,6 +499,7 @@ class SettingsController extends Controller
                 'success' => true,
                 'raw_settings' => $settings->toArray(),
                 'formatted_settings' => $formattedSettings,
+                'queue_management_settings' => Setting::getQueueManagementSettings(), // 🆕
                 'cache_status' => [
                     'has_cache' => Cache::has('settings_user_management'),
                     'cache_value' => Cache::get('settings_user_management')
@@ -502,7 +525,7 @@ class SettingsController extends Controller
     // ===============================================
 
     /**
-     * Créer un paramètre par défaut s'il n'existe pas
+     * 🆕 CRÉER UN PARAMÈTRE PAR DÉFAUT - ÉLARGI AVEC LE TEMPS D'ATTENTE
      */
     private function createDefaultSetting(string $key): void
     {
@@ -538,6 +561,21 @@ class SettingsController extends Controller
                 'label' => 'Heure de fermeture',
                 'description' => 'Heure à laquelle fermer automatiquement les sessions',
                 'sort_order' => 4
+            ],
+            // 🆕 NOUVEAU PARAMÈTRE PAR DÉFAUT
+            Setting::DEFAULT_WAITING_TIME_MINUTES => [
+                'value' => 5,
+                'type' => 'integer',
+                'group' => 'user_management',
+                'label' => 'Temps d\'attente par défaut (minutes)',
+                'description' => 'Temps d\'attente estimé entre chaque ticket dans la file d\'attente unique',
+                'sort_order' => 5,
+                'meta' => [
+                    'min' => 1,
+                    'max' => 60,
+                    'step' => 1,
+                    'unit' => 'minutes'
+                ]
             ]
         ];
 
@@ -552,6 +590,7 @@ class SettingsController extends Controller
                     'label' => $default['label'],
                     'description' => $default['description'],
                     'sort_order' => $default['sort_order'],
+                    'meta' => $default['meta'] ?? null,
                     'is_active' => true
                 ]);
 
@@ -584,8 +623,6 @@ class SettingsController extends Controller
             return false;
         }
 
-        // Ajouter ici d'autres vérifications de permissions si nécessaire
-        
         return true;
     }
 
