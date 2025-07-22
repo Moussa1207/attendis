@@ -542,14 +542,14 @@ class Queue extends Model
                                                      ];
                                                  })
                                                  ->toArray(),
-            // 🆕 APERÇU DE L'ORDRE CHRONOLOGIQUE (numérotation par service)
-            'ordre_traitement_actuel' => self::where('date', $date)
-                                            ->where('statut_global', 'en_attente')
-                                            ->orderBy('created_at', 'asc')
-                                            ->limit(10)
-                                            ->with('service:id,nom,letter_of_service')
-                                            ->get()
-                                            ->map(function($ticket) {
+                                                 // 🆕 APERÇU DE L'ORDRE CHRONOLOGIQUE (numérotation par service)
+                                                   'ordre_traitement_actuel' => self::where('date', $date)
+                                                    ->where('statut_global', 'en_attente')
+                                                    ->orderBy('created_at', 'asc')
+                                                    ->limit(10)
+                                                    ->with('service:id,nom,letter_of_service')
+                                                    ->get()
+                                                    ->map(function($ticket) {
                                                 return [
                                                     'numero_ticket' => $ticket->numero_ticket,
                                                     'service_name' => $ticket->service->nom ?? 'N/A',
@@ -577,7 +577,7 @@ class Queue extends Model
             'tickets_supprimés' => $deletedCount,
             'cutoff_date' => $cutoffDate->format('Y-m-d')
         ]);
-
+            
         return $deletedCount;
     }
 

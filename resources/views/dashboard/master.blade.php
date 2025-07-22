@@ -46,190 +46,209 @@
     
     <div class="menu-content h-100" data-simplebar>
         <ul class="metismenu left-sidenav-menu">
-            <li class="menu-label mt-0">Menu</li>
-            
-            <!-- Dashboard Section -->
-            <li>
-                <a href="javascript: void(0);"> 
-                    <i data-feather="home" class="align-self-center menu-icon"></i>
-                    <span>Dashboard</span>
-                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-                </a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    @if(Auth::user()->isAdmin())
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('layouts.app') }}">
-                                <i class="ti-control-record"></i>Analytics (Admin)
-                            </a>
-                        </li>
-                    @else
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('layouts.app-users') }}">
-                                <i class="ti-control-record"></i>Mon Espace
-                            </a>
-                        </li>
-                    @endif
-                </ul>
-            </li>
+            @if(Auth::user()->isEcranUser())
+                {{-- ========================================== --}}
+                {{-- MENU ULTRA SIMPLIFIÉ POUR POSTE ECRAN --}}
+                {{-- ========================================== --}}
+                
+                <li class="menu-label mt-0">MENU</li>
+                
+                <!-- Menu unique : Écran -->
+                <li>
+                    <a href="{{ route('layouts.app-users') }}"> 
+                        <i data-feather="monitor" class="align-self-center menu-icon"></i>
+                        <span>Ecran</span>
+                    </a>
+                </li>
 
-            @if(Auth::user()->isAdmin())
-            <!-- Section Admin uniquement -->
-            <hr class="hr-dashed hr-menu">
-            <li class="menu-label my-2">Administration</li>
+                
 
-            <!-- Gestion des Utilisateurs - AMÉLIORÉ: Ordre inversé -->
-            <li>
-                <a href="javascript: void(0);">
-                    <i data-feather="users" class="align-self-center menu-icon"></i>
-                    <span>Utilisateurs</span>
-                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-                </a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <!-- AMÉLIORÉ: Nouveau en premier -->
-                    <li>
-                        <a href="{{ route('User.user-create') }}">
-                            <i class="ti-control-record"></i>Nouveau
-                        </a>
-                    </li>
-                    <!-- AMÉLIORÉ: Liste en second -->
-                    <li>
-                        <a href="{{ route('user.users-list') }}">
-                            <i class="ti-control-record"></i>Liste
-                        </a>                           
-                    </li>
-                </ul>                        
-            </li>
+                
 
-            <!--  Gestion des Agences avec les bonnes routes -->
-            <li>
-                <a href="javascript: void(0);">
-                    <i data-feather="home" class="align-self-center menu-icon"></i>
-                    <span>Agence</span>
-                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-                </a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <!--  Route création agence -->
-                    <li>
-                        <a href="{{ route('agency.agence-create') }}">
-                            <i class="ti-control-record"></i>Nouveau
-                        </a>
-                    </li>
-                    <!--  Route liste agences -->
-                    <li>
-                        <a href="{{ route('agency.agence') }}">
-                            <i class="ti-control-record"></i>Liste
-                        </a>                           
-                    </li>
-                </ul>                        
-            </li>
-
-            <!-- ✅ CORRECTION: Service avec icône "briefcase" -->
-            <li>
-                <a href="javascript: void(0);">
-                    <i data-feather="briefcase" class="align-self-center menu-icon"></i>
-                    <span>Service</span>
-                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-                </a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <!-- NOUVEAU : Route création service -->
-                    <li>
-                        <a href="{{ route('service.service-create') }}">
-                            <i class="ti-control-record"></i>Nouveau
-                        </a>
-                    </li>
-                    <!-- NOUVEAU : Route liste services -->
-                    <li>
-                        <a href="{{ route('service.service-list') }}">
-                            <i class="ti-control-record"></i>Liste
-                        </a>                           
-                    </li>
-                </ul>                        
-            </li>
-
-            <!--  Paramètres avec icône "settings" -->
-            <li>
-    <a href="javascript: void(0);">
-        <i data-feather="settings" class="align-self-center menu-icon"></i>
-        <span>Paramètre</span>
-        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-    </a>
-    <ul class="nav-second-level" aria-expanded="false">
-        <li>
-            <a href="{{ route('layouts.setting') }}">
-                <i class="ti-control-record"></i>Général
-            </a>
-        </li>
-    </ul>
-</li>
             @else
-            <!-- Section Utilisateur Normal -->
-            <hr class="hr-dashed hr-menu">
-            <li class="menu-label my-2">Mon Compte</li>
+                {{-- ========================================== --}}
+                {{-- SIDEBAR COMPLÈTE POUR AUTRES UTILISATEURS --}}
+                {{-- ========================================== --}}
 
-            <!-- Profil utilisateur -->
-            <li>
-                <a href="javascript: void(0);">
-                    <i data-feather="user" class="align-self-center menu-icon"></i>
-                    <span>Mon Profil</span>
-                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-                </a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li>
-                        <a href="{{ route('layouts.app-users') }}">
-                            <i class="ti-control-record"></i>Tableau de bord
-                        </a>                           
-                    </li>
-                    <li>
-                        <a href="javascript: void(0);" onclick="showPasswordModal()">
-                            <i class="ti-control-record"></i>Changer mot de passe
-                        </a>
-                    </li>
-                </ul>                        
-            </li>
+                <li class="menu-label mt-0">Menu</li>
 
-            <!-- Aide utilisateur -->
-            <li>
-                <a href="javascript: void(0);" onclick="showSupportModal()">
-                    <i data-feather="help-circle" class="align-self-center menu-icon"></i>
-                    <span>Aide & Support</span>
-                </a>
-            </li>
+                <!-- Dashboard Section -->
+                <li>
+                    <a href="javascript: void(0);"> 
+                        <i data-feather="home" class="align-self-center menu-icon"></i>
+                        <span>Dashboard</span>
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        @if(Auth::user()->isAdmin())
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('layouts.app') }}">
+                                    <i class="ti-control-record"></i>Analytics (Admin)
+                                </a>
+                            </li>
+                        @else
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('layouts.app-users') }}">
+                                    <i class="ti-control-record"></i>Mon Espace
+                                </a>
+                            </li>
+                        @endif
+                    </ul>
+                </li>
+
+                @if(Auth::user()->isAdmin())
+                <!-- Section Admin uniquement -->
+                <hr class="hr-dashed hr-menu">
+                <li class="menu-label my-2">Administration</li>
+
+                <!-- Gestion des Utilisateurs -->
+                <li>
+                    <a href="javascript: void(0);">
+                        <i data-feather="users" class="align-self-center menu-icon"></i>
+                        <span>Utilisateurs</span>
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li>
+                            <a href="{{ route('User.user-create') }}">
+                                <i class="ti-control-record"></i>Nouveau
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('user.users-list') }}">
+                                <i class="ti-control-record"></i>Liste
+                            </a>                           
+                        </li>
+                    </ul>                        
+                </li>
+
+                <!-- Gestion des Agences -->
+                <li>
+                    <a href="javascript: void(0);">
+                        <i data-feather="home" class="align-self-center menu-icon"></i>
+                        <span>Agence</span>
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li>
+                            <a href="{{ route('agency.agence-create') }}">
+                                <i class="ti-control-record"></i>Nouveau
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('agency.agence') }}">
+                                <i class="ti-control-record"></i>Liste
+                            </a>                           
+                        </li>
+                    </ul>                        
+                </li>
+
+                <!-- Service -->
+                <li>
+                    <a href="javascript: void(0);">
+                        <i data-feather="briefcase" class="align-self-center menu-icon"></i>
+                        <span>Service</span>
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li>
+                            <a href="{{ route('service.service-create') }}">
+                                <i class="ti-control-record"></i>Nouveau
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('service.service-list') }}">
+                                <i class="ti-control-record"></i>Liste
+                            </a>                           
+                        </li>
+                    </ul>                        
+                </li>
+
+                <!-- Paramètres -->
+                <li>
+                    <a href="javascript: void(0);">
+                        <i data-feather="settings" class="align-self-center menu-icon"></i>
+                        <span>Paramètre</span>
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li>
+                            <a href="{{ route('layouts.setting') }}">
+                                <i class="ti-control-record"></i>Général
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                @else
+                <!-- Section Utilisateur Normal (Accueil/Conseiller) -->
+                <hr class="hr-dashed hr-menu">
+                <li class="menu-label my-2">Mon Compte</li>
+
+                <!-- Profil utilisateur -->
+                <li>
+                    <a href="javascript: void(0);">
+                        <i data-feather="user" class="align-self-center menu-icon"></i>
+                        <span>Mon Profil</span>
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li>
+                            <a href="{{ route('layouts.app-users') }}">
+                                <i class="ti-control-record"></i>Tableau de bord
+                            </a>                           
+                        </li>
+                        <li>
+                            <a href="javascript: void(0);" onclick="showPasswordModal()">
+                                <i class="ti-control-record"></i>Changer mot de passe
+                            </a>
+                        </li>
+                    </ul>                        
+                </li>
+
+                <!-- Aide utilisateur -->
+                <li>
+                    <a href="javascript: void(0);" onclick="showSupportModal()">
+                        <i data-feather="help-circle" class="align-self-center menu-icon"></i>
+                        <span>Aide & Support</span>
+                    </a>
+                </li>
+                @endif
+
+                <!-- Section commune -->
+                <hr class="hr-dashed hr-menu">
+                <li class="menu-label my-2">Système</li>
+
+                <!-- Informations compte -->
+                <li>
+                    <a href="javascript: void(0);">
+                        <i data-feather="info" class="align-self-center menu-icon"></i>
+                        <span>Informations</span>
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li>
+                            <a href="javascript: void(0);" onclick="showAccountInfo()">
+                                <i class="ti-control-record"></i>Mon Compte
+                            </a>
+                        </li>
+                        @if(Auth::user()->wasCreatedByAdmin())
+                        <li>
+                            <a href="javascript: void(0);" onclick="showCreatorInfo()">
+                                <i class="ti-control-record"></i>Créé par
+                            </a>
+                        </li>
+                        @endif
+                    </ul>
+                </li>
+
+                <!-- Déconnexion pour autres utilisateurs -->
+                <li>
+                    <a href="javascript: void(0);" onclick="confirmLogout()">
+                        <i data-feather="power" class="align-self-center menu-icon"></i>
+                        <span>Déconnexion</span>
+                    </a>
+                </li>
             @endif
-
-            <!-- Section commune -->
-            <hr class="hr-dashed hr-menu">
-            <li class="menu-label my-2">Système</li>
-
-            <!-- Informations compte -->
-            <li>
-                <a href="javascript: void(0);">
-                    <i data-feather="info" class="align-self-center menu-icon"></i>
-                    <span>Informations</span>
-                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-                </a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li>
-                        <a href="javascript: void(0);" onclick="showAccountInfo()">
-                            <i class="ti-control-record"></i>Mon Compte
-                        </a>
-                    </li>
-                    @if(Auth::user()->wasCreatedByAdmin())
-                    <li>
-                        <a href="javascript: void(0);" onclick="showCreatorInfo()">
-                            <i class="ti-control-record"></i>Créé par
-                        </a>
-                    </li>
-                    @endif
-                </ul>
-            </li>
-
-            <!-- Déconnexion -->
-            <li>
-                <a href="javascript: void(0);" onclick="confirmLogout()">
-                    <i data-feather="power" class="align-self-center menu-icon"></i>
-                    <span>Déconnexion</span>
-                </a>
-            </li>
         </ul>
     </div>
 </div>
@@ -274,52 +293,69 @@ function confirmLogout() {
     }
 }
 
+// Fonction pour afficher les informations du compte
 function showAccountInfo() {
-    alert(`
-Informations de votre compte:
-- Nom: {{ Auth::user()->username }}
-- Email: {{ Auth::user()->email }}
-- Type: {{ Auth::user()->getTypeName() }}
-- Statut: {{ Auth::user()->getStatusName() }}
-- Inscription: {{ Auth::user()->created_at->format('d/m/Y') }}
-    `);
+    var userType = '{{ Auth::user()->getUserRole() }}';
+    var username = '{{ Auth::user()->username }}';
+    var email = '{{ Auth::user()->email ?? "" }}';
+    var typeName = '{{ Auth::user()->getTypeName() }}';
+    var statusName = '{{ Auth::user()->getStatusName() }}';
+    var createdAt = '{{ Auth::user()->created_at->format("d/m/Y") }}';
+    
+    if (userType === 'ecran') {
+        alert('Informations de votre poste:\n' +
+              '- Nom: ' + username + '\n' +
+              '- Type: ' + typeName + '\n' +
+              '- Statut: ' + statusName + '\n' +
+              '- Poste configuré le: ' + createdAt + '\n' +
+              '- Interface: Prise de ticket automatisée');
+    } else {
+        alert('Informations de votre compte:\n' +
+              '- Nom: ' + username + '\n' +
+              '- Email: ' + email + '\n' +
+              '- Type: ' + typeName + '\n' +
+              '- Statut: ' + statusName + '\n' +
+              '- Inscription: ' + createdAt);
+    }
 }
 
+// Fonction pour afficher les informations du créateur (si applicable)
 @if(Auth::user()->wasCreatedByAdmin())
 function showCreatorInfo() {
     @php
         $creator = Auth::user()->getCreator();
     @endphp
-    alert(`
-Votre compte a été créé par:
-- Administrateur: {{ $creator ? $creator->username : 'Inconnu' }}
-- Date de création: {{ Auth::user()->created_at->format('d/m/Y à H:i') }}
-    `);
+    var creatorName = '{{ $creator ? $creator->username : "Inconnu" }}';
+    var createdAt = '{{ Auth::user()->created_at->format("d/m/Y à H:i") }}';
+    
+    alert('Votre compte a été créé par:\n' +
+          '- Administrateur: ' + creatorName + '\n' +
+          '- Date de création: ' + createdAt);
 }
 @endif
 
-@if(!Auth::user()->isAdmin())
-function showPasswordModal() {
-    // Cette fonction sera définie dans app-users.blade.php
-    if (typeof showPasswordModal !== 'undefined') {
-        showPasswordModal();
-    } else {
-        alert('Fonction de changement de mot de passe non disponible sur cette page.');
+// Fonctions spécifiques selon le type d'utilisateur
+var userRole = '{{ Auth::user()->getUserRole() }}';
+
+if (userRole !== 'ecran' && userRole !== 'admin') {
+    function showPasswordModal() {
+        if (typeof showPasswordModal !== 'undefined') {
+            showPasswordModal();
+        } else {
+            alert('Fonction de changement de mot de passe non disponible sur cette page.');
+        }
+    }
+
+    function showSupportModal() {
+        alert('Support Attendis:\n' +
+              '- Pour toute question, contactez votre administrateur\n' +
+              '- Email support: support@attendis.com\n' +
+              '- Les administrateurs peuvent vous aider avec:\n' +
+              '  * Modification de profil\n' +
+              '  * Problèmes de connexion\n' +
+              '  * Questions générales');
     }
 }
-
-function showSupportModal() {
-    alert(`
-Support Attendis:
-- Pour toute question, contactez votre administrateur
-- Email support: support@attendis.com
-- Les administrateurs peuvent vous aider avec:
-  * Modification de profil
-  * Problèmes de connexion
-  * Questions générales
-    `);
-}
-@endif
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
@@ -345,11 +381,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Système de vérification de session (conservé depuis l'original)
 class AttendisSessionChecker {
     constructor(options = {}) {
         this.options = {
-            checkInterval: options.checkInterval || 30000, // 30 secondes
-            warningTime: options.warningTime || 300000,    // 5 minutes avant fermeture
+            checkInterval: options.checkInterval || 30000,
+            warningTime: options.warningTime || 300000,
             enableDebug: options.enableDebug || false,
             ...options
         };
@@ -361,38 +398,21 @@ class AttendisSessionChecker {
         this.init();
     }
 
-    /**
-     * Initialiser le vérificateur
-     */
     init() {
-        // Vérifier si l'utilisateur est connecté
         if (!this.isAuthenticated()) {
             return;
         }
 
         this.log('SessionChecker initialized');
-        
-        // Démarrer la vérification périodique
         this.startPeriodicCheck();
-        
-        // Écouter les événements de focus/blur pour optimiser
         this.setupWindowEvents();
-        
-        // Vérification initiale
         this.checkSession();
     }
 
-    /**
-     * Vérifier si l'utilisateur est authentifié
-     */
     isAuthenticated() {
-        // Vérifier la présence d'un token CSRF (indique une session Laravel)
         return document.querySelector('meta[name="csrf-token"]') !== null;
     }
 
-    /**
-     * Démarrer la vérification périodique
-     */
     startPeriodicCheck() {
         this.intervalId = setInterval(() => {
             if (document.hasFocus() || !this.lastCheck || 
@@ -402,21 +422,7 @@ class AttendisSessionChecker {
         }, this.options.checkInterval);
     }
 
-    /**
-     * Arrêter la vérification périodique
-     */
-    stopPeriodicCheck() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-        }
-    }
-
-    /**
-     * Configurer les événements de fenêtre
-     */
     setupWindowEvents() {
-        // Pause quand la fenêtre n'est pas active
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 this.log('Window hidden, pausing checks');
@@ -426,15 +432,11 @@ class AttendisSessionChecker {
             }
         });
 
-        // Vérifier lors du retour de focus
         window.addEventListener('focus', () => {
             this.checkSession();
         });
     }
 
-    /**
-     * Vérifier l'état de la session
-     */
     async checkSession() {
         if (this.isChecking) {
             return;
@@ -444,7 +446,6 @@ class AttendisSessionChecker {
         this.lastCheck = Date.now();
 
         try {
-            // Vérifier la fermeture automatique
             const closureResponse = await this.fetchSessionClosure();
             
             if (closureResponse.should_logout) {
@@ -452,7 +453,6 @@ class AttendisSessionChecker {
                 return;
             }
 
-            // Obtenir les informations de session détaillées
             const sessionInfo = await this.fetchSessionInfo();
             
             if (!sessionInfo.authenticated) {
@@ -460,18 +460,13 @@ class AttendisSessionChecker {
                 return;
             }
 
-            // Vérifier les actions requises
             this.handleRequiredActions(sessionInfo.required_actions || []);
-            
-            // Vérifier les avertissements de fermeture
             this.checkClosureWarning(sessionInfo.session_settings);
-            
             this.log('Session check completed', sessionInfo);
 
         } catch (error) {
             this.log('Session check failed', error);
             
-            // En cas d'erreur 401/403, considérer comme déconnecté
             if (error.status === 401 || error.status === 403) {
                 this.handleSessionExpired();
             }
@@ -480,9 +475,6 @@ class AttendisSessionChecker {
         }
     }
 
-    /**
-     * Faire une requête pour vérifier la fermeture automatique
-     */
     async fetchSessionClosure() {
         const response = await fetch('/api/session/check-closure', {
             method: 'GET',
@@ -499,9 +491,6 @@ class AttendisSessionChecker {
         return await response.json();
     }
 
-    /**
-     * Obtenir les informations détaillées de session
-     */
     async fetchSessionInfo() {
         const response = await fetch('/api/session/info', {
             method: 'GET',
@@ -518,35 +507,22 @@ class AttendisSessionChecker {
         return await response.json();
     }
 
-    /**
-     * Gérer une déconnexion forcée
-     */
     handleForcedLogout(response) {
         this.stopPeriodicCheck();
-        
         this.showNotification('warning', response.message || 'Votre session a été fermée automatiquement.');
-        
         setTimeout(() => {
             window.location.href = response.redirect_url || '/login';
         }, 3000);
     }
 
-    /**
-     * Gérer une session expirée
-     */
     handleSessionExpired() {
         this.stopPeriodicCheck();
-        
         this.showNotification('error', 'Votre session a expiré. Redirection vers la page de connexion...');
-        
         setTimeout(() => {
             window.location.href = '/login';
         }, 3000);
     }
 
-    /**
-     * Gérer les actions requises
-     */
     handleRequiredActions(actions) {
         actions.forEach(action => {
             switch (action.type) {
@@ -563,9 +539,6 @@ class AttendisSessionChecker {
         });
     }
 
-    /**
-     * Vérifier et afficher l'avertissement de fermeture
-     */
     checkClosureWarning(settings) {
         if (!settings.auto_closure_enabled || settings.should_close_now) {
             return;
@@ -583,7 +556,6 @@ class AttendisSessionChecker {
 
         const timeUntilClosure = closureDate.getTime() - now.getTime();
 
-        // Afficher un avertissement 5 minutes avant la fermeture
         if (timeUntilClosure > 0 && timeUntilClosure <= this.options.warningTime && !this.warningShown) {
             const minutesLeft = Math.floor(timeUntilClosure / 60000);
             this.showClosureWarning(`Votre session se fermera automatiquement dans ${minutesLeft} minute(s) (${closureTime}).`);
@@ -591,9 +563,6 @@ class AttendisSessionChecker {
         }
     }
 
-    /**
-     * Afficher un avertissement de fermeture
-     */
     showClosureWarning(message) {
         this.showNotification('warning', message, { 
             persistent: true,
@@ -604,25 +573,15 @@ class AttendisSessionChecker {
         });
     }
 
-    /**
-     * Demander une extension de session (pour les admins)
-     */
     async requestSessionExtension() {
         try {
-            // Cette fonctionnalité pourrait être ajoutée pour les admins
             this.showNotification('info', 'Demande d\'extension envoyée...');
         } catch (error) {
             this.showNotification('error', 'Impossible de prolonger la session.');
         }
     }
 
-    /**
-     * Afficher une notification
-     */
     showNotification(type, message, options = {}) {
-        // Utiliser votre système de notifications existant
-        // Ici, j'utilise une implémentation simple
-        
         const notification = document.createElement('div');
         notification.className = `alert alert-${type} alert-dismissible fade show session-notification`;
         notification.style.cssText = `
@@ -649,7 +608,6 @@ class AttendisSessionChecker {
 
         document.body.appendChild(notification);
 
-        // Auto-dismiss sauf si persistant
         if (!options.persistent) {
             setTimeout(() => {
                 if (notification.parentNode) {
@@ -659,9 +617,6 @@ class AttendisSessionChecker {
         }
     }
 
-    /**
-     * Obtenir l'icône selon le type de notification
-     */
     getIcon(type) {
         const icons = {
             'success': 'check-circle',
@@ -672,32 +627,32 @@ class AttendisSessionChecker {
         return icons[type] || 'information';
     }
 
-    /**
-     * Log de débogage
-     */
     log(message, data = null) {
         if (this.options.enableDebug) {
             console.log(`[AttendisSessionChecker] ${message}`, data);
         }
     }
 
-    /**
-     * Destructor
-     */
     destroy() {
         this.stopPeriodicCheck();
         this.log('SessionChecker destroyed');
+    }
+
+    stopPeriodicCheck() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
     }
 }
 
 // Auto-initialisation si jQuery est disponible
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser seulement si l'utilisateur est connecté
     if (document.querySelector('meta[name="csrf-token"]')) {
         window.attendisSessionChecker = new AttendisSessionChecker({
-            enableDebug: false, // Passer à true pour le debug
-            checkInterval: 30000, // Vérifier toutes les 30 secondes
-            warningTime: 300000   // Avertir 5 minutes avant
+            enableDebug: false,
+            checkInterval: 30000,
+            warningTime: 300000
         });
         
         console.log('Attendis Session Checker initialized');

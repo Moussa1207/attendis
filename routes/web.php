@@ -115,6 +115,85 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | 🆕 INTERFACE CONSEILLER DÉDIÉE - NOUVELLES ROUTES
+    |--------------------------------------------------------------------------
+    */
+
+    // Dashboard principal conseiller - Interface dédiée FIFO
+    Route::get('/layouts/app-conseiller', [DashboardController::class, 'conseillerDashboard'])
+        ->name('layouts.app-conseiller')
+        ->middleware('conseiller');
+
+    // 👨‍💼 ROUTES CONSEILLER UNIQUEMENT
+    Route::middleware('conseiller')->group(function () {
+        
+        // 🎫 GESTION FILE D'ATTENTE FIFO
+        Route::prefix('conseiller')->group(function () {
+            
+            // Récupérer les tickets en attente (FIFO chronologique)
+            Route::get('/tickets', [DashboardController::class, 'getConseillerTickets'])
+                ->name('conseiller.tickets');
+            
+            // Appeler le prochain ticket (FIFO)
+            Route::post('/call-ticket', [DashboardController::class, 'callNextTicket'])
+                ->name('conseiller.call-ticket');
+            
+            // Terminer le ticket en cours
+            Route::post('/complete-ticket', [DashboardController::class, 'completeCurrentTicket'])
+                ->name('conseiller.complete-ticket');
+            
+            // Mes statistiques personnelles
+            Route::get('/my-stats', [DashboardController::class, 'getConseillerStats'])
+                ->name('conseiller.my-stats');
+            
+            // Mon historique des tickets traités
+            Route::get('/history', [DashboardController::class, 'getConseillerHistory'])
+                ->name('conseiller.history');
+            
+            // Mettre en pause / reprendre
+            Route::post('/toggle-pause', [DashboardController::class, 'toggleConseillerPause'])
+                ->name('conseiller.toggle-pause');
+            
+            // Détails d'un ticket spécifique
+            Route::get('/ticket/{id}/details', [DashboardController::class, 'getTicketDetails'])
+                ->name('conseiller.ticket-details');
+            
+            // Transférer un ticket vers un autre conseiller (futur)
+            Route::post('/transfer-ticket', [DashboardController::class, 'transferTicket'])
+                ->name('conseiller.transfer-ticket');
+            
+            // Export des données conseiller
+            Route::get('/export', [DashboardController::class, 'exportConseillerData'])
+                ->name('conseiller.export');
+        });
+        
+        // 🔄 API TEMPS RÉEL CONSEILLER
+        Route::prefix('api/conseiller')->group(function () {
+            
+            // Rafraîchir la file en temps réel
+            Route::get('/refresh-queue', [DashboardController::class, 'refreshConseillerQueue'])
+                ->name('api.conseiller.refresh-queue');
+            
+            // Obtenir le prochain ticket sans le prendre
+            Route::get('/next-ticket', [DashboardController::class, 'getNextTicketPreview'])
+                ->name('api.conseiller.next-ticket');
+            
+            // Vérifier si j'ai un ticket en cours
+            Route::get('/current-ticket', [DashboardController::class, 'getCurrentTicketStatus'])
+                ->name('api.conseiller.current-ticket');
+            
+            // Notifications temps réel
+            Route::get('/notifications', [DashboardController::class, 'getConseillerNotifications'])
+                ->name('api.conseiller.notifications');
+            
+            // Statistiques temps réel
+            Route::get('/live-stats', [DashboardController::class, 'getLiveConseillerStats'])
+                ->name('api.conseiller.live-stats');
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | ✅ SECTION AMÉLIORÉE : GESTION DE FILE D'ATTENTE CHRONOLOGIQUE FIFO
     |--------------------------------------------------------------------------
     */
@@ -388,6 +467,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             Route::post('/agencies/bulk-delete', [AgencyController::class, 'bulkDelete'])->name('agencies.bulk-delete');
             Route::get('/agencies/export', [AgencyController::class, 'export'])->name('agencies.export');
         });
+        Route::get('/agencies/{agency}/edit', [AgencyController::class, 'edit'])->name('agency.agence-edit');
 
         /*
         |--------------------------------------------------------------------------
@@ -422,6 +502,20 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             // 🆕 API pour la recherche de services (AJAX)
             Route::get('/api/services/search', [ServiceController::class, 'searchServices'])->name('services.api.search');
         });
+         
+        // ✅ NOUVELLE ROUTE : Formulaire d'édition de service
+        Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
+
+        // ✅ NOUVELLE ROUTE : Mise à jour de service (PUT)
+        Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
+
+        // ✅ NOUVELLE ROUTE : Statistiques d'un service pour le modal
+        Route::get('/services/{service}/stats', [ServiceController::class, 'getServiceStats'])->name('services.stats');
+
+        // ✅ MODIFICATION : Route existante check-letter-availability pour supporter exclude_id
+        // (Remplacer l'existante ou s'assurer qu'elle supporte le paramètre exclude_id)
+        Route::post('/services/check-letter-availability', [ServiceController::class, 'checkLetterAvailability'])
+            ->name('services.check-letter-availability');
 
         /*
         |--------------------------------------------------------------------------
@@ -903,8 +997,25 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                 ]
             ]);
             
+        } elseif ($user->isConseillerUser()) {
+            // Données pour interface Conseiller
+            return response()->json([
+                'success' => true,
+                'type' => 'conseiller',
+                'data' => [
+                    'user_type' => $user->getTypeName(),
+                    'days_active' => $user->created_at->diffInDays(now()),
+                    'last_login' => $user->last_login_at ? $user->last_login_at->format('d/m/Y H:i') : 'Jamais',
+                    'last_update' => now()->format('H:i:s'),
+                    'queue_info' => [
+                        'type' => 'fifo_chronological',
+                        'principle' => 'Premier arrivé, premier servi',
+                        'role' => 'Traitement des tickets dans l\'ordre chronologique'
+                    ]
+                ]
+            ]);
         } else {
-            // Données pour interface Accueil/Conseiller
+            // Données pour interface Accueil
             return response()->json([
                 'success' => true,
                 'type' => $user->getUserRole(),
@@ -937,9 +1048,11 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                 'Tenez à jour les informations d\'accueil'
             ],
             'conseiller' => [
-                'Écoutez attentivement les besoins clients',
-                'Documentez toutes les interactions importantes',
-                'Collaborez efficacement avec l\'équipe'
+                '🎯 Traitez les tickets dans l\'ordre chronologique (FIFO)',
+                '📞 Utilisez "Appeler suivant" pour le prochain ticket',
+                '✅ Documentez la résolution de chaque ticket',
+                '⏸️ Activez la pause si vous devez vous absenter',
+                '📊 Consultez vos statistiques pour améliorer vos performances'
             ]
         ];
         
@@ -973,7 +1086,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
     });
     
     Route::get('/app-conseiller', function () {
-        return redirect()->route('layouts.app-users');
+        return redirect()->route('layouts.app-conseiller');
     });
 });
 
@@ -991,6 +1104,9 @@ Route::fallback(function () {
         if ($user->isAdmin()) {
             return redirect()->route('layouts.app')
                 ->with('warning', 'Page non trouvée. Redirection vers le dashboard admin.');
+        } elseif ($user->isConseillerUser()) {
+            return redirect()->route('layouts.app-conseiller')
+                ->with('warning', 'Page non trouvée. Redirection vers votre interface conseiller.');
         } else {
             return redirect()->route('layouts.app-users')
                 ->with('warning', "Page non trouvée. Redirection vers votre espace {$user->getTypeName()}.");
@@ -1054,8 +1170,17 @@ if (app()->environment('local')) {
             'is_ecran' => $user->isEcranUser(),
             'is_accueil' => $user->isAccueilUser(),
             'is_conseiller' => $user->isConseillerUser(),
-            'interface_destination' => $user->isAdmin() ? 'layouts.app' : 'layouts.app-users',
-            'interface_type' => $user->isEcranUser() ? 'app-ecran.blade.php' : 'app-users.blade.php',
+            'interface_destination' => match(true) {
+                $user->isAdmin() => 'layouts.app',
+                $user->isConseillerUser() => 'layouts.app-conseiller',
+                default => 'layouts.app-users'
+            },
+            'interface_type' => match(true) {
+                $user->isAdmin() => 'app.blade.php',
+                $user->isEcranUser() => 'app-ecran.blade.php',
+                $user->isConseillerUser() => 'app-conseiller.blade.php',
+                default => 'app-users.blade.php'
+            },
             'creator' => $user->getCreator() ? $user->getCreator()->username : null,
             'services_count' => $user->getCreator() ? $user->getCreator()->createdServices()->count() : 0,
         ]);
@@ -1116,6 +1241,85 @@ if (app()->environment('local')) {
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Erreur génération ticket FIFO: ' . $e->getMessage()
+            ]);
+        }
+    })->middleware('auth');
+
+    // 🆕 NOUVEAU : Test de l'interface conseiller
+    Route::get('/dev/test-conseiller-interface', function () {
+        if (!auth()->check()) {
+            return response()->json(['error' => 'Non connecté']);
+        }
+        
+        $user = auth()->user();
+        
+        if (!$user->isConseillerUser()) {
+            return response()->json(['error' => 'Utilisateur non conseiller']);
+        }
+        
+        try {
+            $creator = $user->getCreator();
+            $myServiceIds = \App\Models\Service::where('created_by', $creator->id)->pluck('id');
+            
+            // Simuler les données de l'interface conseiller
+            $interfaceData = [
+                'file_stats' => [
+                    'tickets_en_attente' => \App\Models\Queue::whereIn('service_id', $myServiceIds)
+                                                            ->whereDate('date', today())
+                                                            ->where('statut_global', 'en_attente')
+                                                            ->count(),
+                    'tickets_en_cours' => \App\Models\Queue::whereIn('service_id', $myServiceIds)
+                                                          ->whereDate('date', today())
+                                                          ->where('statut_global', 'en_cours')
+                                                          ->count(),
+                    'tickets_termines' => \App\Models\Queue::whereIn('service_id', $myServiceIds)
+                                                          ->whereDate('date', today())
+                                                          ->where('statut_global', 'termine')
+                                                          ->count(),
+                ],
+                'conseiller_stats' => [
+                    'tickets_traites_aujourd_hui' => \App\Models\Queue::where('conseiller_client_id', $user->id)
+                                                                      ->whereDate('date', today())
+                                                                      ->where('statut_global', 'termine')
+                                                                      ->count(),
+                    'ticket_en_cours' => \App\Models\Queue::where('conseiller_client_id', $user->id)
+                                                          ->whereDate('date', today())
+                                                          ->where('statut_global', 'en_cours')
+                                                          ->first(),
+                ],
+                'next_ticket_preview' => \App\Models\Queue::whereIn('service_id', $myServiceIds)
+                                                          ->whereDate('date', today())
+                                                          ->where('statut_global', 'en_attente')
+                                                          ->orderBy('created_at', 'asc')
+                                                          ->first(),
+                'queue_info' => [
+                    'type' => 'fifo_chronological',
+                    'principle' => 'Premier arrivé, premier servi',
+                    'interface_status' => 'ready'
+                ]
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Interface conseiller testée avec succès',
+                'conseiller_info' => [
+                    'username' => $user->username,
+                    'email' => $user->email,
+                    'creator' => $creator->username
+                ],
+                'interface_data' => $interfaceData,
+                'routes_available' => [
+                    'conseiller.tickets' => route('conseiller.tickets'),
+                    'conseiller.call-ticket' => route('conseiller.call-ticket'),
+                    'conseiller.complete-ticket' => route('conseiller.complete-ticket'),
+                    'conseiller.my-stats' => route('conseiller.my-stats'),
+                    'conseiller.history' => route('conseiller.history')
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Erreur test interface conseiller: ' . $e->getMessage()
             ]);
         }
     })->middleware('auth');

@@ -95,7 +95,7 @@ return new class extends Migration
             $table->index(['position_file', 'service_id'], 'idx_position_service');
             $table->index(['heure_d_enregistrement', 'date'], 'idx_heure_enregistrement');
             $table->index(['id_agence', 'date', 'service_id'], 'idx_agence_date_service');
-        });
+        });      
     }
 
     /**

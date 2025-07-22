@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
@@ -52,6 +53,8 @@ class DashboardController extends Controller
         // Redirection selon le type d'utilisateur
         if ($user->isAdmin()) {
             return redirect()->route('layouts.app');
+        } elseif ($user->isConseillerUser()) {
+            return redirect()->route('layouts.app-conseiller');
         } else {
             return redirect()->route('layouts.app-users');
         }
@@ -179,9 +182,10 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🆕 Dashboard utilisateur avec différenciation selon le type
+     * 🆕 Dashboard utilisateur avec différenciation selon le type - AMÉLIORÉ
      * - POSTE ECRAN → Interface sans sidebar + grille services
-     * - ACCUEIL/CONSEILLER → Interface actuelle adaptée
+     * - CONSEILLER → Redirection vers interface conseiller dédiée  
+     * - ACCUEIL → Interface actuelle adaptée
      */
     public function userDashboard()
     {
@@ -197,8 +201,14 @@ class DashboardController extends Controller
             // 🎯 DIFFÉRENCIATION SELON LE TYPE D'UTILISATEUR
             if ($user->isEcranUser()) {
                 return $this->ecranDashboard($user);
-            } else {
-                return $this->normalUserDashboard($user);
+            } 
+            elseif ($user->isConseillerUser()) {
+                // 🆕 REDIRECTION AUTOMATIQUE vers l'interface conseiller dédiée
+                return redirect()->route('layouts.app-conseiller')
+                    ->with('info', 'Redirection vers votre interface conseiller.');
+            } 
+            else {
+                return $this->normalUserDashboard($user); // Pour les utilisateurs ACCUEIL
             }
 
         } catch (\Exception $e) {
@@ -316,12 +326,18 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🆕 Dashboard pour utilisateurs ACCUEIL et CONSEILLER
-     * Interface actuelle app-users.blade.php adaptée selon le type
+     * 🆕 Dashboard pour utilisateurs ACCUEIL uniquement - MODIFIÉ
+     * (Les conseillers ont maintenant leur propre interface)
      */
     private function normalUserDashboard(User $user)
     {
-        // Statistiques personnelles pour l'utilisateur
+        // Vérifier que c'est bien un utilisateur ACCUEIL
+        if (!$user->isAccueilUser()) {
+            return redirect()->route('layouts.app-conseiller')
+                ->with('info', 'Redirection vers votre interface spécialisée.');
+        }
+
+        // Statistiques personnelles pour l'utilisateur ACCUEIL
         $userStats = [
             'days_since_creation' => $user->created_at->diffInDays(now()),
             'account_age_formatted' => $user->created_at->diffForHumans(),
@@ -331,8 +347,26 @@ class DashboardController extends Controller
             'last_password_change' => $user->updated_at->diffForHumans(),
         ];
 
-        // Statistiques adaptées selon le type
-        $typeSpecificData = $this->getTypeSpecificData($user);
+        // Données spécifiques ACCUEIL
+        $typeSpecificData = [
+            'type_description' => 'Poste Accueil - Réception et orientation des visiteurs',
+            'type_features' => [
+                'Accueil des visiteurs',
+                'Orientation et information',
+                'Gestion des rendez-vous',
+                'Communication interne'
+            ],
+            'type_recommendations' => [
+                'Vérifiez régulièrement les nouveaux visiteurs',
+                'Tenez à jour les informations d\'orientation',
+                'Communiquez avec l\'équipe de gestion'
+            ],
+            'queue_info' => [
+                'note' => 'Les tickets sont gérés par l\'équipe de conseillers',
+                'your_role' => 'Accueil et orientation des clients',
+                'ticket_flow' => 'Ecrans → File FIFO → Conseillers'
+            ]
+        ];
 
         return view('layouts.app-users', [
             'userStats' => $userStats,
@@ -342,12 +376,949 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // ✅ GÉNÉRATION DE TICKET AVEC FILE CHRONOLOGIQUE FIFO
+    // 🆕 SECTION CONSEILLER - INTERFACE DÉDIÉE
     // ===============================================
 
     /**
-     * 🎫 GÉNÉRATION EFFECTIVE D'UN TICKET EN BASE DE DONNÉES
-     * Utilise la nouvelle logique chronologique FIFO
+     * 👨‍💼 DASHBOARD PRINCIPAL CONSEILLER
+     * Interface dédiée avec file d'attente FIFO
+     */
+    public function conseillerDashboard()
+    {
+        $user = Auth::user();
+
+        // Vérifier que c'est bien un conseiller
+        if (!$user->isConseillerUser()) {
+            return redirect()->route('layouts.app-users')
+                ->with('error', 'Interface réservée aux conseillers.');
+        }
+
+        try {
+            // 🎯 RÉCUPÉRER L'ADMIN CRÉATEUR
+            $creator = $user->getCreator();
+            
+            if (!$creator) {
+                return view('layouts.app-conseiller', [
+                    'error' => 'Configuration manquante : administrateur créateur introuvable',
+                    'userInfo' => $this->getUserInfo($user)
+                ]);
+            }
+
+            // 🎫 STATISTIQUES DE LA FILE D'ATTENTE (services de son admin)
+            $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
+            
+            $fileStats = [
+                'tickets_en_attente' => Queue::whereIn('service_id', $myServiceIds)
+                                            ->whereDate('date', today())
+                                            ->where('statut_global', 'en_attente')
+                                            ->count(),
+                                            
+                'tickets_en_cours' => Queue::whereIn('service_id', $myServiceIds)
+                                          ->whereDate('date', today())
+                                          ->where('statut_global', 'en_cours')
+                                          ->count(),
+                                          
+                'tickets_termines' => Queue::whereIn('service_id', $myServiceIds)
+                                          ->whereDate('date', today())
+                                          ->where('statut_global', 'termine')
+                                          ->count(),
+                                          
+                'temps_attente_moyen' => Queue::whereIn('service_id', $myServiceIds)
+                                             ->whereDate('date', today())
+                                             ->avg('temps_attente_estime') ?? 15,
+            ];
+
+            // 👨‍💼 STATISTIQUES PERSONNELLES DU CONSEILLER
+            $conseillerStats = [
+                'tickets_traites_aujourd_hui' => Queue::where('conseiller_client_id', $user->id)
+                                                      ->whereDate('date', today())
+                                                      ->where('statut_global', 'termine')
+                                                      ->count(),
+                                                      
+                'temps_moyen_traitement' => Queue::where('conseiller_client_id', $user->id)
+                                                 ->whereDate('date', today())
+                                                 ->where('statut_global', 'termine')
+                                                 ->whereNotNull('heure_de_fin')
+                                                 ->whereNotNull('heure_prise_en_charge')
+                                                 ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
+                                                 ->value('avg_minutes') ?? 0,
+                                                 
+                'ticket_en_cours' => Queue::where('conseiller_client_id', $user->id)
+                                          ->whereDate('date', today())
+                                          ->where('statut_global', 'en_cours')
+                                          ->first(),
+                                          
+                'premier_ticket_du_jour' => Queue::where('conseiller_client_id', $user->id)
+                                                 ->whereDate('date', today())
+                                                 ->orderBy('heure_prise_en_charge', 'asc')
+                                                 ->first(),
+                                                 
+                'is_en_pause' => false, // TODO: Implémenter la logique de pause
+            ];
+
+            Log::info("Interface conseiller chargée", [
+                'conseiller_id' => $user->id,
+                'creator_id' => $creator->id,
+                'tickets_en_attente' => $fileStats['tickets_en_attente'],
+                'conseiller_tickets_traites' => $conseillerStats['tickets_traites_aujourd_hui']
+            ]);
+
+            return view('layouts.app-conseiller', [
+                'fileStats' => $fileStats,
+                'conseillerStats' => $conseillerStats,
+                'userInfo' => $this->getUserInfo($user),
+                'creatorInfo' => [
+                    'username' => $creator->username,
+                    'company' => $creator->company,
+                    'services_count' => $creator->createdServices()->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur dashboard conseiller', [
+                'conseiller_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return view('layouts.app-conseiller', [
+                'error' => 'Erreur lors du chargement de l\'interface conseiller',
+                'userInfo' => $this->getUserInfo($user)
+            ]);
+        }
+    }
+
+    /**
+     * 🎫 RÉCUPÉRER LES TICKETS EN ATTENTE (FIFO CHRONOLOGIQUE)
+     */
+    public function getConseillerTickets(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🎯 RÉCUPÉRER LA FILE D'ATTENTE CHRONOLOGIQUE (FIFO)
+            $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
+            
+            $ticketsEnAttente = Queue::whereIn('service_id', $myServiceIds)
+                                    ->whereDate('date', today())
+                                    ->where('statut_global', 'en_attente')
+                                    ->orderBy('created_at', 'asc') // 🎯 FIFO : Premier arrivé, premier servi
+                                    ->with(['service:id,nom,letter_of_service'])
+                                    ->limit(20) // Limiter l'affichage
+                                    ->get()
+                                    ->map(function($ticket) {
+                                        return $ticket->toTicketArray();
+                                    });
+
+            // 📊 STATISTIQUES GLOBALES
+            $stats = [
+                'total_en_attente' => Queue::whereIn('service_id', $myServiceIds)
+                                          ->whereDate('date', today())
+                                          ->where('statut_global', 'en_attente')
+                                          ->count(),
+                                          
+                'total_en_cours' => Queue::whereIn('service_id', $myServiceIds)
+                                        ->whereDate('date', today())
+                                        ->where('statut_global', 'en_cours')
+                                        ->count(),
+                                        
+                'total_termines' => Queue::whereIn('service_id', $myServiceIds)
+                                        ->whereDate('date', today())
+                                        ->where('statut_global', 'termine')
+                                        ->count(),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'tickets' => $ticketsEnAttente,
+                'stats' => $stats,
+                'queue_info' => [
+                    'type' => 'fifo_chronological',
+                    'principle' => 'Premier arrivé, premier servi',
+                    'next_position' => Queue::calculateQueuePosition(),
+                    'total_waiting' => $stats['total_en_attente']
+                ],
+                'timestamp' => now()->format('H:i:s')
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération tickets conseiller', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des tickets'
+            ], 500);
+        }
+    }
+
+    /**
+     * 📞 APPELER LE PROCHAIN TICKET (FIFO)
+     */
+    public function callNextTicket(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            // Vérifier si le conseiller a déjà un ticket en cours
+            $ticketEnCours = Queue::where('conseiller_client_id', $user->id)
+                                 ->whereDate('date', today())
+                                 ->where('statut_global', 'en_cours')
+                                 ->first();
+
+            if ($ticketEnCours) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous avez déjà un ticket en cours de traitement',
+                    'current_ticket' => $ticketEnCours->toTicketArray()
+                ], 400);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🎯 RÉCUPÉRER LE PROCHAIN TICKET FIFO
+            $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
+            
+            $nextTicket = Queue::whereIn('service_id', $myServiceIds)
+                              ->whereDate('date', today())
+                              ->where('statut_global', 'en_attente')
+                              ->orderBy('created_at', 'asc') // 🎯 FIFO : Le plus ancien
+                              ->first();
+
+            if (!$nextTicket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun ticket en attente'
+                ], 404);
+            }
+
+            // 📞 PRENDRE EN CHARGE LE TICKET
+            DB::beginTransaction();
+            
+            $success = $nextTicket->priseEnCharge($user->id);
+            
+            if (!$success) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la prise en charge'
+                ], 500);
+            }
+
+            DB::commit();
+
+            Log::info('Ticket appelé par conseiller', [
+                'ticket_id' => $nextTicket->id,
+                'numero_ticket' => $nextTicket->numero_ticket,
+                'conseiller_id' => $user->id,
+                'conseiller_nom' => $user->username,
+                'fifo_order' => 'Premier arrivé pris en charge'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Ticket {$nextTicket->numero_ticket} pris en charge",
+                'ticket' => $nextTicket->fresh()->toTicketArray(),
+                'queue_info' => [
+                    'principe' => 'FIFO - Premier arrivé, premier servi',
+                    'heure_prise_en_charge' => now()->format('H:i:s')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur appel prochain ticket', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'appel du prochain ticket'
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ TERMINER LE TICKET EN COURS
+     */
+    public function completeCurrentTicket(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            // Récupérer le ticket en cours
+            $currentTicket = Queue::where('conseiller_client_id', $user->id)
+                                 ->whereDate('date', today())
+                                 ->where('statut_global', 'en_cours')
+                                 ->first();
+
+            if (!$currentTicket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun ticket en cours'
+                ], 404);
+            }
+
+            // Validation optionnelle
+            $resolu = $request->input('resolu', 'Yes');
+            $commentaire = $request->input('commentaire_resolution');
+
+            if ($resolu === 'No' && empty($commentaire)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Commentaire obligatoire pour les problèmes non résolus'
+                ], 422);
+            }
+
+            // ✅ TERMINER LE TICKET
+            DB::beginTransaction();
+            
+            $success = $currentTicket->terminer($resolu, $commentaire);
+            
+            if (!$success) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la finalisation'
+                ], 500);
+            }
+
+            DB::commit();
+
+            Log::info('Ticket terminé par conseiller', [
+                'ticket_id' => $currentTicket->id,
+                'numero_ticket' => $currentTicket->numero_ticket,
+                'conseiller_id' => $user->id,
+                'resolu' => $resolu,
+                'duree_traitement' => $this->calculateProcessingTime($currentTicket)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Ticket {$currentTicket->numero_ticket} terminé avec succès",
+                'ticket' => $currentTicket->fresh()->toTicketArray(),
+                'processing_time' => $this->calculateProcessingTime($currentTicket)
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur finalisation ticket', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la finalisation du ticket'
+            ], 500);
+        }
+    }
+
+    /**
+     * 📊 STATISTIQUES PERSONNELLES CONSEILLER
+     */
+    public function getConseillerStats(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $date = $request->get('date', today());
+            
+            $stats = [
+                'aujourd_hui' => [
+                    'tickets_traites' => Queue::where('conseiller_client_id', $user->id)
+                                            ->whereDate('date', $date)
+                                            ->where('statut_global', 'termine')
+                                            ->count(),
+                                            
+                    'temps_moyen_traitement' => Queue::where('conseiller_client_id', $user->id)
+                                                    ->whereDate('date', $date)
+                                                    ->where('statut_global', 'termine')
+                                                    ->whereNotNull('heure_de_fin')
+                                                    ->whereNotNull('heure_prise_en_charge')
+                                                    ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
+                                                    ->value('avg_minutes') ?? 0,
+                                                    
+                    'ticket_en_cours' => Queue::where('conseiller_client_id', $user->id)
+                                             ->whereDate('date', $date)
+                                             ->where('statut_global', 'en_cours')
+                                             ->first()?->toTicketArray(),
+                                             
+                    'premier_ticket' => Queue::where('conseiller_client_id', $user->id)
+                                            ->whereDate('date', $date)
+                                            ->orderBy('heure_prise_en_charge', 'asc')
+                                            ->first()?->heure_prise_en_charge,
+                                            
+                    'dernier_ticket' => Queue::where('conseiller_client_id', $user->id)
+                                            ->whereDate('date', $date)
+                                            ->orderBy('heure_de_fin', 'desc')
+                                            ->first()?->heure_de_fin,
+                ],
+                
+                'cette_semaine' => [
+                    'tickets_traites' => Queue::where('conseiller_client_id', $user->id)
+                                            ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                            ->where('statut_global', 'termine')
+                                            ->count(),
+                                            
+                    'temps_moyen' => Queue::where('conseiller_client_id', $user->id)
+                                         ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                         ->where('statut_global', 'termine')
+                                         ->whereNotNull('heure_de_fin')
+                                         ->whereNotNull('heure_prise_en_charge')
+                                         ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
+                                         ->value('avg_minutes') ?? 0,
+                ],
+                
+                'performance' => [
+                    'efficacite' => $this->calculateEfficiencyScore($user->id),
+                    'satisfaction_client' => $this->calculateSatisfactionScore($user->id),
+                    'temps_pause_total' => 0, // TODO: Implémenter
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'stats' => $stats,
+                'conseiller_info' => [
+                    'username' => $user->username,
+                    'email' => $user->email,
+                    'actif_depuis' => $user->created_at->diffForHumans()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur statistiques conseiller', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des statistiques'
+            ], 500);
+        }
+    }
+
+    /**
+     * 📜 HISTORIQUE DES TICKETS TRAITÉS
+     */
+    public function getConseillerHistory(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $page = $request->get('page', 1);
+            $limit = min($request->get('limit', 20), 50);
+            $date = $request->get('date', today());
+
+            $query = Queue::where('conseiller_client_id', $user->id)
+                         ->whereDate('date', $date)
+                         ->where('statut_global', 'termine')
+                         ->with(['service:id,nom,letter_of_service'])
+                         ->orderBy('heure_de_fin', 'desc');
+
+            $tickets = $query->paginate($limit, ['*'], 'page', $page);
+
+            $ticketsFormatted = $tickets->items();
+            $ticketsArray = array_map(function($ticket) {
+                $ticketArray = $ticket->toTicketArray();
+                $ticketArray['duree_traitement'] = $this->calculateProcessingTime($ticket);
+                $ticketArray['debut_traitement'] = $ticket->heure_prise_en_charge;
+                $ticketArray['fin_traitement'] = $ticket->heure_de_fin;
+                return $ticketArray;
+            }, $ticketsFormatted);
+
+            return response()->json([
+                'success' => true,
+                'tickets' => $ticketsArray,
+                'pagination' => [
+                    'current_page' => $tickets->currentPage(),
+                    'total' => $tickets->total(),
+                    'per_page' => $tickets->perPage(),
+                    'last_page' => $tickets->lastPage()
+                ],
+                'summary' => [
+                    'total_tickets_traites' => Queue::where('conseiller_client_id', $user->id)
+                                                   ->whereDate('date', $date)
+                                                   ->where('statut_global', 'termine')
+                                                   ->count(),
+                    'temps_moyen_traitement' => Queue::where('conseiller_client_id', $user->id)
+                                                    ->whereDate('date', $date)
+                                                    ->where('statut_global', 'termine')
+                                                    ->whereNotNull('heure_de_fin')
+                                                    ->whereNotNull('heure_prise_en_charge')
+                                                    ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
+                                                    ->value('avg_minutes') ?? 0,
+                ],
+                'date' => Carbon::parse($date)->format('d/m/Y')
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur historique conseiller', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de l\'historique'
+            ], 500);
+        }
+    }
+
+    /**
+     * ⏸️ TOGGLE PAUSE CONSEILLER (placeholder pour futur développement)
+     */
+    public function toggleConseillerPause(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            // TODO: Implémenter la logique de pause
+            $isPaused = $request->input('is_paused', false);
+            
+            Log::info('Toggle pause conseiller', [
+                'conseiller_id' => $user->id,
+                'is_paused' => $isPaused
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $isPaused ? 'Pause activée' : 'Service repris',
+                'is_paused' => $isPaused
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du changement de statut'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔍 DÉTAILS D'UN TICKET SPÉCIFIQUE
+     */
+    public function getTicketDetails(Request $request, $ticketId): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // Récupérer le ticket (seulement des services de son admin)
+            $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
+            
+            $ticket = Queue::whereIn('service_id', $myServiceIds)
+                          ->where('id', $ticketId)
+                          ->with(['service:id,nom,letter_of_service', 'conseillerClient:id,username'])
+                          ->first();
+
+            if (!$ticket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket non trouvé ou non autorisé'
+                ], 404);
+            }
+
+            $ticketDetails = $ticket->toTicketArray();
+            $ticketDetails['duree_traitement'] = $this->calculateProcessingTime($ticket);
+            $ticketDetails['historique'] = $ticket->historique ?? [];
+
+            return response()->json([
+                'success' => true,
+                'ticket' => $ticketDetails
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur détails ticket', [
+                'conseiller_id' => Auth::id(),
+                'ticket_id' => $ticketId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des détails'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔄 RAFRAÎCHIR LA FILE D'ATTENTE EN TEMPS RÉEL
+     */
+    public function refreshConseillerQueue(Request $request): JsonResponse
+    {
+        try {
+            // Réutiliser la logique de getConseillerTickets
+            return $this->getConseillerTickets($request);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du rafraîchissement'
+            ], 500);
+        }
+    }
+
+    /**
+     * 👁️ APERÇU DU PROCHAIN TICKET SANS LE PRENDRE
+     */
+    public function getNextTicketPreview(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
+            
+            $nextTicket = Queue::whereIn('service_id', $myServiceIds)
+                              ->whereDate('date', today())
+                              ->where('statut_global', 'en_attente')
+                              ->orderBy('created_at', 'asc') // FIFO
+                              ->with(['service:id,nom,letter_of_service'])
+                              ->first();
+
+            if (!$nextTicket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun ticket en attente',
+                    'next_ticket' => null
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'next_ticket' => $nextTicket->toTicketArray(),
+                'queue_position' => 1, // C'est le prochain
+                'estimated_call_time' => 'Maintenant',
+                'fifo_info' => 'Premier arrivé, premier servi'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la prévisualisation'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔍 VÉRIFIER LE TICKET ACTUEL DU CONSEILLER
+     */
+    public function getCurrentTicketStatus(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $currentTicket = Queue::where('conseiller_client_id', $user->id)
+                                 ->whereDate('date', today())
+                                 ->where('statut_global', 'en_cours')
+                                 ->first();
+
+            if (!$currentTicket) {
+                return response()->json([
+                    'success' => true,
+                    'has_current_ticket' => false,
+                    'current_ticket' => null
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'has_current_ticket' => true,
+                'current_ticket' => $currentTicket->toTicketArray(),
+                'processing_time' => $this->calculateProcessingTime($currentTicket),
+                'started_at' => $currentTicket->heure_prise_en_charge
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la vérification du statut'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔔 NOTIFICATIONS CONSEILLER
+     */
+    public function getConseillerNotifications(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'notifications' => []
+                ]);
+            }
+
+            $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
+            
+            // Notifications basiques (à enrichir selon les besoins)
+            $notifications = [];
+            
+            // Nouveaux tickets depuis la dernière vérification
+            $newTicketsCount = Queue::whereIn('service_id', $myServiceIds)
+                                   ->whereDate('date', today())
+                                   ->where('statut_global', 'en_attente')
+                                   ->where('created_at', '>=', now()->subMinutes(5))
+                                   ->count();
+            
+            if ($newTicketsCount > 0) {
+                $notifications[] = [
+                    'type' => 'new_tickets',
+                    'message' => "{$newTicketsCount} nouveau(x) ticket(s) en attente",
+                    'count' => $newTicketsCount,
+                    'timestamp' => now()->format('H:i:s')
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'notifications' => $notifications,
+                'count' => count($notifications)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'notifications' => []
+            ]);
+        }
+    }
+
+    /**
+     * 📈 STATISTIQUES TEMPS RÉEL CONSEILLER
+     */
+    public function getLiveConseillerStats(Request $request): JsonResponse
+    {
+        try {
+            // Réutiliser la logique de getConseillerStats
+            return $this->getConseillerStats($request);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des statistiques temps réel'
+            ], 500);
+        }
+    }
+
+    /**
+     * 📤 EXPORT DONNÉES CONSEILLER
+     */
+    public function exportConseillerData(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                abort(403, 'Accès non autorisé');
+            }
+
+            $date = $request->get('date', today());
+            
+            $tickets = Queue::where('conseiller_client_id', $user->id)
+                           ->whereDate('date', $date)
+                           ->where('statut_global', 'termine')
+                           ->with(['service:id,nom'])
+                           ->orderBy('heure_prise_en_charge', 'asc')
+                           ->get();
+
+            $filename = 'conseiller_' . $user->username . '_' . Carbon::parse($date)->format('Y-m-d') . '.csv';
+            
+            $headers = [
+                'Content-Type' => 'text/csv; charset=utf-8',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ];
+
+            $callback = function() use ($tickets, $user) {
+                $file = fopen('php://output', 'w');
+                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
+                
+                fputcsv($file, [
+                    'Numéro Ticket',
+                    'Service',
+                    'Client',
+                    'Téléphone',
+                    'Prise en charge',
+                    'Fin traitement',
+                    'Durée (min)',
+                    'Résolu',
+                    'Commentaire'
+                ], ';');
+                
+                foreach ($tickets as $ticket) {
+                    $duree = $this->calculateProcessingTime($ticket);
+                    
+                    fputcsv($file, [
+                        $ticket->numero_ticket,
+                        $ticket->service ? $ticket->service->nom : 'N/A',
+                        $ticket->prenom,
+                        $ticket->telephone,
+                        $ticket->heure_prise_en_charge,
+                        $ticket->heure_de_fin,
+                        $duree,
+                        $ticket->resolu,
+                        $ticket->commentaire_resolution ?: ''
+                    ], ';');
+                }
+                
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur export conseiller', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+            
+            return redirect()->back()->with('error', 'Erreur lors de l\'export : ' . $e->getMessage());
+        }
+    }
+
+    // ===============================================
+    // ✅ GÉNÉRATION DE TICKET AVEC NUMÉROS UNIQUES - PROBLÈME RÉSOLU
+    // ===============================================
+
+    /**
+     * 🎯 GÉNÉRATION DE NUMÉRO DE TICKET UNIQUE (Solution du problème de doublon)
+     */
+    private function generateUniqueTicketNumber($serviceId, $letterOfService)
+    {
+        $date = now()->format('Y-m-d');
+        $counter = 1;
+        
+        do {
+            $ticketNumber = $letterOfService . str_pad($counter, 3, '0', STR_PAD_LEFT);
+            
+            // Vérifier si ce numéro existe déjà aujourd'hui
+            $exists = DB::table('queues')
+                ->where('numero_ticket', $ticketNumber)
+                ->where('date', $date)
+                ->exists();
+                
+            if (!$exists) {
+                return $ticketNumber;
+            }
+            
+            $counter++;
+            
+            // Sécurité : éviter une boucle infinie
+            if ($counter > 999) {
+                throw new \Exception("Impossible de générer un numéro de ticket unique pour le service");
+            }
+            
+        } while (true);
+    }
+
+    /**
+     * 🎫 GÉNÉRATION EFFECTIVE D'UN TICKET EN BASE DE DONNÉES - CORRIGÉE
+     * Utilise la nouvelle logique de génération de numéros uniques
      */
     public function generateTicket(Request $request): JsonResponse
     {
@@ -412,18 +1383,52 @@ class DashboardController extends Controller
                 ], 400);
             }
 
-            // 🎫 CRÉATION DU TICKET EN BASE avec la logique FIFO chronologique
-            $ticketData = [
-                'service_id' => $service->id,
-                'prenom' => $request->full_name,
-                'telephone' => $request->phone,
-                'commentaire' => $request->comment,
-                'id_agence' => $user->agency_id, // Si l'utilisateur est lié à une agence
-            ];
+            // 🚀 UTILISATION D'UNE TRANSACTION POUR ÉVITER LES CONFLITS
+            $ticket = DB::transaction(function () use ($request, $service, $user, $creator) {
+                // 🎯 GÉNÉRER UN NUMÉRO DE TICKET UNIQUE
+                $letterOfService = strtoupper(substr($service->nom, 0, 1));
+                $uniqueTicketNumber = $this->generateUniqueTicketNumber($service->id, $letterOfService);
+                
+                // Calculer la position dans la file
+                $position = Queue::whereDate('date', today())
+                                ->where('statut_global', '!=', 'termine')
+                                ->count() + 1;
+                
+                // Données pour créer le ticket
+                $ticketData = [
+                    'id_agence' => $user->agency_id ?? 1,
+                    'letter_of_service' => $letterOfService,
+                    'service_id' => $service->id,
+                    'prenom' => $request->full_name,
+                    'telephone' => $request->phone,
+                    'commentaire' => $request->comment ?? '',
+                    'date' => now()->format('Y-m-d'),
+                    'heure_d_enregistrement' => now()->format('H:i:s'),
+                    'numero_ticket' => $uniqueTicketNumber,
+                    'position_file' => $position,
+                    'temps_attente_estime' => 15, // Temps par défaut, à configurer selon vos besoins
+                    'statut_global' => 'en_attente',
+                    'resolu' => 'En cours',
+                    'transferer' => 'No',
+                    'debut' => 'No',
+                    'created_by_ip' => $request->ip(),
+                    'historique' => json_encode([[
+                        'action' => 'creation',
+                        'timestamp' => now()->toISOString(),
+                        'details' => 'Ticket créé avec numéro unique - Système anti-doublon'
+                    ]]),
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
 
-            $ticket = Queue::createTicket($ticketData);
+                // Insérer en base de données
+                $ticketId = DB::table('queues')->insertGetId($ticketData);
+                
+                // Retourner le ticket créé
+                return (object) array_merge($ticketData, ['id' => $ticketId]);
+            });
 
-            // ✅ ENRICHIR AVEC LES STATISTIQUES DE FILE (sans numero)
+            // ✅ ENRICHIR AVEC LES STATISTIQUES DE FILE
             $queueStats = Queue::getServiceStats($service->id);
 
             // 📊 PRÉPARER LA RÉPONSE POUR LE FRONTEND
@@ -434,20 +1439,19 @@ class DashboardController extends Controller
                     'id' => $ticket->id,
                     'number' => $ticket->numero_ticket,
                     'service' => $service->nom,
-                    'service_letter' => $service->letter_of_service,
+                    'service_letter' => $ticket->letter_of_service,
                     'position' => $ticket->position_file,
                     'estimated_time' => $ticket->temps_attente_estime,
-                    'date' => $ticket->date->format('d/m/Y'),
+                    'date' => now()->format('d/m/Y'),
                     'time' => \Carbon\Carbon::createFromFormat('H:i:s', $ticket->heure_d_enregistrement)->format('H:i'),
                     'fullName' => $ticket->prenom,
                     'phone' => $ticket->telephone,
                     'comment' => $ticket->commentaire ?: '',
                     'statut' => $ticket->statut_global,
                     'queue_stats' => $queueStats,
-                    // 🆕 NOUVEAU : Informations sur la file avec numérotation par service
                     'queue_info' => [
-                        'type' => 'service_numbering_chronological',
-                        'principle' => 'Numérotation par service, traitement chronologique',
+                        'type' => 'service_numbering_unique',
+                        'principle' => 'Numérotation par service avec système anti-doublon',
                         'arrival_time' => $ticket->heure_d_enregistrement,
                         'global_position' => $ticket->position_file
                     ]
@@ -460,25 +1464,27 @@ class DashboardController extends Controller
                 ]
             ];
 
-            Log::info('Ticket généré via interface Ecran - Numérotation par service avec traitement chronologique', [
+            Log::info('✅ Ticket généré avec succès - Système anti-doublon', [
                 'ticket_id' => $ticket->id,
                 'numero_ticket' => $ticket->numero_ticket,
                 'service_name' => $service->nom,
                 'user_id' => $user->id,
                 'user_type' => $user->getUserRole(),
                 'creator_admin' => $creator->username,
-                'queue_type' => 'service_numbering_chronological',
+                'unique_number_generated' => true,
                 'position_chronologique' => $ticket->position_file,
-                'heure_arrivee' => $ticket->heure_d_enregistrement
+                'heure_arrivee' => $ticket->heure_d_enregistrement,
+                'anti_duplicate_system' => 'active'
             ]);
 
             return response()->json($response, 201);
 
         } catch (\Exception $e) {
-            Log::error('Erreur génération ticket via Ecran - File chronologique', [
+            Log::error('❌ Erreur génération ticket - Système anti-doublon', [
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
-                'request_data' => $request->all()
+                'request_data' => $request->all(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -534,10 +1540,11 @@ class DashboardController extends Controller
                                               ->whereDate('date', today())
                                               ->count(),
                 'queue_info' => [
-                    'type' => 'service_numbering_chronological',
-                    'principle' => 'Numérotation par service, traitement chronologique',
+                    'type' => 'service_numbering_unique',
+                    'principle' => 'Numérotation par service avec système anti-doublon',
                     'next_global_position' => Queue::calculateQueuePosition(),
-                    'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
+                    'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                    'anti_duplicate_system' => 'active'
                 ]
             ]);
 
@@ -618,6 +1625,45 @@ class DashboardController extends Controller
             'login_info' => $user->getLastLoginInfo(),
             'password_info' => $user->getPasswordInfo()
         ];
+    }
+
+    // ===============================================
+    // 🔧 MÉTHODES UTILITAIRES PRIVÉES CONSEILLER
+    // ===============================================
+
+    /**
+     * ⏱️ CALCULER LE TEMPS DE TRAITEMENT D'UN TICKET
+     */
+    private function calculateProcessingTime($ticket): int
+    {
+        if (!$ticket->heure_prise_en_charge) {
+            return 0;
+        }
+
+        $start = Carbon::parse($ticket->heure_prise_en_charge);
+        $end = $ticket->heure_de_fin ? Carbon::parse($ticket->heure_de_fin) : now();
+        
+        return $start->diffInMinutes($end);
+    }
+
+    /**
+     * 📊 CALCULER LE SCORE D'EFFICACITÉ (placeholder)
+     */
+    private function calculateEfficiencyScore($conseillerId): float
+    {
+        // TODO: Implémenter le calcul du score d'efficacité
+        // Basé sur : temps moyen de traitement, nombre de tickets traités, etc.
+        return 85.5; // Placeholder
+    }
+
+    /**
+     * ⭐ CALCULER LE SCORE DE SATISFACTION CLIENT (placeholder)
+     */
+    private function calculateSatisfactionScore($conseillerId): float
+    {
+        // TODO: Implémenter le calcul de satisfaction client
+        // Basé sur : évaluations clients, tickets résolus vs non résolus, etc.
+        return 4.2; // Placeholder sur 5
     }
 
     // ===============================================
@@ -1263,9 +2309,10 @@ class DashboardController extends Controller
                     'email' => $currentAdmin->email
                 ],
                 'queue_info' => [
-                    'type' => 'service_numbering_chronological',
-                    'principle' => 'Numérotation par service, traitement chronologique',
-                    'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
+                    'type' => 'service_numbering_unique',
+                    'principle' => 'Numérotation par service avec système anti-doublon',
+                    'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                    'anti_duplicate_system' => 'active'
                 ],
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
@@ -1578,7 +2625,6 @@ class DashboardController extends Controller
         return $password;
     }
 
-    
     /**
      * Formater l'âge du compte
      */

@@ -458,6 +458,12 @@
                                                                 onclick="showAgencyDetails({{ $agency->id }})">
                                                             <i data-feather="eye" class="icon-xs"></i>
                                                         </button>
+                                                         <!-- ✅ AJOUTÉ : Bouton "Modifier" manquant -->
+                                                         <a href="{{ route('agency.agence-edit', $agency->id) }}" 
+                                                           class="btn btn-soft-primary waves-effect" 
+                                                             title="Modifier ce service">
+                                                            <i data-feather="edit-2" class="icon-xs"></i>
+                                                         </a>
                                                         
                                                         <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
                                                                 onclick="showDeleteAgencyModal({{ $agency->id }}, '{{ $agency->name }}')">

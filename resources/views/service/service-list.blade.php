@@ -435,6 +435,12 @@
                                                                 onclick="showServiceDetails({{ $service->id }})">
                                                             <i data-feather="eye" class="icon-xs"></i>
                                                         </button>
+                                                        <!-- ✅ AJOUTÉ : Bouton "Modifier" manquant -->
+                                                         <a href="{{ route('services.edit', $service->id) }}" 
+                                                           class="btn btn-soft-primary waves-effect" 
+                                                             title="Modifier ce service">
+                                                            <i data-feather="edit-2" class="icon-xs"></i>
+                                                         </a>
                                                         
                                                         <button type="button" class="btn btn-soft-danger waves-effect" title="Supprimer" 
                                                                 onclick="showDeleteServiceModal({{ $service->id }}, '{{ addslashes($service->nom) }}')">

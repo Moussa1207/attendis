@@ -147,8 +147,7 @@ class AgencyController extends Controller
             abort(403, 'Vous ne pouvez pas modifier cette agence.');
         }
 
-        return view('agencies.edit', compact('agency'));
-    }
+           return view('agency.agence-edit', compact('agency'));    }
 
     /**
      * ✅ CORRIGÉ : Vérifier l'autorisation pour mettre à jour

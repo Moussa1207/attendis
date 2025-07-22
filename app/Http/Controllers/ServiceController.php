@@ -189,87 +189,9 @@ class ServiceController extends Controller
     /**
      * ✅ CORRIGÉ : Vérifier l'autorisation pour éditer
      */
-    public function edit(Service $service): View
-    {
-        if ($service->created_by !== Auth::id()) {
-            abort(403, 'Vous ne pouvez pas modifier ce service.');
-        }
+    
 
-        return view('service.service-edit', compact('service'));
-    }
-
-    /**
-     * ✅ MISE À JOUR : Mettre à jour avec letter_of_service
-     */
-    public function update(Request $request, Service $service): RedirectResponse
-    {
-        if ($service->created_by !== Auth::id()) {
-            return redirect()->back()
-                ->with('error', 'Vous ne pouvez pas modifier ce service.');
-        }
-
-        try {
-            // Validation avec exclusion du service actuel pour letter_of_service
-            $validator = Validator::make($request->all(), [
-                'nom' => 'required|string|max:255',
-                'letter_of_service' => [
-                    'required',
-                    'string',
-                    'max:5',
-                    function ($attribute, $value, $fail) use ($service) {
-                        // Vérifier l'unicité dans les services de l'admin connecté (sauf le service actuel)
-                        if (Service::where('created_by', Auth::id())
-                                  ->where('letter_of_service', strtoupper(trim($value)))
-                                  ->where('id', '!=', $service->id)
-                                  ->exists()) {
-                            $fail('Cette lettre de service est déjà utilisée dans vos services.');
-                        }
-                    }
-                ],
-                'statut' => 'required|in:actif,inactif',
-                'description' => 'nullable|string|max:1000',
-            ], [
-                'nom.required' => 'Le nom du service est obligatoire.',
-                'letter_of_service.required' => 'La lettre de service est obligatoire.',
-                'letter_of_service.max' => 'La lettre de service ne peut pas dépasser 5 caractères.',
-                'statut.in' => 'Le statut doit être "actif" ou "inactif".',
-                'description.max' => 'La description ne peut pas dépasser 1000 caractères.',
-            ]);
-
-            if ($validator->fails()) {
-                return redirect()->back()
-                    ->withErrors($validator)
-                    ->withInput();
-            }
-
-            // Normaliser la lettre de service
-            $letterOfService = strtoupper(trim($request->letter_of_service));
-
-            // Mise à jour
-            $service->update([
-                'nom' => trim($request->nom),
-                'letter_of_service' => $letterOfService,
-                'statut' => $request->statut,
-                'description' => $request->description ? trim($request->description) : null,
-            ]);
-
-            Log::info('Service mis à jour', [
-                'service_id' => $service->id,
-                'service_name' => $service->nom,
-                'letter_of_service' => $service->letter_of_service,
-                'updated_by' => Auth::user()->username,
-            ]);
-
-            return redirect()->route('service.service-list')
-                ->with('success', "✅ Service '{$service->nom}' mis à jour avec succès !");
-
-        } catch (Exception $e) {
-            Log::error('Erreur lors de la mise à jour du service: ' . $e->getMessage());
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Erreur lors de la mise à jour du service.');
-        }
-    }
+    
 
     /**
      * ✅ CORRIGÉ : Vérifier l'autorisation pour supprimer
@@ -324,8 +246,7 @@ class ServiceController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'letter' => 'required|string|max:5',
-                'exclude_id' => 'nullable|integer|exists:services,id'
-            ]);
+                'exclude_id' => 'sometimes|integer|exists:services,id'            ]);
 
             if ($validator->fails()) {
                 return response()->json([
@@ -831,6 +752,273 @@ class ServiceController extends Controller
             ], 500);
         }
     }
+
+/*  Nouveau pour la modification d'un service  */
+    public function getServiceStats($id)
+{
+    try {
+        $service = Service::findOrFail($id);
+        
+        // Vérifier l'autorisation
+        if (!Auth::user()->isAdmin() || $service->created_by !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Service non autorisé'
+            ], 403);
+        }
+
+        // Calculer les statistiques du service
+        $stats = [
+            'total_tickets' => 0,
+            'completed_tickets' => 0,
+            'today_tickets' => 0,
+            'week_tickets' => 0,
+            'average_wait_time' => 0
+        ];
+
+        // Si le modèle Queue existe, calculer les vraies statistiques
+        if (class_exists('\App\Models\Queue')) {
+            $stats = [
+                'total_tickets' => \App\Models\Queue::where('service_id', $id)->count(),
+                'completed_tickets' => \App\Models\Queue::where('service_id', $id)
+                                                          ->where('statut_global', 'termine')
+                                                          ->count(),
+                'today_tickets' => \App\Models\Queue::where('service_id', $id)
+                                                   ->whereDate('date', today())
+                                                   ->count(),
+                'week_tickets' => \App\Models\Queue::where('service_id', $id)
+                                                  ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                                  ->count(),
+                'average_wait_time' => \App\Models\Queue::where('service_id', $id)
+                                                       ->whereNotNull('temps_attente_estime')
+                                                       ->avg('temps_attente_estime') ?? 0
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'stats' => $stats,
+            'service' => [
+                'id' => $service->id,
+                'nom' => $service->nom,
+                'letter_of_service' => $service->letter_of_service,
+                'statut' => $service->statut
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error("Erreur récupération statistiques service: " . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la récupération des statistiques'
+        ], 500);
+    }
+}
+
+/* Nouveau pour la modification d'un service */
+
+public function update(Request $request, $id)
+{
+    try {
+        $service = Service::findOrFail($id);
+        
+        // Vérifications d'autorisation
+        if (!Auth::user()->isAdmin()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les administrateurs peuvent modifier les services'
+                ], 403);
+            }
+            abort(403, 'Seuls les administrateurs peuvent modifier les services');
+        }
+
+        // Protection : Vérifier que l'admin connecté a créé ce service
+        if ($service->created_by !== Auth::id()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez modifier que vos propres services'
+                ], 403);
+            }
+            
+            return redirect()->route('service.service-list')
+                ->with('error', 'Vous ne pouvez modifier que vos propres services');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'nom' => 'required|string|max:255',
+            'letter_of_service' => 'required|string|max:5|unique:services,letter_of_service,' . $service->id,
+            'statut' => 'required|in:actif,inactif',
+            'description' => 'nullable|string|max:1000'
+        ], [
+            'nom.required' => 'Le nom du service est obligatoire.',
+            'nom.string' => 'Le nom doit être une chaîne de caractères.',
+            'nom.max' => 'Le nom ne peut pas dépasser 255 caractères.',
+            'letter_of_service.required' => 'La lettre de service est obligatoire.',
+            'letter_of_service.string' => 'La lettre doit être une chaîne de caractères.',
+            'letter_of_service.max' => 'La lettre ne peut pas dépasser 5 caractères.',
+            'letter_of_service.unique' => 'Cette lettre de service est déjà utilisée.',
+            'statut.required' => 'Le statut est obligatoire.',
+            'statut.in' => 'Le statut doit être soit actif soit inactif.',
+            'description.string' => 'La description doit être une chaîne de caractères.',
+            'description.max' => 'La description ne peut pas dépasser 1000 caractères.'
+        ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        DB::beginTransaction();
+
+        // Sauvegarder les anciennes valeurs pour les logs
+        $oldNom = $service->nom;
+        $oldLetter = $service->letter_of_service;
+        $oldStatut = $service->statut;
+
+        // Mettre à jour le service
+        $service->update([
+            'nom' => $request->nom,
+            'letter_of_service' => strtoupper($request->letter_of_service),
+            'statut' => $request->statut,
+            'description' => $request->description,
+        ]);
+
+        // Log des modifications
+        $changes = [];
+        if ($oldNom !== $request->nom) {
+            $changes[] = "nom: '{$oldNom}' → '{$request->nom}'";
+        }
+        if ($oldLetter !== strtoupper($request->letter_of_service)) {
+            $changes[] = "lettre: '{$oldLetter}' → '" . strtoupper($request->letter_of_service) . "'";
+        }
+        if ($oldStatut !== $request->statut) {
+            $changes[] = "statut: '{$oldStatut}' → '{$request->statut}'";
+        }
+
+        \Log::info("Service {$service->nom} (ID: {$service->id}) mis à jour par " . Auth::user()->username, [
+            'service_id' => $service->id,
+            'admin_id' => Auth::id(),
+            'changes' => $changes,
+            'old_values' => [
+                'nom' => $oldNom,
+                'letter_of_service' => $oldLetter,
+                'statut' => $oldStatut
+            ],
+            'new_values' => [
+                'nom' => $request->nom,
+                'letter_of_service' => strtoupper($request->letter_of_service),
+                'statut' => $request->statut
+            ]
+        ]);
+
+        DB::commit();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Service '{$service->nom}' modifié avec succès",
+                'service' => [
+                    'id' => $service->id,
+                    'nom' => $service->nom,
+                    'letter_of_service' => $service->letter_of_service,
+                    'statut' => $service->statut,
+                    'description' => $service->description,
+                    'updated_at' => $service->updated_at->format('d/m/Y H:i')
+                ]
+            ]);
+        }
+
+        return redirect()->route('service.service-list')
+            ->with('success', "Service '{$service->nom}' modifié avec succès !");
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        \Log::error("Erreur mise à jour service: " . $e->getMessage(), [
+            'service_id' => $id,
+            'admin_id' => Auth::id(),
+            'request_data' => $request->all(),
+            'error_trace' => $e->getTraceAsString()
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du service',
+                'error_details' => $e->getMessage()
+            ], 500);
+        }
+
+        return redirect()->back()
+            ->with('error', 'Erreur lors de la mise à jour du service')
+            ->withInput();
+    }
+}
+
+/* Nouveau pour la modification d'un service */
+
+public function edit($id, Request $request = null)
+{
+    try {
+        $service = Service::findOrFail($id);
+        $currentAdmin = Auth::user();
+        
+        // Vérifier que l'utilisateur est bien admin
+        if (!$currentAdmin->isAdmin()) {
+            if ($request && $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les administrateurs peuvent modifier les services'
+                ], 403);
+            }
+            abort(403, 'Seuls les administrateurs peuvent modifier les services');
+        }
+
+        // Protection : Vérifier que l'admin connecté a créé ce service
+        if ($service->created_by !== $currentAdmin->id) {
+            if ($request && $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez modifier que vos propres services'
+                ], 403);
+            }
+            
+            return redirect()->route('service.service-list')
+                ->with('error', 'Vous ne pouvez modifier que vos propres services');
+        }
+        
+        return view('service.service-edit', compact('service'));
+        
+    } catch (\Exception $e) {
+        \Log::error("Erreur lors de l'accès à la modification de service", [
+            'admin_id' => Auth::id(),
+            'target_service_id' => $id,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        if ($request && $request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'accès à la modification'
+            ], 500);
+        }
+        
+        return redirect()->route('service.service-list')
+            ->with('error', 'Erreur lors de l\'accès à la modification du service');
+    }
+}
+
+
 
     /**
      * Formater l'âge du service (pas de changement)
