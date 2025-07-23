@@ -1073,7 +1073,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
 // Redirection des anciennes routes vers la nouvelle logique
 Route::middleware(['auth', 'check.user.status'])->group(function () {
     Route::get('/app', function () {
-        return redirect()->route('dashboard');
+       return redirect()->route('dashboard');
     });
     
     // 🆕 Redirection spécifique pour les anciens liens directs
@@ -1435,5 +1435,5 @@ if (app()->environment('local')) {
                 'calculation_formula' => "({$position} - 1) × {$minutes} = {$estimatedTime} minutes"
             ]);
         });
-    });
+    });     
 }

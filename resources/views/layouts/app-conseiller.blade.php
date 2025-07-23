@@ -26,7 +26,7 @@
                 <li class="dropdown notification-list">
                     <a class="nav-link dropdown-toggle arrow-none waves-light waves-effect position-relative" data-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
                         <i data-feather="bell" class="align-self-center topbar-icon"></i>
-                        <span class="badge badge-danger badge-pill noti-icon-badge animate-pulse" id="ticketsWaitingCount">{{ $fileStats['tickets_en_attente'] ?? 0 }}</span>
+                        <span class="badge badge-danger badge-pill noti-icon-badge" id="ticketsWaitingCount">{{ $fileStats['tickets_en_attente'] ?? 0 }}</span>
                     </a>
                     <div class="dropdown-menu dropdown-menu-right dropdown-lg pt-0">
                         <h6 class="dropdown-item-text font-15 m-0 py-3 border-bottom d-flex justify-content-between align-items-center">
@@ -161,12 +161,12 @@
             </div>
             @endif
 
-            <!-- Statistiques de la file d'attente -->
+            <!-- Statistiques de la file d'attente - AMÉLIORÉES -->
             <div class="row mb-4">
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card card-waiting">
-                        <div class="stats-icon">
-                            <i data-feather="clock" class="text-warning"></i>
+                        <div class="stats-icon bg-warning">
+                            <i data-feather="clock" class="text-white"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-warning" id="waitingTicketsCount">{{ $fileStats['tickets_en_attente'] ?? 0 }}</h3>
@@ -178,8 +178,8 @@
 
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card card-processing">
-                        <div class="stats-icon">
-                            <i data-feather="phone-call" class="text-info"></i>
+                        <div class="stats-icon bg-info">
+                            <i data-feather="phone-call" class="text-white"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-info" id="processingTicketsCount">{{ $fileStats['tickets_en_cours'] ?? 0 }}</h3>
@@ -191,8 +191,8 @@
 
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card card-completed">
-                        <div class="stats-icon">
-                            <i data-feather="check-circle" class="text-success"></i>
+                        <div class="stats-icon bg-success">
+                            <i data-feather="check-circle" class="text-white"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-success" id="completedTicketsCount">{{ $fileStats['tickets_termines'] ?? 0 }}</h3>
@@ -204,13 +204,13 @@
 
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card card-time">
-                        <div class="stats-icon">
-                            <i data-feather="trending-down" class="text-primary"></i>
+                        <div class="stats-icon bg-primary">
+                            <i data-feather="trending-down" class="text-white"></i>
                         </div>
                         <div class="stats-content">
-                            <h3 class="stats-number text-primary" id="averageWaitTime">{{ round($fileStats['temps_attente_moyen'] ?? 15) }}min</h3>
-                            <p class="stats-label">Temps moyen</p>
-                            <small class="stats-desc">D'attente</small>
+                            <h3 class="stats-number text-primary" id="averageWaitTime">{{ $defaultWaitTime ?? 15 }}min</h3>
+                            <p class="stats-label">Temps configuré</p>
+                            <small class="stats-desc">Par l'admin</small>
                         </div>
                     </div>
                 </div>
@@ -224,7 +224,7 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <h5 class="card-title mb-0">
-                                        🎫 File d'attente FIFO
+                                         File d'attente FIFO
                                         <span class="badge badge-light ml-2" id="queueCountBadge">{{ $fileStats['tickets_en_attente'] ?? 0 }} tickets</span>
                                     </h5>
                                     <small class="text-muted">Premier arrivé, premier servi</small>
@@ -301,7 +301,7 @@
                                     
                                     <div class="ticket-actions">
                                         <button class="btn btn-success btn-sm" onclick="advisorInterface.completeCurrentTicket()">
-                                            <i data-feather="check" class="mr-1"></i>Terminer
+                                            <i data-feather="check" class="mr-1"></i>Traiter
                                         </button>
                                         <button class="btn btn-outline-light btn-sm" onclick="advisorInterface.showTicketDetails({{ $conseillerStats['ticket_en_cours']->id }})">
                                             <i data-feather="eye" class="mr-1"></i>Détails
@@ -323,35 +323,6 @@
                                     </div>
                                 </div>
                             @endif
-                        </div>
-                    </div>
-
-                    <!-- Mes performances -->
-                    <div class="card performance-card">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">📊 Mes performances</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row text-center">
-                                <div class="col-6">
-                                    <div class="performance-item">
-                                        <h4 class="text-success mb-1" id="myCompletedCount">{{ $conseillerStats['tickets_traites_aujourd_hui'] ?? 0 }}</h4>
-                                        <small class="text-muted">Tickets traités</small>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="performance-item">
-                                        <h4 class="text-info mb-1" id="myAverageTime">{{ round($conseillerStats['temps_moyen_traitement'] ?? 0) }}min</h4>
-                                        <small class="text-muted">Temps moyen</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <hr class="my-3">
-                            <div class="text-center">
-                                <button class="btn btn-outline-info btn-sm" onclick="advisorInterface.showHistory()">
-                                    <i data-feather="clock" class="mr-1"></i>Voir historique complet
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -433,7 +404,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Fermer</button>
                 <button type="button" class="btn btn-success" onclick="advisorInterface.completeCurrentTicket()">
-                    <i data-feather="check" class="mr-1"></i>Terminer
+                    <i data-feather="check" class="mr-1"></i>Traiter
                 </button>
             </div>
         </div>
@@ -501,114 +472,115 @@
     </div>
 </div>
 
-<!-- Styles CSS intégrés -->
+<!-- Styles CSS améliorés -->
 <style>
 /* ===== Variables CSS ===== */
 :root {
-    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    --shadow-light: 0 2px 15px rgba(64, 79, 104, 0.05);
-    --shadow-medium: 0 5px 25px rgba(64, 79, 104, 0.1);
-    --shadow-strong: 0 10px 40px rgba(64, 79, 104, 0.15);
-    --border-radius: 12px;
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --primary-color: #007bff;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    --danger-color: #dc3545;
+    --light-bg: #f8fafc;
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.1);
+    --shadow-md: 0 4px 8px rgba(0,0,0,0.12);
+    --transition: all 0.3s ease;
+    --border-radius-sm: 4px;
+    --border-radius-md: 6px;
 }
 
 /* ===== Layout général ===== */
 .page-content {
-    background: #f8fafc;
+    background: var(--light-bg);
     min-height: 100vh;
 }
 
-/* ===== Cards et containers ===== */
+/* ===== Cards sans bords arrondis ===== */
 .card {
     border: none;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow-light);
+    border-radius: var(--border-radius-sm);
+    box-shadow: var(--shadow-sm);
     transition: var(--transition);
     overflow: hidden;
 }
 
 .card:hover {
-    box-shadow: var(--shadow-medium);
-    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
 
 .card-header {
     background: #fff;
     border-bottom: 1px solid #eef2f7;
     padding: 1.25rem 1.5rem;
+    border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
 }
 
-.card-title {
-    font-weight: 600;
-    color: #2d3748;
-}
-
-/* ===== Stats Cards ===== */
+/* ===== Stats Cards améliorées - VERSION ÉQUILIBRÉE ===== */
 .stats-card {
     background: white;
-    border-radius: var(--border-radius);
-    padding: 1.5rem;
+    border-radius: var(--border-radius-sm);
+    padding: 0.875rem 1.125rem;
     display: flex;
     align-items: center;
-    box-shadow: var(--shadow-light);
+    box-shadow: var(--shadow-sm);
     transition: var(--transition);
-    border-left: 4px solid transparent;
+    border: 1px solid #e9ecef;
+    min-height: 75px;
 }
 
 .stats-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-strong);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
-
-
 .stats-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    border-radius: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-right: 1rem;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
+    margin-right: 0.75rem;
+    flex-shrink: 0;
 }
 
 .stats-icon i {
-    width: 24px;
-    height: 24px;
+    width: 14px;
+    height: 14px;
 }
 
 .stats-content {
     flex: 1;
+    min-width: 0;
 }
 
 .stats-number {
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-    line-height: 1;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.125rem;
+    line-height: 1.1;
 }
 
 .stats-label {
-    font-weight: 600;
+    font-weight: 500;
     color: #2d3748;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.125rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
 }
 
 .stats-desc {
     color: #718096;
-    font-size: 0.875rem;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    font-weight: 400;
 }
 
-/* ===== Queue Card ===== */
+/* ===== Queue Card améliorée ===== */
 .queue-card {
     background: white;
-    box-shadow: var(--shadow-medium);
+    box-shadow: var(--shadow-md);
+    border-radius: var(--border-radius-sm);
 }
 
 .queue-container {
@@ -620,13 +592,17 @@
     min-height: 200px;
 }
 
-/* ===== Ticket Items ===== */
+/* ===== Ticket Items - Style plus soft avec correction chevauchement ===== */
 .ticket-item {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #eef2f7;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #f1f3f4;
     transition: var(--transition);
     cursor: pointer;
     position: relative;
+    background: white;
+    margin-bottom: 1px;
+    /* ✅ CORRECTION: Ajout de padding-right pour éviter le chevauchement */
+    padding-right: 4.5rem; /* Espace pour le badge de position */
 }
 
 .ticket-item:last-child {
@@ -634,30 +610,42 @@
 }
 
 .ticket-item:hover {
-    background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-    transform: translateX(4px);
+    background: linear-gradient(90deg, rgba(0, 123, 255, 0.02) 0%, rgba(0, 123, 255, 0.04) 100%);
+    border-left: 3px solid var(--primary-color);
+    padding-left: calc(1.5rem - 3px);
 }
 
 .ticket-item.urgent {
-    border-left: 4px solid #f56565;
-    background: rgba(245, 101, 101, 0.02);
+    border-left: 4px solid var(--danger-color);
+    background: rgba(220, 53, 69, 0.02);
+    padding-left: calc(1.5rem - 4px);
 }
 
 .ticket-item.priority {
-    border-left: 4px solid #ed8936;
-    background: rgba(237, 137, 54, 0.02);
+    border-left: 4px solid var(--warning-color);
+    background: rgba(255, 193, 7, 0.02);
+    padding-left: calc(1.5rem - 4px);
 }
 
+/* ✅ CORRECTION: Badge de position repositionné pour éviter le chevauchement */
 .ticket-position {
     position: absolute;
-    top: 0.5rem;
+    top: 0.75rem;
     right: 1rem;
-    background: var(--primary-gradient);
+    background: var(--primary-color);
     color: white;
     padding: 0.25rem 0.75rem;
-    border-radius: 2rem;
+    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
+    z-index: 10; /* S'assurer qu'il est au-dessus */
+    min-width: 35px;
+    text-align: center;
+}
+
+/* ✅ CORRECTION: Ajustement des colonnes pour éviter le chevauchement */
+.ticket-item .col-md-2 {
+    padding-right: 0.75rem; /* Moins de padding à droite */
 }
 
 .ticket-number {
@@ -668,32 +656,41 @@
 }
 
 .ticket-service {
-    color: #4299e1;
-    background: rgba(66, 153, 225, 0.1);
+    color: var(--info-color);
+    background: rgba(23, 162, 184, 0.1);
     padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
+    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
 }
 
 .ticket-waiting-time {
     font-weight: 600;
+    font-size: 0.9rem;
 }
 
 .ticket-waiting-time.urgent {
-    color: #f56565;
-    animation: pulse 1.5s infinite;
+    color: var(--danger-color);
+}
+
+.ticket-waiting-time.warning {
+    color: var(--warning-color);
+}
+
+.ticket-waiting-time.normal {
+    color: var(--success-color);
 }
 
 /* ===== Current Ticket Panel ===== */
 .current-ticket-card {
     background: white;
-    box-shadow: var(--shadow-medium);
+    box-shadow: var(--shadow-md);
+    border-radius: var(--border-radius-sm);
 }
 
 .current-ticket-panel {
-    background: var(--primary-gradient);
-    border-radius: var(--border-radius);
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
+    border-radius: var(--border-radius-md);
     color: white;
     padding: 1.5rem;
     text-align: center;
@@ -723,7 +720,7 @@
 
 .ticket-duration {
     background: rgba(255, 255, 255, 0.15);
-    border-radius: 0.5rem;
+    border-radius: var(--border-radius-md);
     padding: 0.75rem;
     margin: 1rem 0;
     backdrop-filter: blur(10px);
@@ -751,75 +748,38 @@
 
 /* ===== Buttons ===== */
 .btn-call-next {
-    background: var(--success-gradient);
+    background: var(--success-color);
     border: none;
     color: white;
     font-weight: 600;
     transition: var(--transition);
-    box-shadow: var(--shadow-light);
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--border-radius-sm);
 }
 
 .btn-call-next:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-medium);
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
     color: white;
 }
 
 .btn-action {
     transition: var(--transition);
     font-weight: 500;
+    border-radius: var(--border-radius-sm);
 }
 
 .btn-action:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-light);
-}
-
-/* ===== Performance Card ===== */
-.performance-card {
-    background: white;
-    box-shadow: var(--shadow-medium);
-}
-
-.performance-item {
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    transition: var(--transition);
-}
-
-.performance-item:hover {
-    background: rgba(102, 126, 234, 0.05);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 /* ===== Quick Actions ===== */
 .quick-actions-card {
     background: white;
-    box-shadow: var(--shadow-light);
-}
-
-/* ===== Animations ===== */
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.animate-pulse {
-    animation: pulse 2s infinite;
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.fade-in-up {
-    animation: fadeInUp 0.5s ease-out;
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--border-radius-sm);
 }
 
 /* ===== Loading States ===== */
@@ -828,18 +788,50 @@
     text-align: center;
 }
 
-/* ===== Responsive ===== */
+/* ===== Badges de statut avec couleurs appropriées ===== */
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.status-nouveau {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-moyen {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-urgent {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* ===== Responsive amélioré ===== */
 @media (max-width: 768px) {
     .stats-card {
         margin-bottom: 1rem;
+        padding: 1rem;
     }
     
     .card-header {
-        padding: 1rem 1.25rem;
+        padding: 1rem;
     }
     
     .ticket-item {
         padding: 1rem;
+        padding-right: 4rem; /* ✅ Ajustement mobile */
+    }
+    
+    .ticket-position {
+        right: 0.5rem;
+        padding: 0.2rem 0.6rem;
+        font-size: 0.7rem;
+        min-width: 30px;
     }
     
     .stats-icon {
@@ -849,11 +841,6 @@
     
     .stats-number {
         font-size: 1.75rem;
-    }
-    
-    .btn-group .btn {
-        padding: 0.375rem 0.75rem;
-        font-size: 0.875rem;
     }
 }
 
@@ -869,6 +856,10 @@
     .ticket-actions .btn {
         width: 100%;
         margin-bottom: 0.5rem;
+    }
+    
+    .ticket-item {
+        padding-right: 3.5rem; /* ✅ Encore moins d'espace sur très petit écran */
     }
 }
 
@@ -898,37 +889,37 @@
     right: 20px;
     z-index: 9999;
     min-width: 320px;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow-strong);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-md);
     border: none;
     backdrop-filter: blur(10px);
     transition: var(--transition);
 }
 
 .toast-notification.toast-success {
-    background: linear-gradient(135deg, rgba(72, 187, 120, 0.95), rgba(56, 178, 172, 0.95));
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.95), rgba(40, 167, 69, 0.9));
     color: white;
 }
 
 .toast-notification.toast-error {
-    background: linear-gradient(135deg, rgba(245, 101, 101, 0.95), rgba(229, 62, 62, 0.95));
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.95), rgba(220, 53, 69, 0.9));
     color: white;
 }
 
 .toast-notification.toast-warning {
-    background: linear-gradient(135deg, rgba(246, 173, 85, 0.95), rgba(237, 137, 54, 0.95));
-    color: white;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.95), rgba(255, 193, 7, 0.9));
+    color: #212529;
 }
 
 .toast-notification.toast-info {
-    background: linear-gradient(135deg, rgba(66, 153, 225, 0.95), rgba(79, 172, 254, 0.95));
+    background: linear-gradient(135deg, rgba(23, 162, 184, 0.95), rgba(23, 162, 184, 0.9));
     color: white;
 }
 </style>
 
-<!-- JavaScript optimisé -->
+<!-- JavaScript amélioré -->
 <script>
-// ===== Interface Conseiller - Architecture modulaire =====
+// ===== Interface Conseiller - Version améliorée =====
 class AdvisorInterface {
     constructor() {
         this.currentTicket = null;
@@ -936,6 +927,7 @@ class AdvisorInterface {
         this.refreshInterval = null;
         this.isPaused = false;
         this.isInitialized = false;
+        this.autoRefreshEnabled = false;
         
         this.config = {
             refreshInterval: 30000,
@@ -956,9 +948,8 @@ class AdvisorInterface {
             this.setupAjax();
             this.bindEvents();
             await this.loadInitialData();
-            this.startAutoRefresh();
             this.isInitialized = true;
-            this.showNotification('success', 'Interface conseiller prête', 'Système FIFO actif');
+            this.showNotification('success', 'Interface conseiller prête', 'Utilisez "Actualiser" pour rafraîchir');
             console.log('✅ AdvisorInterface initialized successfully');
         } catch (error) {
             console.error('❌ Failed to initialize AdvisorInterface:', error);
@@ -977,20 +968,16 @@ class AdvisorInterface {
     }
 
     bindEvents() {
-        // Événements globaux
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && this.isInitialized) {
-                this.refreshTickets();
-            }
+            console.log('🔄 Page visibility changed - no auto refresh');
         });
 
-        // Raccourcis clavier
         document.addEventListener('keydown', (e) => {
-            if (e.altKey && e.key === 'n') { // Alt + N
+            if (e.altKey && e.key === 'n') {
                 e.preventDefault();
                 this.callNextTicket();
             }
-            if (e.altKey && e.key === 'r') { // Alt + R
+            if (e.altKey && e.key === 'r') {
                 e.preventDefault();
                 this.refreshTickets();
             }
@@ -999,7 +986,6 @@ class AdvisorInterface {
             }
         });
 
-        // Form password
         $('#passwordForm').on('submit', (e) => {
             e.preventDefault();
             this.handlePasswordChange();
@@ -1013,16 +999,35 @@ class AdvisorInterface {
         ]);
     }
 
+    toggleAutoRefresh() {
+        if (this.autoRefreshEnabled) {
+            this.stopAutoRefresh();
+            this.showNotification('info', 'Auto-refresh désactivé', 'Utilisez le bouton pour actualiser');
+        } else {
+            this.startAutoRefresh();
+            this.showNotification('info', 'Auto-refresh activé', 'Actualisation toutes les 30s');
+        }
+    }
+
     startAutoRefresh() {
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
         }
         
+        this.autoRefreshEnabled = true;
         this.refreshInterval = setInterval(() => {
-            if (!document.hidden) {
+            if (!document.hidden && this.autoRefreshEnabled) {
                 this.refreshTickets();
             }
         }, this.config.refreshInterval);
+    }
+
+    stopAutoRefresh() {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+        }
+        this.autoRefreshEnabled = false;
     }
 
     // ===== API Methods =====
@@ -1154,8 +1159,115 @@ class AdvisorInterface {
         this.updateNotifications(response.tickets);
     }
 
+    // ✅ CORRECTION: Fonction pour formater l'heure de prise de tickets
+    formatArrivalTime(ticket) {
+        // ✅ PRIORITÉ 1: Utiliser heure_d_enregistrement (heure exacte de prise de ticket à l'accueil)
+        if (ticket.heure_d_enregistrement && 
+            ticket.heure_d_enregistrement !== '--:--' && 
+            ticket.heure_d_enregistrement !== null &&
+            ticket.heure_d_enregistrement.trim() !== '') {
+            
+            // Formatter l'heure si elle est au format H:i:s
+            try {
+                // Si c'est déjà au bon format H:i, le retourner tel quel
+                if (ticket.heure_d_enregistrement.match(/^\d{2}:\d{2}$/)) {
+                    return ticket.heure_d_enregistrement;
+                }
+                
+                // Si c'est au format H:i:s, extraire H:i
+                if (ticket.heure_d_enregistrement.match(/^\d{2}:\d{2}:\d{2}$/)) {
+                    return ticket.heure_d_enregistrement.substring(0, 5);
+                }
+                
+                // Essayer de parser comme une date/heure complète
+                const time = new Date(`1970-01-01T${ticket.heure_d_enregistrement}`);
+                if (!isNaN(time.getTime())) {
+                    return time.toLocaleTimeString('fr-FR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                }
+                
+                return ticket.heure_d_enregistrement;
+            } catch (e) {
+                console.log('Erreur formatage heure_d_enregistrement:', e);
+                return ticket.heure_d_enregistrement;
+            }
+        }
+        
+        // ✅ PRIORITÉ 2: Fallback sur created_at si heure_d_enregistrement n'est pas disponible
+        if (ticket.created_at) {
+            try {
+                const date = new Date(ticket.created_at);
+                if (!isNaN(date.getTime())) {
+                    return date.toLocaleTimeString('fr-FR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                }
+            } catch (e) {
+                console.log('Erreur formatage created_at:', e);
+            }
+        }
+        
+        // ✅ PRIORITÉ 3: Fallback final sur le champ date
+        if (ticket.date) {
+            try {
+                const date = new Date(ticket.date);
+                if (!isNaN(date.getTime())) {
+                    return date.toLocaleTimeString('fr-FR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                }
+            } catch (e) {
+                console.log('Erreur formatage date:', e);
+            }
+        }
+        
+        // Fallback ultime - ne devrait jamais arriver
+        return '--:--';
+    }
+
+    // ⚠️ IMPORTANT: Vérifier côté serveur (route conseiller.tickets)
+    // Les champs suivants doivent être inclus dans la réponse JSON :
+    // - prenom (depuis la base de données, ne doit jamais être vide)
+    // - date (date de création du ticket)
+    // - telephone (numéro du client)
+    // - heure_d_enregistrement (heure exacte de prise de ticket)
+    // - service (nom du service)
+    // Si ces champs sont vides, vérifier la requête SQL côté serveur !
+
+    // ✅ NOUVELLE FONCTION: Validation et nettoyage des données ticket
+    validateTicketData(ticket) {
+        return {
+            id: ticket.id || 0,
+            numero_ticket: ticket.numero_ticket || 'N/A',
+            prenom: ticket.prenom && ticket.prenom.trim() !== '' ? ticket.prenom.trim() : 'Nom non renseigné',
+            telephone: ticket.telephone && ticket.telephone.trim() !== '' ? ticket.telephone.trim() : 'Téléphone non renseigné',
+            date: ticket.date || 'Date non définie', // ✅ Date du jour de la demande
+            service: ticket.service || 'Service non défini',
+            temps_attente_estime: ticket.temps_attente_estime || 0, // ✅ Temps d'attente estimé depuis la DB
+            commentaire: ticket.commentaire || null
+        };
+    }
+
+    // ✅ CORRECTION: Fonction updateTicketsList modifiée
     updateTicketsList(tickets) {
         const container = document.getElementById('ticketsContainer');
+        
+        // ✅ Debug: Vérifier les données reçues
+        if (tickets && tickets.length > 0) {
+            console.log('📊 Données tickets reçues:', tickets[0]);
+            console.log('🔍 Champs importants:', {
+                prenom: tickets[0].prenom,
+                date: tickets[0].date,
+                telephone: tickets[0].telephone,
+                service: tickets[0].service,
+                temps_attente_estime: tickets[0].temps_attente_estime,
+                created_at: tickets[0].created_at
+            });
+        }
         
         if (!tickets || tickets.length === 0) {
             container.innerHTML = `
@@ -1172,31 +1284,51 @@ class AdvisorInterface {
         } else {
             let html = '';
             tickets.forEach((ticket, index) => {
-                const waitingTime = this.calculateWaitingTime(ticket.heure_d_enregistrement, ticket.created_at);
-                const isUrgent = waitingTime > 30;
-                const isPriority = waitingTime > 15;
+                // ✅ Valider et nettoyer les données du ticket
+                const validatedTicket = this.validateTicketData(ticket);
+                
+                // ✅ Utiliser temps_attente_estime depuis la base de données
+                const estimatedWaitTime = validatedTicket.temps_attente_estime;
+                
+                // ✅ Logique de statut basée sur le temps d'attente estimé de la DB
+                let statusClass = 'normal';
+                let statusText = 'Nouveau';
+                let statusColor = 'text-success';
+                
+                if (estimatedWaitTime > 30) {
+                    statusClass = 'urgent';
+                    statusText = 'Urgent';
+                    statusColor = 'text-danger';
+                } else if (estimatedWaitTime > 15) {
+                    statusClass = 'warning';
+                    statusText = 'Moyen';
+                    statusColor = 'text-warning';
+                }
                 
                 html += `
-                    <div class="ticket-item fade-in-up ${isUrgent ? 'urgent' : isPriority ? 'priority' : ''}" 
-                         onclick="advisorInterface.showTicketDetails(${ticket.id})" 
+                    <div class="ticket-item fade-in-up ${statusClass}" 
+                         onclick="advisorInterface.showTicketDetails(${validatedTicket.id})" 
                          style="animation-delay: ${index * 0.1}s">
                         <div class="ticket-position">#${index + 1}</div>
                         <div class="row align-items-center">
                             <div class="col-md-3">
-                                <div class="ticket-number">${ticket.numero_ticket}</div>
-                                <small class="text-muted">${ticket.heure_d_enregistrement || '--:--'}</small>
+                                <div class="ticket-number">${validatedTicket.numero_ticket}</div>
+                                <small class="text-muted">Date: ${validatedTicket.date}</small>
                             </div>
                             <div class="col-md-4">
-                                <strong class="d-block">${ticket.prenom}</strong>
-                                <small class="text-muted">${ticket.telephone}</small>
+                                <strong class="d-block">${validatedTicket.prenom}</strong>
+                                <small class="text-muted">${validatedTicket.telephone}</small>
                             </div>
                             <div class="col-md-3">
-                                <span class="ticket-service">${ticket.service || 'Service'}</span>
+                                <span class="ticket-service">${validatedTicket.service}</span>
+                                <div class="mt-1">
+                                    <span class="status-badge status-${statusClass} ${statusColor}">${statusText}</span>
+                                </div>
                             </div>
                             <div class="col-md-2 text-right">
-                                <div class="ticket-waiting-time ${isUrgent ? 'urgent' : ''}">${waitingTime}min</div>
+                                <div class="ticket-waiting-time ${statusClass}">${estimatedWaitTime}min</div>
                                 <div class="mt-2">
-                                    <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); advisorInterface.callTicket(${ticket.id})">
+                                    <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); advisorInterface.callTicket(${validatedTicket.id})">
                                         <i data-feather="phone-call" style="width: 14px; height: 14px;"></i>
                                     </button>
                                 </div>
@@ -1219,12 +1351,11 @@ class AdvisorInterface {
         if (!stats) return;
         
         const elements = {
-            'waitingTicketsCount': stats.waiting || 0,
-            'processingTicketsCount': stats.processing || 0,
-            'completedTicketsCount': stats.completed || 0,
-            'averageWaitTime': Math.round(stats.average_wait || 15) + 'min',
-            'ticketsWaitingCount': stats.waiting || 0,
-            'ticketsWaitingCount2': stats.waiting || 0
+            'waitingTicketsCount': stats.total_en_attente || 0,
+            'processingTicketsCount': stats.total_en_cours || 0,
+            'completedTicketsCount': stats.total_termines || 0,
+            'ticketsWaitingCount': stats.total_en_attente || 0,
+            'ticketsWaitingCount2': stats.total_en_attente || 0
         };
         
         Object.entries(elements).forEach(([id, value]) => {
@@ -1233,9 +1364,9 @@ class AdvisorInterface {
                 const oldValue = element.textContent;
                 element.textContent = value;
                 
-                // Animation si changement
                 if (oldValue !== value.toString()) {
                     element.style.transform = 'scale(1.1)';
+                    element.style.transition = 'transform 0.2s ease';
                     setTimeout(() => {
                         element.style.transform = 'scale(1)';
                     }, 200);
@@ -1257,9 +1388,11 @@ class AdvisorInterface {
         } else {
             let html = '';
             tickets.slice(0, 5).forEach((ticket, index) => {
-                const waitingTime = this.calculateWaitingTime(ticket.heure_d_enregistrement, ticket.created_at);
+                const validatedTicket = this.validateTicketData(ticket);
+                const estimatedWaitTime = validatedTicket.temps_attente_estime;
+                
                 html += `
-                    <a href="#" class="dropdown-item py-3" onclick="advisorInterface.callTicket(${ticket.id})">
+                    <a href="#" class="dropdown-item py-3" onclick="advisorInterface.callTicket(${validatedTicket.id})">
                         <div class="d-flex align-items-center">
                             <div class="flex-shrink-0">
                                 <div class="avatar-sm bg-soft-primary rounded-circle d-flex align-items-center justify-content-center">
@@ -1267,8 +1400,8 @@ class AdvisorInterface {
                                 </div>
                             </div>
                             <div class="flex-grow-1 ml-3">
-                                <h6 class="mb-0 font-weight-normal">${ticket.numero_ticket}</h6>
-                                <small class="text-muted">${ticket.prenom} - ${waitingTime}min</small>
+                                <h6 class="mb-0 font-weight-normal">${validatedTicket.numero_ticket}</h6>
+                                <small class="text-muted">${validatedTicket.prenom} - ${estimatedWaitTime}min</small>
                             </div>
                             <div class="flex-shrink-0">
                                 <span class="badge badge-light">#${index + 1}</span>
@@ -1305,12 +1438,16 @@ class AdvisorInterface {
             status.textContent = 'Disponible';
             status.className = 'badge badge-success';
         } else {
+            // ✅ Valider les données du ticket en cours
+            const validatedTicket = this.validateTicketData(ticket);
+            
             panel.innerHTML = `
                 <div class="current-ticket-panel">
                     <div class="current-ticket-info">
-                        <div class="current-ticket-number">${ticket.numero_ticket}</div>
-                        <div class="current-ticket-name">${ticket.prenom}</div>
-                        <div class="current-ticket-phone">${ticket.telephone}</div>
+                        <div class="current-ticket-number">${validatedTicket.numero_ticket}</div>
+                        <div class="current-ticket-name">${validatedTicket.prenom}</div>
+                        <div class="current-ticket-phone">${validatedTicket.telephone}</div>
+                        <small class="text-muted">Date: ${validatedTicket.date}</small>
                     </div>
                     
                     <div class="ticket-duration">
@@ -1320,9 +1457,9 @@ class AdvisorInterface {
                     
                     <div class="ticket-actions">
                         <button class="btn btn-success btn-sm" onclick="advisorInterface.completeCurrentTicket()">
-                            <i data-feather="check" class="mr-1"></i>Terminer
+                            <i data-feather="check" class="mr-1"></i>Traiter
                         </button>
-                        <button class="btn btn-outline-light btn-sm" onclick="advisorInterface.showTicketDetails(${ticket.id})">
+                        <button class="btn btn-outline-light btn-sm" onclick="advisorInterface.showTicketDetails(${validatedTicket.id})">
                             <i data-feather="eye" class="mr-1"></i>Détails
                         </button>
                     </div>
@@ -1332,7 +1469,6 @@ class AdvisorInterface {
             status.textContent = 'En cours';
             status.className = 'badge badge-warning';
             
-            // Démarrer le timer
             this.startTicketTimer(ticket.called_at || new Date().toISOString());
         }
         
@@ -1340,10 +1476,12 @@ class AdvisorInterface {
     }
 
     updateMyStats(stats) {
-        if (!stats) return;
+        if (!stats && !stats.aujourdhui) return;
         
-        document.getElementById('myCompletedCount').textContent = stats.completed || 0;
-        document.getElementById('myAverageTime').textContent = Math.round(stats.average_time || 0) + 'min';
+        const elements = document.getElementsByClassName('my-stats');
+        if (elements.length > 0) {
+            // Logique de mise à jour des stats personnelles
+        }
     }
 
     // ===== Modal Methods =====
@@ -1353,6 +1491,26 @@ class AdvisorInterface {
             this.showNotification('error', 'Erreur', 'Ticket non trouvé');
             return;
         }
+
+        // ✅ Valider les données du ticket
+        const validatedTicket = this.validateTicketData(ticket);
+        
+        // ✅ Utiliser temps_attente_estime depuis la base de données
+        const estimatedWaitTime = validatedTicket.temps_attente_estime;
+        
+        let statusBadge = '';
+        let statusText = '';
+        
+        if (estimatedWaitTime > 30) {
+            statusBadge = '<span class="badge badge-danger">Urgent</span>';
+            statusText = 'Temps d\'attente élevé';
+        } else if (estimatedWaitTime > 15) {
+            statusBadge = '<span class="badge badge-warning">Moyen</span>';
+            statusText = 'Temps d\'attente modéré';
+        } else {
+            statusBadge = '<span class="badge badge-success">Nouveau</span>';
+            statusText = 'Client récent';
+        }
         
         const content = document.getElementById('ticketDetailsContent');
         content.innerHTML = `
@@ -1361,11 +1519,11 @@ class AdvisorInterface {
                     <h6 class="font-weight-semibold mb-3">Informations du ticket</h6>
                     <div class="table-responsive">
                         <table class="table table-borderless table-sm">
-                            <tr><td class="font-weight-semibold">Numéro:</td><td>${ticket.numero_ticket}</td></tr>
-                            <tr><td class="font-weight-semibold">Service:</td><td>${ticket.service || 'N/A'}</td></tr>
-                            <tr><td class="font-weight-semibold">Statut:</td><td><span class="badge badge-info">${ticket.statut_global}</span></td></tr>
-                            <tr><td class="font-weight-semibold">Arrivée:</td><td>${ticket.heure_d_enregistrement || '--:--'}</td></tr>
-                            <tr><td class="font-weight-semibold">Attente estimée:</td><td>${ticket.temps_attente_estime || 0}min</td></tr>
+                            <tr><td class="font-weight-semibold">Numéro:</td><td>${validatedTicket.numero_ticket}</td></tr>
+                            <tr><td class="font-weight-semibold">Service:</td><td>${validatedTicket.service}</td></tr>
+                            <tr><td class="font-weight-semibold">Statut:</td><td>${statusBadge}</td></tr>
+                            <tr><td class="font-weight-semibold">Priorité:</td><td>${statusText}</td></tr>
+                            <tr><td class="font-weight-semibold">Attente estimée:</td><td>${estimatedWaitTime}min</td></tr>
                         </table>
                     </div>
                 </div>
@@ -1373,9 +1531,9 @@ class AdvisorInterface {
                     <h6 class="font-weight-semibold mb-3">Informations client</h6>
                     <div class="table-responsive">
                         <table class="table table-borderless table-sm">
-                            <tr><td class="font-weight-semibold">Nom:</td><td>${ticket.prenom}</td></tr>
-                            <tr><td class="font-weight-semibold">Téléphone:</td><td>${ticket.telephone}</td></tr>
-                            <tr><td class="font-weight-semibold">Date:</td><td>${ticket.date}</td></tr>
+                            <tr><td class="font-weight-semibold">Prénom:</td><td>${ticket.prenom || 'Non renseigné'}</td></tr>
+                            <tr><td class="font-weight-semibold">Téléphone:</td><td>${ticket.telephone || 'Non renseigné'}</td></tr>
+                            <tr><td class="font-weight-semibold">Date de demande:</td><td>${ticket.date || 'Non définie'}</td></tr>
                         </table>
                     </div>
                     
@@ -1424,11 +1582,13 @@ class AdvisorInterface {
             `;
             
             tickets.forEach(ticket => {
+                const validatedTicket = this.validateTicketData(ticket);
+                
                 html += `
                     <tr>
-                        <td><strong>${ticket.numero_ticket}</strong></td>
-                        <td>${ticket.prenom}</td>
-                        <td><span class="badge badge-info">${ticket.service || 'N/A'}</span></td>
+                        <td><strong>${validatedTicket.numero_ticket}</strong></td>
+                        <td>${validatedTicket.prenom}</td>
+                        <td><span class="badge badge-info">${validatedTicket.service}</span></td>
                         <td>${ticket.debut_traitement || '--:--'}</td>
                         <td>${ticket.fin_traitement || '--:--'}</td>
                         <td><span class="badge badge-light">${ticket.duree_traitement || 0}min</span></td>
@@ -1509,8 +1669,9 @@ class AdvisorInterface {
         this.showNotification('info', 'Export', 'Génération du fichier en cours...');
         
         setTimeout(() => {
+            window.open('{{ route("conseiller.export") }}', '_blank');
             this.showNotification('success', 'Export terminé', 'Fichier téléchargé avec succès');
-        }, 2000);
+        }, 1500);
     }
 
     // ===== Utility Methods =====
@@ -1540,18 +1701,44 @@ class AdvisorInterface {
         const now = new Date();
         let arrival;
         
-        if (heureEnregistrement && heureEnregistrement !== '--:--') {
-            // Utiliser l'heure d'enregistrement si disponible
-            const today = now.toISOString().split('T')[0];
-            arrival = new Date(`${today}T${heureEnregistrement}`);
-        } else if (createdAt) {
-            // Sinon utiliser created_at
-            arrival = new Date(createdAt);
-        } else {
-            return 0;
+        // ✅ CORRECTION: Utiliser heure_d_enregistrement en priorité (heure exacte de prise de ticket)
+        if (heureEnregistrement && heureEnregistrement !== '--:--' && heureEnregistrement.trim() !== '') {
+            try {
+                const today = now.toISOString().split('T')[0];
+                
+                // Gérer différents formats d'heure
+                let timeString = heureEnregistrement;
+                
+                // Si format H:i:s, garder tel quel
+                if (timeString.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
+                    arrival = new Date(`${today}T${timeString}`);
+                }
+                // Si format H:i, ajouter les secondes
+                else if (timeString.match(/^\d{1,2}:\d{2}$/)) {
+                    arrival = new Date(`${today}T${timeString}:00`);
+                }
+                
+                if (arrival && !isNaN(arrival.getTime())) {
+                    return Math.max(0, Math.floor((now - arrival) / (1000 * 60)));
+                }
+            } catch (e) {
+                console.log('Erreur calcul temps d\'attente avec heure_d_enregistrement:', e);
+            }
         }
         
-        return Math.floor((now - arrival) / (1000 * 60));
+        // ✅ FALLBACK: Utiliser created_at si heure_d_enregistrement n'est pas disponible
+        if (createdAt) {
+            try {
+                arrival = new Date(createdAt);
+                if (!isNaN(arrival.getTime())) {
+                    return Math.max(0, Math.floor((now - arrival) / (1000 * 60)));
+                }
+            } catch (e) {
+                console.log('Erreur calcul temps d\'attente avec created_at:', e);
+            }
+        }
+        
+        return 0;
     }
 
     formatTime(timeString) {
@@ -1603,9 +1790,8 @@ class AdvisorInterface {
 
     playNotificationSound() {
         try {
-            // Son de notification simple
             const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBT2Y2/LDjCUIQ4PY7tjwO');
-            audio.play().catch(() => {}); // Ignore les erreurs de lecture
+            audio.play().catch(() => {});
         } catch (error) {
             console.log('Notification sound not available');
         }
@@ -1644,16 +1830,13 @@ class AdvisorInterface {
         
         document.body.appendChild(toast);
         
-        // Animation d'entrée
         setTimeout(() => {
             toast.style.opacity = '1';
             toast.style.transform = 'translateX(0)';
         }, 100);
         
-        // Remplacer les icônes
         if (typeof feather !== 'undefined') feather.replace();
         
-        // Auto-suppression
         setTimeout(() => {
             if (document.getElementById(toastId)) {
                 toast.style.opacity = '0';
@@ -1665,13 +1848,10 @@ class AdvisorInterface {
                 }, 300);  
             }   
         }, duration);
-    }   
+    }
 
-    // Nettoyage
     destroy() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-        }
+        this.stopAutoRefresh();
         console.log('AdvisorInterface destroyed');
     }
 }
@@ -1680,23 +1860,20 @@ class AdvisorInterface {
 let advisorInterface;
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser l'interface
     advisorInterface = new AdvisorInterface();
     
-    // Initialiser Feather icons
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
     
-    console.log('🎯 Interface conseiller FIFO ready');
+    console.log('🎯 Interface conseiller FIFO ready - Version corrigée');
 });
 
-// Nettoyage à la fermeture
 window.addEventListener('beforeunload', function() {
     if (advisorInterface) {
         advisorInterface.destroy();
     }
-});
+}); 
 </script>
 
 @endsection

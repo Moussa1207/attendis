@@ -9,7 +9,8 @@ use App\Models\Status;
 use App\Models\AdministratorUser;
 use App\Models\Agency;
 use App\Models\Service;
-use App\Models\Queue; // ✅ Import du modèle Queue
+use App\Models\Queue;
+use App\Models\Setting; // ✅ Import ajouté
 use Illuminate\Support\Facades\Hash; 
 use Illuminate\Support\Facades\Log;  
 use Illuminate\Support\Facades\Auth;
@@ -287,7 +288,7 @@ class DashboardController extends Controller
                     'type' => 'service_numbering_chronological',
                     'principe' => 'Numérotation par service, traitement chronologique',
                     'prochaine_position' => Queue::calculateQueuePosition(),
-                    'temps_attente_configure' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                    'temps_attente_configure' => Setting::getDefaultWaitingTimeMinutes(),
                 ]
             ];
 
@@ -376,12 +377,12 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // 🆕 SECTION CONSEILLER - INTERFACE DÉDIÉE
+    // 🆕 SECTION CONSEILLER - INTERFACE DÉDIÉE AMÉLIORÉE
     // ===============================================
 
     /**
-     * 👨‍💼 DASHBOARD PRINCIPAL CONSEILLER
-     * Interface dédiée avec file d'attente FIFO
+     * 👨‍💼 DASHBOARD PRINCIPAL CONSEILLER - AMÉLIORÉ
+     * Interface dédiée avec file d'attente FIFO et temps admin
      */
     public function conseillerDashboard()
     {
@@ -400,32 +401,32 @@ class DashboardController extends Controller
             if (!$creator) {
                 return view('layouts.app-conseiller', [
                     'error' => 'Configuration manquante : administrateur créateur introuvable',
-                    'userInfo' => $this->getUserInfo($user)
+                    'userInfo' => $this->getUserInfo($user),
+                    'defaultWaitTime' => Setting::getDefaultWaitingTimeMinutes()
                 ]);
             }
 
             // 🎫 STATISTIQUES DE LA FILE D'ATTENTE (services de son admin)
             $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
             
+            // ✅ COMPTEURS CORRIGÉS avec logique claire
             $fileStats = [
                 'tickets_en_attente' => Queue::whereIn('service_id', $myServiceIds)
                                             ->whereDate('date', today())
-                                            ->where('statut_global', 'en_attente')
+                                            ->where('statut_global', 'en_attente') // Pas encore appelés
                                             ->count(),
                                             
                 'tickets_en_cours' => Queue::whereIn('service_id', $myServiceIds)
                                           ->whereDate('date', today())
-                                          ->where('statut_global', 'en_cours')
+                                          ->where('statut_global', 'en_cours') // Appelés mais pas encore traités
                                           ->count(),
                                           
                 'tickets_termines' => Queue::whereIn('service_id', $myServiceIds)
                                           ->whereDate('date', today())
-                                          ->where('statut_global', 'termine')
+                                          ->where('statut_global', 'termine') // Traités
                                           ->count(),
                                           
-                'temps_attente_moyen' => Queue::whereIn('service_id', $myServiceIds)
-                                             ->whereDate('date', today())
-                                             ->avg('temps_attente_estime') ?? 15,
+                'temps_attente_moyen' => Setting::getDefaultWaitingTimeMinutes(), // ✅ Temps par défaut admin
             ];
 
             // 👨‍💼 STATISTIQUES PERSONNELLES DU CONSEILLER
@@ -456,17 +457,22 @@ class DashboardController extends Controller
                 'is_en_pause' => false, // TODO: Implémenter la logique de pause
             ];
 
+            // ✅ TEMPS CONFIGURÉ PAR L'ADMIN
+            $defaultWaitTime = Setting::getDefaultWaitingTimeMinutes();
+
             Log::info("Interface conseiller chargée", [
                 'conseiller_id' => $user->id,
                 'creator_id' => $creator->id,
                 'tickets_en_attente' => $fileStats['tickets_en_attente'],
-                'conseiller_tickets_traites' => $conseillerStats['tickets_traites_aujourd_hui']
+                'conseiller_tickets_traites' => $conseillerStats['tickets_traites_aujourd_hui'],
+                'default_wait_time' => $defaultWaitTime
             ]);
 
             return view('layouts.app-conseiller', [
                 'fileStats' => $fileStats,
                 'conseillerStats' => $conseillerStats,
                 'userInfo' => $this->getUserInfo($user),
+                'defaultWaitTime' => $defaultWaitTime, // ✅ Passé à la vue
                 'creatorInfo' => [
                     'username' => $creator->username,
                     'company' => $creator->company,
@@ -482,13 +488,14 @@ class DashboardController extends Controller
 
             return view('layouts.app-conseiller', [
                 'error' => 'Erreur lors du chargement de l\'interface conseiller',
-                'userInfo' => $this->getUserInfo($user)
+                'userInfo' => $this->getUserInfo($user),
+                'defaultWaitTime' => Setting::getDefaultWaitingTimeMinutes()
             ]);
         }
     }
 
     /**
-     * 🎫 RÉCUPÉRER LES TICKETS EN ATTENTE (FIFO CHRONOLOGIQUE)
+     * 🎫 RÉCUPÉRER LES TICKETS EN ATTENTE (FIFO CHRONOLOGIQUE) - AMÉLIORÉ
      */
     public function getConseillerTickets(Request $request): JsonResponse
     {
@@ -524,7 +531,7 @@ class DashboardController extends Controller
                                         return $ticket->toTicketArray();
                                     });
 
-            // 📊 STATISTIQUES GLOBALES
+            // 📊 STATISTIQUES GLOBALES CORRIGÉES
             $stats = [
                 'total_en_attente' => Queue::whereIn('service_id', $myServiceIds)
                                           ->whereDate('date', today())
@@ -550,7 +557,8 @@ class DashboardController extends Controller
                     'type' => 'fifo_chronological',
                     'principle' => 'Premier arrivé, premier servi',
                     'next_position' => Queue::calculateQueuePosition(),
-                    'total_waiting' => $stats['total_en_attente']
+                    'total_waiting' => $stats['total_en_attente'],
+                    'default_wait_time' => Setting::getDefaultWaitingTimeMinutes() // ✅ Temps admin
                 ],
                 'timestamp' => now()->format('H:i:s')
             ]);
@@ -956,7 +964,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🔍 DÉTAILS D'UN TICKET SPÉCIFIQUE
+     * 🔍 DÉTAILS D'UN TICKET SPÉCIFIQUE - AMÉLIORÉ
      */
     public function getTicketDetails(Request $request, $ticketId): JsonResponse
     {
@@ -993,9 +1001,28 @@ class DashboardController extends Controller
                 ], 404);
             }
 
+            // ✅ DÉTAILS ENRICHIS avec statut basé sur temps d'attente
             $ticketDetails = $ticket->toTicketArray();
             $ticketDetails['duree_traitement'] = $this->calculateProcessingTime($ticket);
             $ticketDetails['historique'] = $ticket->historique ?? [];
+            
+            // ✅ Calcul du statut priorité basé sur temps d'attente
+            $waitingTime = $this->calculateTicketWaitingTime($ticket);
+            if ($waitingTime > 30) {
+                $ticketDetails['priority_status'] = 'urgent';
+                $ticketDetails['priority_label'] = 'Urgent';
+                $ticketDetails['priority_color'] = 'danger';
+            } elseif ($waitingTime > 15) {
+                $ticketDetails['priority_status'] = 'moyen';
+                $ticketDetails['priority_label'] = 'Moyen';
+                $ticketDetails['priority_color'] = 'warning';
+            } else {
+                $ticketDetails['priority_status'] = 'nouveau';
+                $ticketDetails['priority_label'] = 'Nouveau';
+                $ticketDetails['priority_color'] = 'success';
+            }
+            
+            $ticketDetails['waiting_time_calculated'] = $waitingTime;
 
             return response()->json([
                 'success' => true,
@@ -1282,353 +1309,7 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // ✅ GÉNÉRATION DE TICKET AVEC NUMÉROS UNIQUES - PROBLÈME RÉSOLU
-    // ===============================================
-
-    /**
-     * 🎯 GÉNÉRATION DE NUMÉRO DE TICKET UNIQUE (Solution du problème de doublon)
-     */
-    private function generateUniqueTicketNumber($serviceId, $letterOfService)
-    {
-        $date = now()->format('Y-m-d');
-        $counter = 1;
-        
-        do {
-            $ticketNumber = $letterOfService . str_pad($counter, 3, '0', STR_PAD_LEFT);
-            
-            // Vérifier si ce numéro existe déjà aujourd'hui
-            $exists = DB::table('queues')
-                ->where('numero_ticket', $ticketNumber)
-                ->where('date', $date)
-                ->exists();
-                
-            if (!$exists) {
-                return $ticketNumber;
-            }
-            
-            $counter++;
-            
-            // Sécurité : éviter une boucle infinie
-            if ($counter > 999) {
-                throw new \Exception("Impossible de générer un numéro de ticket unique pour le service");
-            }
-            
-        } while (true);
-    }
-
-    /**
-     * 🎫 GÉNÉRATION EFFECTIVE D'UN TICKET EN BASE DE DONNÉES - CORRIGÉE
-     * Utilise la nouvelle logique de génération de numéros uniques
-     */
-    public function generateTicket(Request $request): JsonResponse
-    {
-        try {
-            // 🔒 VÉRIFICATION : Seuls les utilisateurs Ecran peuvent générer des tickets
-            $user = Auth::user();
-            if (!$user->isEcranUser()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé. Seuls les postes écran peuvent générer des tickets.'
-                ], 403);
-            }
-
-            // ✅ VALIDATION DES DONNÉES
-            $validator = Validator::make($request->all(), [
-                'service_id' => 'required|integer|exists:services,id',
-                'full_name' => 'required|string|max:100',
-                'phone' => 'required|string|max:20',
-                'comment' => 'nullable|string|max:500'
-            ], [
-                'service_id.required' => 'Le service est obligatoire.',
-                'service_id.exists' => 'Service sélectionné invalide.',
-                'full_name.required' => 'Le nom est obligatoire.',
-                'full_name.max' => 'Le nom ne peut pas dépasser 100 caractères.',
-                'phone.required' => 'Le téléphone est obligatoire.',
-                'phone.max' => 'Le téléphone ne peut pas dépasser 20 caractères.',
-                'comment.max' => 'Le commentaire ne peut pas dépasser 500 caractères.'
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur de validation.',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            // ✅ VÉRIFICATION : Le service appartient-il à l'admin créateur de cet utilisateur ?
-            $creator = $user->getCreator();
-            if (!$creator) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur de configuration : admin créateur introuvable.'
-                ], 500);
-            }
-
-            $service = Service::where('id', $request->service_id)
-                             ->where('created_by', $creator->id)
-                             ->first();
-
-            if (!$service) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Service non autorisé pour cet utilisateur.'
-                ], 403);
-            }
-
-            if (!$service->isActive()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ce service n\'est pas disponible actuellement.'
-                ], 400);
-            }
-
-            // 🚀 UTILISATION D'UNE TRANSACTION POUR ÉVITER LES CONFLITS
-            $ticket = DB::transaction(function () use ($request, $service, $user, $creator) {
-                // 🎯 GÉNÉRER UN NUMÉRO DE TICKET UNIQUE
-                $letterOfService = strtoupper(substr($service->nom, 0, 1));
-                $uniqueTicketNumber = $this->generateUniqueTicketNumber($service->id, $letterOfService);
-                
-                // Calculer la position dans la file
-                $position = Queue::whereDate('date', today())
-                                ->where('statut_global', '!=', 'termine')
-                                ->count() + 1;
-                
-                // Données pour créer le ticket
-                $ticketData = [
-                    'id_agence' => $user->agency_id ?? 1,
-                    'letter_of_service' => $letterOfService,
-                    'service_id' => $service->id,
-                    'prenom' => $request->full_name,
-                    'telephone' => $request->phone,
-                    'commentaire' => $request->comment ?? '',
-                    'date' => now()->format('Y-m-d'),
-                    'heure_d_enregistrement' => now()->format('H:i:s'),
-                    'numero_ticket' => $uniqueTicketNumber,
-                    'position_file' => $position,
-                    'temps_attente_estime' => 15, // Temps par défaut, à configurer selon vos besoins
-                    'statut_global' => 'en_attente',
-                    'resolu' => 'En cours',
-                    'transferer' => 'No',
-                    'debut' => 'No',
-                    'created_by_ip' => $request->ip(),
-                    'historique' => json_encode([[
-                        'action' => 'creation',
-                        'timestamp' => now()->toISOString(),
-                        'details' => 'Ticket créé avec numéro unique - Système anti-doublon'
-                    ]]),
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ];
-
-                // Insérer en base de données
-                $ticketId = DB::table('queues')->insertGetId($ticketData);
-                
-                // Retourner le ticket créé
-                return (object) array_merge($ticketData, ['id' => $ticketId]);
-            });
-
-            // ✅ ENRICHIR AVEC LES STATISTIQUES DE FILE
-            $queueStats = Queue::getServiceStats($service->id);
-
-            // 📊 PRÉPARER LA RÉPONSE POUR LE FRONTEND
-            $response = [
-                'success' => true,
-                'message' => 'Ticket généré avec succès !',
-                'ticket' => [
-                    'id' => $ticket->id,
-                    'number' => $ticket->numero_ticket,
-                    'service' => $service->nom,
-                    'service_letter' => $ticket->letter_of_service,
-                    'position' => $ticket->position_file,
-                    'estimated_time' => $ticket->temps_attente_estime,
-                    'date' => now()->format('d/m/Y'),
-                    'time' => \Carbon\Carbon::createFromFormat('H:i:s', $ticket->heure_d_enregistrement)->format('H:i'),
-                    'fullName' => $ticket->prenom,
-                    'phone' => $ticket->telephone,
-                    'comment' => $ticket->commentaire ?: '',
-                    'statut' => $ticket->statut_global,
-                    'queue_stats' => $queueStats,
-                    'queue_info' => [
-                        'type' => 'service_numbering_unique',
-                        'principle' => 'Numérotation par service avec système anti-doublon',
-                        'arrival_time' => $ticket->heure_d_enregistrement,
-                        'global_position' => $ticket->position_file
-                    ]
-                ],
-                'queue_status' => [
-                    'total_today' => $queueStats['total_tickets'],
-                    'waiting' => $queueStats['en_attente'],
-                    'in_progress' => $queueStats['en_cours'],
-                    'completed' => $queueStats['termines']
-                ]
-            ];
-
-            Log::info('✅ Ticket généré avec succès - Système anti-doublon', [
-                'ticket_id' => $ticket->id,
-                'numero_ticket' => $ticket->numero_ticket,
-                'service_name' => $service->nom,
-                'user_id' => $user->id,
-                'user_type' => $user->getUserRole(),
-                'creator_admin' => $creator->username,
-                'unique_number_generated' => true,
-                'position_chronologique' => $ticket->position_file,
-                'heure_arrivee' => $ticket->heure_d_enregistrement,
-                'anti_duplicate_system' => 'active'
-            ]);
-
-            return response()->json($response, 201);
-
-        } catch (\Exception $e) {
-            Log::error('❌ Erreur génération ticket - Système anti-doublon', [
-                'user_id' => Auth::id(),
-                'error' => $e->getMessage(),
-                'request_data' => $request->all(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la génération du ticket : ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * ✅ RAFRAÎCHIR LES STATISTIQUES DES SERVICES (avec file chronologique)
-     */
-    public function refreshUserServices(Request $request): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            
-            if (!$user->isEcranUser()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-
-            $creator = $user->getCreator();
-            if (!$creator) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Admin créateur introuvable'
-                ], 500);
-            }
-
-            // 🎯 FILTRAGE AUTOMATIQUE : Récupérer seulement les services actifs
-            $services = $creator->createdServices()
-                              ->where('statut', 'actif')  // Filtrage cohérent
-                              ->get()
-                              ->map(function($service) {
-                                  $queueStats = Queue::getServiceStats($service->id);
-                                  return [
-                                      'id' => $service->id,
-                                      'nom' => $service->nom,
-                                      'letter_of_service' => $service->letter_of_service,
-                                      'statut' => $service->statut,
-                                      'queue_stats' => $queueStats
-                                  ];
-                              });
-
-            return response()->json([
-                'success' => true,
-                'services' => $services,
-                'timestamp' => now()->format('H:i:s'),
-                'total_tickets_today' => Queue::whereIn('service_id', $services->pluck('id'))
-                                              ->whereDate('date', today())
-                                              ->count(),
-                'queue_info' => [
-                    'type' => 'service_numbering_unique',
-                    'principle' => 'Numérotation par service avec système anti-doublon',
-                    'next_global_position' => Queue::calculateQueuePosition(),
-                    'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
-                    'anti_duplicate_system' => 'active'
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Erreur refresh services Ecran', [
-                'user_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du rafraîchissement'
-            ], 500);
-        }
-    }
-
-    /**
-     * 🆕 Données spécifiques selon le type d'utilisateur
-     */
-    private function getTypeSpecificData(User $user): array
-    {
-        $data = [
-            'type_description' => '',
-            'type_features' => [],
-            'type_recommendations' => []
-        ];
-
-        if ($user->isAccueilUser()) {
-            $data['type_description'] = 'Poste Accueil - Réception et orientation des visiteurs';
-            $data['type_features'] = [
-                'Accueil des visiteurs',
-                'Orientation et information',
-                'Gestion des rendez-vous',
-                'Communication interne'
-            ];
-            $data['type_recommendations'] = [
-                'Vérifiez régulièrement les nouveaux visiteurs',
-                'Tenez à jour les informations d\'orientation',
-                'Communiquez avec l\'équipe de gestion'
-            ];
-        } elseif ($user->isConseillerUser()) {
-            $data['type_description'] = 'Poste Conseiller - Support et assistance client';
-            $data['type_features'] = [
-                'Support client avancé',
-                'Résolution de problèmes',
-                'Conseils personnalisés',
-                'Suivi client'
-            ];
-            $data['type_recommendations'] = [
-                'Restez à jour sur les procédures',
-                'Documentez les interactions clients',
-                'Collaborez avec l\'équipe support'
-            ];
-        }
-
-        return $data;
-    }
-
-    /**
-     * 🆕 Informations utilisateur formatées
-     */
-    private function getUserInfo(User $user): array
-    {
-        return [
-            'id' => $user->id,
-            'username' => $user->username,
-            'email' => $user->email,
-            'mobile_number' => $user->mobile_number,
-            'company' => $user->company,
-            'type_info' => $user->getTypeInfo(),
-            'status_info' => $user->getStatusInfo(),
-            'creation_info' => $user->getCreationInfo(),
-            'agency' => $user->agency ? [
-                'name' => $user->agency->name,
-                'city' => $user->agency->city,
-                'country' => $user->agency->country
-            ] : null,
-            'login_info' => $user->getLastLoginInfo(),
-            'password_info' => $user->getPasswordInfo()
-        ];
-    }
-
-    // ===============================================
-    // 🔧 MÉTHODES UTILITAIRES PRIVÉES CONSEILLER
+    // MÉTHODES UTILITAIRES PRIVÉES AMÉLIORÉES
     // ===============================================
 
     /**
@@ -1644,6 +1325,30 @@ class DashboardController extends Controller
         $end = $ticket->heure_de_fin ? Carbon::parse($ticket->heure_de_fin) : now();
         
         return $start->diffInMinutes($end);
+    }
+
+    /**
+     * ✅ CALCULER LE TEMPS D'ATTENTE D'UN TICKET SPÉCIFIQUE
+     */
+    private function calculateTicketWaitingTime($ticket): int
+    {
+        $now = now();
+        $arrival = null;
+        
+        if ($ticket->heure_d_enregistrement && $ticket->heure_d_enregistrement !== '--:--') {
+            // Utiliser l'heure d'enregistrement si disponible
+            $today = $now->toDateString();
+            $arrival = Carbon::parse($today . ' ' . $ticket->heure_d_enregistrement);
+        } elseif ($ticket->created_at) {
+            // Sinon utiliser created_at
+            $arrival = Carbon::parse($ticket->created_at);
+        }
+        
+        if (!$arrival) {
+            return 0;
+        }
+        
+        return max(0, $arrival->diffInMinutes($now));
     }
 
     /**
@@ -2241,6 +1946,291 @@ class DashboardController extends Controller
     }
 
     // ===============================================
+    // ✅ GÉNÉRATION DE TICKET AVEC NUMÉROS UNIQUES - PROBLÈME RÉSOLU
+    // ===============================================
+
+    /**
+     * 🎯 GÉNÉRATION DE NUMÉRO DE TICKET UNIQUE (Solution du problème de doublon)
+     */
+    private function generateUniqueTicketNumber($serviceId, $letterOfService)
+    {
+        $date = now()->format('Y-m-d');
+        $counter = 1;
+        
+        do {
+            $ticketNumber = $letterOfService . str_pad($counter, 3, '0', STR_PAD_LEFT);
+            
+            // Vérifier si ce numéro existe déjà aujourd'hui
+            $exists = DB::table('queues')
+                ->where('numero_ticket', $ticketNumber)
+                ->where('date', $date)
+                ->exists();
+                
+            if (!$exists) {
+                return $ticketNumber;
+            }
+            
+            $counter++;
+            
+            // Sécurité : éviter une boucle infinie
+            if ($counter > 999) {
+                throw new \Exception("Impossible de générer un numéro de ticket unique pour le service");
+            }
+            
+        } while (true);
+    }
+
+    /**
+     * 🎫 GÉNÉRATION EFFECTIVE D'UN TICKET EN BASE DE DONNÉES - CORRIGÉE
+     * Utilise la nouvelle logique de génération de numéros uniques
+     */
+    public function generateTicket(Request $request): JsonResponse
+    {
+        try {
+            // 🔒 VÉRIFICATION : Seuls les utilisateurs Ecran peuvent générer des tickets
+            $user = Auth::user();
+            if (!$user->isEcranUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé. Seuls les postes écran peuvent générer des tickets.'
+                ], 403);
+            }
+
+            // ✅ VALIDATION DES DONNÉES
+            $validator = Validator::make($request->all(), [
+                'service_id' => 'required|integer|exists:services,id',
+                'full_name' => 'required|string|max:100',
+                'phone' => 'required|string|max:20',
+                'comment' => 'nullable|string|max:500'
+            ], [
+                'service_id.required' => 'Le service est obligatoire.',
+                'service_id.exists' => 'Service sélectionné invalide.',
+                'full_name.required' => 'Le nom est obligatoire.',
+                'full_name.max' => 'Le nom ne peut pas dépasser 100 caractères.',
+                'phone.required' => 'Le téléphone est obligatoire.',
+                'phone.max' => 'Le téléphone ne peut pas dépasser 20 caractères.',
+                'comment.max' => 'Le commentaire ne peut pas dépasser 500 caractères.'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation.',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // ✅ VÉRIFICATION : Le service appartient-il à l'admin créateur de cet utilisateur ?
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de configuration : admin créateur introuvable.'
+                ], 500);
+            }
+
+            $service = Service::where('id', $request->service_id)
+                             ->where('created_by', $creator->id)
+                             ->first();
+
+            if (!$service) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Service non autorisé pour cet utilisateur.'
+                ], 403);
+            }
+
+            if (!$service->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce service n\'est pas disponible actuellement.'
+                ], 400);
+            }
+
+            // 🚀 UTILISATION D'UNE TRANSACTION POUR ÉVITER LES CONFLITS
+            $ticket = DB::transaction(function () use ($request, $service, $user, $creator) {
+                // 🎯 GÉNÉRER UN NUMÉRO DE TICKET UNIQUE
+                $letterOfService = strtoupper(substr($service->nom, 0, 1));
+                $uniqueTicketNumber = $this->generateUniqueTicketNumber($service->id, $letterOfService);
+                
+                // Calculer la position dans la file
+                $position = Queue::whereDate('date', today())
+                                ->where('statut_global', '!=', 'termine')
+                                ->count() + 1;
+                
+                // ✅ TEMPS D'ATTENTE : Utiliser le temps configuré par l'admin
+                $estimatedWaitTime = Setting::getDefaultWaitingTimeMinutes();
+                
+                // Données pour créer le ticket
+                $ticketData = [
+                    'id_agence' => $user->agency_id ?? 1,
+                    'letter_of_service' => $letterOfService,
+                    'service_id' => $service->id,
+                    'prenom' => $request->full_name,
+                    'telephone' => $request->phone,
+                    'commentaire' => $request->comment ?? '',
+                    'date' => now()->format('Y-m-d'),
+                    'heure_d_enregistrement' => now()->format('H:i:s'),
+                    'numero_ticket' => $uniqueTicketNumber,
+                    'position_file' => $position,
+                    'temps_attente_estime' => $estimatedWaitTime, // ✅ Temps admin
+                    'statut_global' => 'en_attente',
+                    'resolu' => 'En cours',
+                    'transferer' => 'No',
+                    'debut' => 'No',
+                    'created_by_ip' => $request->ip(),
+                    'historique' => json_encode([[
+                        'action' => 'creation',
+                        'timestamp' => now()->toISOString(),
+                        'details' => 'Ticket créé avec numéro unique - Système anti-doublon'
+                    ]]),
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+
+                // Insérer en base de données
+                $ticketId = DB::table('queues')->insertGetId($ticketData);
+                
+                // Retourner le ticket créé
+                return (object) array_merge($ticketData, ['id' => $ticketId]);
+            });
+
+            // ✅ ENRICHIR AVEC LES STATISTIQUES DE FILE
+            $queueStats = Queue::getServiceStats($service->id);
+
+            // 📊 PRÉPARER LA RÉPONSE POUR LE FRONTEND
+            $response = [
+                'success' => true,
+                'message' => 'Ticket généré avec succès !',
+                'ticket' => [
+                    'id' => $ticket->id,
+                    'number' => $ticket->numero_ticket,
+                    'service' => $service->nom,
+                    'service_letter' => $ticket->letter_of_service,
+                    'position' => $ticket->position_file,
+                    'estimated_time' => $ticket->temps_attente_estime,
+                    'date' => now()->format('d/m/Y'),
+                    'time' => \Carbon\Carbon::createFromFormat('H:i:s', $ticket->heure_d_enregistrement)->format('H:i'),
+                    'fullName' => $ticket->prenom,
+                    'phone' => $ticket->telephone,
+                    'comment' => $ticket->commentaire ?: '',
+                    'statut' => $ticket->statut_global,
+                    'queue_stats' => $queueStats,
+                    'queue_info' => [
+                        'type' => 'service_numbering_unique',
+                        'principle' => 'Numérotation par service avec système anti-doublon',
+                        'arrival_time' => $ticket->heure_d_enregistrement,
+                        'global_position' => $ticket->position_file,
+                        'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes() // ✅ Temps admin
+                    ]
+                ],
+                'queue_status' => [
+                    'total_today' => $queueStats['total_tickets'],
+                    'waiting' => $queueStats['en_attente'],
+                    'in_progress' => $queueStats['en_cours'],
+                    'completed' => $queueStats['termines']
+                ]
+            ];
+
+            Log::info('✅ Ticket généré avec succès - Système anti-doublon', [
+                'ticket_id' => $ticket->id,
+                'numero_ticket' => $ticket->numero_ticket,
+                'service_name' => $service->nom,
+                'user_id' => $user->id,
+                'user_type' => $user->getUserRole(),
+                'creator_admin' => $creator->username,
+                'unique_number_generated' => true,
+                'position_chronologique' => $ticket->position_file,
+                'heure_arrivee' => $ticket->heure_d_enregistrement,
+                'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
+                'anti_duplicate_system' => 'active'
+            ]);
+
+            return response()->json($response, 201);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Erreur génération ticket - Système anti-doublon', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'request_data' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du ticket : ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ RAFRAÎCHIR LES STATISTIQUES DES SERVICES (avec file chronologique)
+     */
+    public function refreshUserServices(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isEcranUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Admin créateur introuvable'
+                ], 500);
+            }
+
+            // 🎯 FILTRAGE AUTOMATIQUE : Récupérer seulement les services actifs
+            $services = $creator->createdServices()
+                              ->where('statut', 'actif')  // Filtrage cohérent
+                              ->get()
+                              ->map(function($service) {
+                                  $queueStats = Queue::getServiceStats($service->id);
+                                  return [
+                                      'id' => $service->id,
+                                      'nom' => $service->nom,
+                                      'letter_of_service' => $service->letter_of_service,
+                                      'statut' => $service->statut,
+                                      'queue_stats' => $queueStats
+                                  ];
+                              });
+
+            return response()->json([
+                'success' => true,
+                'services' => $services,
+                'timestamp' => now()->format('H:i:s'),
+                'total_tickets_today' => Queue::whereIn('service_id', $services->pluck('id'))
+                                              ->whereDate('date', today())
+                                              ->count(),
+                'queue_info' => [
+                    'type' => 'service_numbering_unique',
+                    'principle' => 'Numérotation par service avec système anti-doublon',
+                    'next_global_position' => Queue::calculateQueuePosition(),
+                    'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
+                    'anti_duplicate_system' => 'active'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur refresh services Ecran', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du rafraîchissement'
+            ], 500);
+        }
+    }
+
+    // ===============================================
     // API AJAX POUR STATISTIQUES ET RECHERCHE
     // ===============================================
 
@@ -2311,7 +2301,7 @@ class DashboardController extends Controller
                 'queue_info' => [
                     'type' => 'service_numbering_unique',
                     'principle' => 'Numérotation par service avec système anti-doublon',
-                    'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                    'configured_time' => Setting::getDefaultWaitingTimeMinutes(),
                     'anti_duplicate_system' => 'active'
                 ],
                 'timestamp' => now()->format('d/m/Y H:i:s')
@@ -2608,6 +2598,72 @@ class DashboardController extends Controller
     }
 
     /**
+     * 🆕 Données spécifiques selon le type d'utilisateur
+     */
+    private function getTypeSpecificData(User $user): array
+    {
+        $data = [
+            'type_description' => '',
+            'type_features' => [],
+            'type_recommendations' => []
+        ];
+
+        if ($user->isAccueilUser()) {
+            $data['type_description'] = 'Poste Accueil - Réception et orientation des visiteurs';
+            $data['type_features'] = [
+                'Accueil des visiteurs',
+                'Orientation et information',
+                'Gestion des rendez-vous',
+                'Communication interne'
+            ];
+            $data['type_recommendations'] = [
+                'Vérifiez régulièrement les nouveaux visiteurs',
+                'Tenez à jour les informations d\'orientation',
+                'Communiquez avec l\'équipe de gestion'
+            ];
+        } elseif ($user->isConseillerUser()) {
+            $data['type_description'] = 'Poste Conseiller - Support et assistance client';
+            $data['type_features'] = [
+                'Support client avancé',
+                'Résolution de problèmes',
+                'Conseils personnalisés',
+                'Suivi client'
+            ];
+            $data['type_recommendations'] = [
+                'Restez à jour sur les procédures',
+                'Documentez les interactions clients',
+                'Collaborez avec l\'équipe support'
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
+     * 🆕 Informations utilisateur formatées
+     */
+    private function getUserInfo(User $user): array
+    {
+        return [
+            'id' => $user->id,
+            'username' => $user->username,
+            'email' => $user->email,
+            'mobile_number' => $user->mobile_number,
+            'company' => $user->company,
+            'type_info' => $user->getTypeInfo(),
+            'status_info' => $user->getStatusInfo(),
+            'creation_info' => $user->getCreationInfo(),
+            'agency' => $user->agency ? [
+                'name' => $user->agency->name,
+                'city' => $user->agency->city,
+                'country' => $user->agency->country
+            ] : null,
+            'login_info' => $user->getLastLoginInfo(),
+            'password_info' => $user->getPasswordInfo()
+        ];
+    }
+
+    /**
      * Générer un mot de passe sécurisé
      */
     private function generateSecurePassword($length = 8): string 
@@ -2642,6 +2698,6 @@ class DashboardController extends Controller
         } else {
             $years = floor($days / 365);
             return $years . ' an' . ($years > 1 ? 's' : '');
-        }
-    }
+        } 
+    }     
 }
