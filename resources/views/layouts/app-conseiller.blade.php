@@ -94,7 +94,7 @@
                     <div class="nav-link">
                         <button class="btn btn-success btn-sm btn-call-next" onclick="advisorInterface.callNextTicket()">
                             <i data-feather="phone-call" class="mr-2"></i>
-                            <span class="btn-text">Appeler suivant</span>
+                            <span class="btn-text">Appeler premier</span>
                             <span class="btn-loading d-none">
                                 <span class="spinner-border spinner-border-sm mr-1"></span>Appel...
                             </span>
@@ -122,7 +122,7 @@
                                 </h4>
                                 <ol class="breadcrumb">
                                     <li class="breadcrumb-item"><a href="{{ route('layouts.app-users') }}">Dashboard</a></li>
-                                    <li class="breadcrumb-item active">File d'attente</li>
+                                    <li class="breadcrumb-item active">File d'attente FIFO</li>
                                 </ol>
                             </div>
                             <div class="col-auto align-self-center">
@@ -161,7 +161,7 @@
             </div>
             @endif
 
-            <!-- Statistiques de la file d'attente - AMÉLIORÉES -->
+            <!-- Statistiques de la file d'attente -->
             <div class="row mb-4">
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card card-waiting">
@@ -205,12 +205,12 @@
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card card-time">
                         <div class="stats-icon bg-primary">
-                            <i data-feather="trending-down" class="text-white"></i>
+                            <i data-feather="users" class="text-white"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-primary" id="averageWaitTime">{{ $defaultWaitTime ?? 15 }}min</h3>
-                            <p class="stats-label">Temps configuré</p>
-                            <small class="stats-desc">Par l'admin</small>
+                            <p class="stats-label">Temps moyen</p>
+                            <small class="stats-desc">Estimation</small>
                         </div>
                     </div>
                 </div>
@@ -224,15 +224,15 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <h5 class="card-title mb-0">
-                                         File d'attente FIFO
+                                        🎯 File d'attente FIFO
                                         <span class="badge badge-light ml-2" id="queueCountBadge">{{ $fileStats['tickets_en_attente'] ?? 0 }} tickets</span>
                                     </h5>
-                                    <small class="text-muted">Premier arrivé, premier servi</small>
+                                    <small class="text-muted">Premier arrivé, premier servi - Seul le premier peut être appelé</small>
                                 </div>
                                 <div>
                                     <div class="btn-group btn-group-sm" role="group">
                                         <button class="btn btn-success" onclick="advisorInterface.callNextTicket()">
-                                            <i data-feather="phone-call" class="mr-1"></i>Appeler suivant
+                                            <i data-feather="phone-call" class="mr-1"></i>Appeler premier
                                         </button>
                                         <button class="btn btn-outline-primary" onclick="advisorInterface.refreshTickets()">
                                             <i data-feather="refresh-cw"></i>
@@ -242,6 +242,25 @@
                             </div>
                         </div>
                         <div class="card-body p-0">
+                            <!-- En-têtes de colonnes -->
+                            <div class="queue-header">
+                                <div class="row align-items-center py-3 px-3 bg-light border-bottom">
+                                    <div class="col-2">
+                                        <strong class="text-dark">Code</strong>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong class="text-dark">Nom Client</strong>
+                                    </div>
+                                    <div class="col-3">
+                                        <strong class="text-dark">Service</strong>
+                                    </div>
+                                    <div class="col-2 text-center">
+                                        <strong class="text-dark">Durée d'attente</strong>
+                                    </div>
+                                    
+                                </div>
+                            </div>
+                            
                             <div class="queue-container">
                                 <div id="ticketsContainer" class="tickets-list">
                                     <!-- Tickets chargés via AJAX -->
@@ -316,7 +335,7 @@
                                             <i data-feather="user-plus" class="text-muted"></i>
                                         </div>
                                         <h6 class="text-muted mb-2">Aucun client en cours</h6>
-                                        <p class="text-muted small mb-3">Cliquez sur "Appeler suivant" pour commencer</p>
+                                        <p class="text-muted small mb-3">Cliquez sur "Appeler premier" pour commencer</p>
                                         <button class="btn btn-primary btn-sm" onclick="advisorInterface.callNextTicket()">
                                             <i data-feather="phone-call" class="mr-1"></i>Appeler premier client
                                         </button>
@@ -340,7 +359,7 @@
                                 <div class="col-lg-3 col-md-6 mb-2">
                                     <button class="btn btn-success btn-block btn-action" onclick="advisorInterface.callNextTicket()">
                                         <i data-feather="phone-call" class="mr-2"></i>
-                                        Appeler suivant
+                                        Appeler premier
                                     </button>
                                 </div>
                                 <div class="col-lg-3 col-md-6 mb-2">
@@ -369,7 +388,7 @@
         </div>
 
         <footer class="footer text-center text-sm-left">
-            &copy; {{ date('Y') }} Attendis 
+            &copy; {{ date('Y') }} Attendis - File FIFO
             <span class="d-none d-sm-inline-block float-right">
                 {{ $userInfo['username'] ?? 'Conseiller' }} - Interface Conseiller 
                 <span class="ml-2">
@@ -515,7 +534,7 @@
     border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
 }
 
-/* ===== Stats Cards améliorées - VERSION ÉQUILIBRÉE ===== */
+/* ===== Stats Cards améliorées ===== */
 .stats-card {
     background: white;
     border-radius: var(--border-radius-sm);
@@ -576,11 +595,45 @@
     font-weight: 400;
 }
 
-/* ===== Queue Card améliorée ===== */
+/* ===== Queue Card améliorée avec en-têtes et colonnes personnalisées ===== */
 .queue-card {
     background: white;
     box-shadow: var(--shadow-md);
     border-radius: var(--border-radius-sm);
+}
+
+.queue-header {
+    background: #f8f9fa;
+    border-bottom: 2px solid #e9ecef;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* ===== Colonnes personnalisées plus compactes ===== */
+.queue-col-code {
+    flex: 0 0 110px;
+    min-width: 110px;
+}
+
+.queue-col-client {
+    flex: 1;
+    min-width: 160px;
+}
+
+.queue-col-service {
+    flex: 0 0 90px;
+    min-width: 90px;
+}
+
+.queue-col-waiting {
+    flex: 0 0 80px;
+    min-width: 80px;
+}
+
+.queue-col-action {
+    flex: 0 0 65px;
+    min-width: 65px;
 }
 
 .queue-container {
@@ -592,17 +645,15 @@
     min-height: 200px;
 }
 
-/* ===== Ticket Items - Style plus soft avec correction chevauchement ===== */
+/* ===== Ticket Items - Style amélioré avec colonnes alignées ===== */
 .ticket-item {
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid #f1f3f4;
     transition: var(--transition);
     cursor: pointer;
     position: relative;
     background: white;
-    margin-bottom: 1px;
-    /* ✅ CORRECTION: Ajout de padding-right pour éviter le chevauchement */
-    padding-right: 4.5rem; /* Espace pour le badge de position */
+    margin-bottom: 0;
 }
 
 .ticket-item:last-child {
@@ -615,37 +666,53 @@
     padding-left: calc(1.5rem - 3px);
 }
 
-.ticket-item.urgent {
-    border-left: 4px solid var(--danger-color);
-    background: rgba(220, 53, 69, 0.02);
+/* ===== Premier ticket en tête - style spécial ===== */
+.ticket-item.first-in-queue {
+    background: linear-gradient(90deg, rgba(40, 167, 69, 0.05) 0%, rgba(40, 167, 69, 0.08) 100%);
+    border-left: 4px solid var(--success-color);
     padding-left: calc(1.5rem - 4px);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.1);
 }
 
-.ticket-item.priority {
-    border-left: 4px solid var(--warning-color);
-    background: rgba(255, 193, 7, 0.02);
-    padding-left: calc(1.5rem - 4px);
+.ticket-item.first-in-queue:hover {
+    background: linear-gradient(90deg, rgba(40, 167, 69, 0.08) 0%, rgba(40, 167, 69, 0.12) 100%);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.15);
 }
 
-/* ✅ CORRECTION: Badge de position repositionné pour éviter le chevauchement */
-.ticket-position {
+/* ===== Tickets bloqués (pas le premier) ===== */
+.ticket-item.blocked {
+    opacity: 0.6;
+    background: #f8f9fa;
+    cursor: not-allowed;
+}
+
+.ticket-item.blocked:hover {
+    background: #f8f9fa;
+    border-left: none;
+    padding-left: 1.5rem;
+}
+
+/* Badge PREMIER */
+.first-badge {
     position: absolute;
-    top: 0.75rem;
+    top: 0.5rem;
     right: 1rem;
-    background: var(--primary-color);
+    background: linear-gradient(45deg, var(--success-color), #218838);
     color: white;
     padding: 0.25rem 0.75rem;
     border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    z-index: 10; /* S'assurer qu'il est au-dessus */
-    min-width: 35px;
-    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+    animation: pulse 2s infinite;
 }
 
-/* ✅ CORRECTION: Ajustement des colonnes pour éviter le chevauchement */
-.ticket-item .col-md-2 {
-    padding-right: 0.75rem; /* Moins de padding à droite */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
 }
 
 .ticket-number {
@@ -666,19 +733,42 @@
 
 .ticket-waiting-time {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 1rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    text-align: center;
+    min-width: 50px;
 }
 
 .ticket-waiting-time.urgent {
-    color: var(--danger-color);
+    color: white;
+    background: var(--danger-color);
 }
 
 .ticket-waiting-time.warning {
-    color: var(--warning-color);
+    color: #856404;
+    background: #fff3cd;
 }
 
 .ticket-waiting-time.normal {
-    color: var(--success-color);
+    color: #155724;
+    background: #d4edda;
+}
+
+/* ===== Boutons d'action ===== */
+.btn-call-ticket {
+    transition: var(--transition);
+}
+
+.btn-call-ticket:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-call-ticket.blocked {
+    background: #6c757d;
+    border-color: #6c757d;
+    opacity: 0.5;
 }
 
 /* ===== Current Ticket Panel ===== */
@@ -788,29 +878,6 @@
     text-align: center;
 }
 
-/* ===== Badges de statut avec couleurs appropriées ===== */
-.status-badge {
-    font-size: 0.75rem;
-    padding: 0.35rem 0.65rem;
-    border-radius: 12px;
-    font-weight: 600;
-}
-
-.status-nouveau {
-    background: #d4edda;
-    color: #155724;
-}
-
-.status-moyen {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.status-urgent {
-    background: #f8d7da;
-    color: #721c24;
-}
-
 /* ===== Responsive amélioré ===== */
 @media (max-width: 768px) {
     .stats-card {
@@ -824,14 +891,12 @@
     
     .ticket-item {
         padding: 1rem;
-        padding-right: 4rem; /* ✅ Ajustement mobile */
     }
     
-    .ticket-position {
+    .first-badge {
         right: 0.5rem;
         padding: 0.2rem 0.6rem;
-        font-size: 0.7rem;
-        min-width: 30px;
+        font-size: 0.65rem;
     }
     
     .stats-icon {
@@ -841,6 +906,32 @@
     
     .stats-number {
         font-size: 1.75rem;
+    }
+    
+    /* Ajustement colonnes pour mobile */
+    .queue-col-code {
+        flex: 0 0 100px;
+        min-width: 100px;
+    }
+    
+    .queue-col-client {
+        flex: 1;
+        min-width: 150px;
+    }
+    
+    .queue-col-service {
+        flex: 0 0 80px;
+        min-width: 80px;
+    }
+    
+    .queue-col-waiting {
+        flex: 0 0 70px;
+        min-width: 70px;
+    }
+    
+    .queue-col-action {
+        flex: 0 0 60px;
+        min-width: 60px;
     }
 }
 
@@ -858,8 +949,24 @@
         margin-bottom: 0.5rem;
     }
     
-    .ticket-item {
-        padding-right: 3.5rem; /* ✅ Encore moins d'espace sur très petit écran */
+    /* Colonnes très petit écran */
+    .queue-col-code {
+        flex: 0 0 80px;
+        min-width: 80px;
+    }
+    
+    .queue-col-service {
+        display: none; /* Masquer service sur très petit écran */
+    }
+    
+    .queue-col-waiting {
+        flex: 0 0 60px;
+        min-width: 60px;
+    }
+    
+    .queue-col-action {
+        flex: 0 0 50px;
+        min-width: 50px;
     }
 }
 
@@ -919,7 +1026,7 @@
 
 <!-- JavaScript amélioré -->
 <script>
-// ===== Interface Conseiller - Version améliorée =====
+// ===== Interface Conseiller FIFO - Version améliorée =====
 class AdvisorInterface {
     constructor() {
         this.currentTicket = null;
@@ -927,7 +1034,7 @@ class AdvisorInterface {
         this.refreshInterval = null;
         this.isPaused = false;
         this.isInitialized = false;
-        this.autoRefreshEnabled = false;
+        this.waitingTimeUpdateInterval = null;
         
         this.config = {
             refreshInterval: 30000,
@@ -948,9 +1055,14 @@ class AdvisorInterface {
             this.setupAjax();
             this.bindEvents();
             await this.loadInitialData();
+            this.startWaitingTimeUpdater();
             this.isInitialized = true;
-            this.showNotification('success', 'Interface conseiller prête', 'Utilisez "Actualiser" pour rafraîchir');
-            console.log('✅ AdvisorInterface initialized successfully');
+            
+            // Message de diagnostic
+            this.showNotification('success', 'Interface FIFO prête', 'Seul le premier ticket peut être appelé');
+            console.log('✅ AdvisorInterface FIFO initialized successfully');
+            console.log('🔍 Si les noms n\'apparaissent pas, vérifiez la console pour le debug des données');
+            
         } catch (error) {
             console.error('❌ Failed to initialize AdvisorInterface:', error);
             this.showNotification('error', 'Erreur d\'initialisation', error.message);
@@ -968,10 +1080,6 @@ class AdvisorInterface {
     }
 
     bindEvents() {
-        document.addEventListener('visibilitychange', () => {
-            console.log('🔄 Page visibility changed - no auto refresh');
-        });
-
         document.addEventListener('keydown', (e) => {
             if (e.altKey && e.key === 'n') {
                 e.preventDefault();
@@ -999,35 +1107,35 @@ class AdvisorInterface {
         ]);
     }
 
-    toggleAutoRefresh() {
-        if (this.autoRefreshEnabled) {
-            this.stopAutoRefresh();
-            this.showNotification('info', 'Auto-refresh désactivé', 'Utilisez le bouton pour actualiser');
-        } else {
-            this.startAutoRefresh();
-            this.showNotification('info', 'Auto-refresh activé', 'Actualisation toutes les 30s');
-        }
+    // ===== Nouveau : Mise à jour temps d'attente en temps réel =====
+    startWaitingTimeUpdater() {
+        this.waitingTimeUpdateInterval = setInterval(() => {
+            this.updateWaitingTimes();
+        }, 60000); // Mise à jour chaque minute
     }
 
-    startAutoRefresh() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-        }
-        
-        this.autoRefreshEnabled = true;
-        this.refreshInterval = setInterval(() => {
-            if (!document.hidden && this.autoRefreshEnabled) {
-                this.refreshTickets();
+    updateWaitingTimes() {
+        const ticketElements = document.querySelectorAll('.ticket-item');
+        ticketElements.forEach((element, index) => {
+            const ticket = this.ticketsData[index];
+            if (ticket) {
+                const waitingTime = this.calculateRealWaitingTime(ticket.heure_d_enregistrement || ticket.created_at);
+                const timeElement = element.querySelector('.ticket-waiting-time');
+                if (timeElement) {
+                    timeElement.textContent = waitingTime + 'min';
+                    
+                    // Mise à jour des classes de style
+                    timeElement.classList.remove('normal', 'warning', 'urgent');
+                    if (waitingTime > 30) {
+                        timeElement.classList.add('urgent');
+                    } else if (waitingTime > 15) {
+                        timeElement.classList.add('warning');
+                    } else {
+                        timeElement.classList.add('normal');
+                    }
+                }
             }
-        }, this.config.refreshInterval);
-    }
-
-    stopAutoRefresh() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
-        }
-        this.autoRefreshEnabled = false;
+        });
     }
 
     // ===== API Methods =====
@@ -1037,6 +1145,25 @@ class AdvisorInterface {
             
             if (response.success) {
                 this.ticketsData = response.tickets || [];
+                
+                // 🔍 DEBUG : Vérifier les données reçues du serveur
+                if (this.ticketsData.length > 0) {
+                    console.log('📡 DEBUG: Données reçues du serveur pour le premier ticket:');
+                    console.log('🎫 Premier ticket brut:', this.ticketsData[0]);
+                    console.log('🔍 Champs disponibles:', Object.keys(this.ticketsData[0]));
+                    
+                    // Vérifier spécifiquement les champs nom
+                    const firstTicket = this.ticketsData[0];
+                    console.log('📝 Champs nom détectés:');
+                    ['prenom', 'nom', 'nom_complet', 'client_name', 'name'].forEach(field => {
+                        if (firstTicket.hasOwnProperty(field)) {
+                            console.log(`   - ${field}: "${firstTicket[field]}"`);
+                        } else {
+                            console.log(`   - ${field}: [ABSENT]`);
+                        }
+                    });
+                }
+                
                 this.updateUI(response);
                 console.log('🔄 Tickets refreshed:', this.ticketsData.length);
             } else {
@@ -1059,11 +1186,18 @@ class AdvisorInterface {
             return;
         }
 
-        const nextTicket = this.ticketsData[0];
-        await this.callTicket(nextTicket.id);
+        // ✅ FIFO : Toujours prendre le premier ticket
+        const firstTicket = this.ticketsData[0];
+        await this.callTicket(firstTicket.id);
     }
 
     async callTicket(ticketId) {
+        // ✅ RESTRICTION FIFO : Vérifier que c'est bien le premier ticket
+        if (this.ticketsData.length > 0 && this.ticketsData[0].id !== ticketId) {
+            this.showNotification('warning', 'Restriction FIFO', 'Vous ne pouvez appeler que le premier ticket de la file');
+            return;
+        }
+
         try {
             this.setButtonLoading('.btn-call-next', true);
             
@@ -1075,7 +1209,7 @@ class AdvisorInterface {
                 this.currentTicket = response.ticket;
                 this.updateCurrentTicketPanel(response.ticket);
                 await this.refreshTickets();
-                this.showNotification('success', 'Client appelé', `Ticket ${response.ticket.numero_ticket}`);
+                this.showNotification('success', 'Premier client appelé', `Ticket ${response.ticket.numero_ticket}`);
                 this.playNotificationSound();
             } else {
                 throw new Error(response.message || 'Erreur lors de l\'appel');
@@ -1159,115 +1293,9 @@ class AdvisorInterface {
         this.updateNotifications(response.tickets);
     }
 
-    // ✅ CORRECTION: Fonction pour formater l'heure de prise de tickets
-    formatArrivalTime(ticket) {
-        // ✅ PRIORITÉ 1: Utiliser heure_d_enregistrement (heure exacte de prise de ticket à l'accueil)
-        if (ticket.heure_d_enregistrement && 
-            ticket.heure_d_enregistrement !== '--:--' && 
-            ticket.heure_d_enregistrement !== null &&
-            ticket.heure_d_enregistrement.trim() !== '') {
-            
-            // Formatter l'heure si elle est au format H:i:s
-            try {
-                // Si c'est déjà au bon format H:i, le retourner tel quel
-                if (ticket.heure_d_enregistrement.match(/^\d{2}:\d{2}$/)) {
-                    return ticket.heure_d_enregistrement;
-                }
-                
-                // Si c'est au format H:i:s, extraire H:i
-                if (ticket.heure_d_enregistrement.match(/^\d{2}:\d{2}:\d{2}$/)) {
-                    return ticket.heure_d_enregistrement.substring(0, 5);
-                }
-                
-                // Essayer de parser comme une date/heure complète
-                const time = new Date(`1970-01-01T${ticket.heure_d_enregistrement}`);
-                if (!isNaN(time.getTime())) {
-                    return time.toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
-                }
-                
-                return ticket.heure_d_enregistrement;
-            } catch (e) {
-                console.log('Erreur formatage heure_d_enregistrement:', e);
-                return ticket.heure_d_enregistrement;
-            }
-        }
-        
-        // ✅ PRIORITÉ 2: Fallback sur created_at si heure_d_enregistrement n'est pas disponible
-        if (ticket.created_at) {
-            try {
-                const date = new Date(ticket.created_at);
-                if (!isNaN(date.getTime())) {
-                    return date.toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
-                }
-            } catch (e) {
-                console.log('Erreur formatage created_at:', e);
-            }
-        }
-        
-        // ✅ PRIORITÉ 3: Fallback final sur le champ date
-        if (ticket.date) {
-            try {
-                const date = new Date(ticket.date);
-                if (!isNaN(date.getTime())) {
-                    return date.toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
-                }
-            } catch (e) {
-                console.log('Erreur formatage date:', e);
-            }
-        }
-        
-        // Fallback ultime - ne devrait jamais arriver
-        return '--:--';
-    }
-
-    // ⚠️ IMPORTANT: Vérifier côté serveur (route conseiller.tickets)
-    // Les champs suivants doivent être inclus dans la réponse JSON :
-    // - prenom (depuis la base de données, ne doit jamais être vide)
-    // - date (date de création du ticket)
-    // - telephone (numéro du client)
-    // - heure_d_enregistrement (heure exacte de prise de ticket)
-    // - service (nom du service)
-    // Si ces champs sont vides, vérifier la requête SQL côté serveur !
-
-    // ✅ NOUVELLE FONCTION: Validation et nettoyage des données ticket
-    validateTicketData(ticket) {
-        return {
-            id: ticket.id || 0,
-            numero_ticket: ticket.numero_ticket || 'N/A',
-            prenom: ticket.prenom && ticket.prenom.trim() !== '' ? ticket.prenom.trim() : 'Nom non renseigné',
-            telephone: ticket.telephone && ticket.telephone.trim() !== '' ? ticket.telephone.trim() : 'Téléphone non renseigné',
-            date: ticket.date || 'Date non définie', // ✅ Date du jour de la demande
-            service: ticket.service || 'Service non défini',
-            temps_attente_estime: ticket.temps_attente_estime || 0, // ✅ Temps d'attente estimé depuis la DB
-            commentaire: ticket.commentaire || null
-        };
-    }
-
-    // ✅ CORRECTION: Fonction updateTicketsList modifiée
+    // ✅ AMÉLIORATION MAJEURE : Nouvelle fonction updateTicketsList avec structure en colonnes
     updateTicketsList(tickets) {
         const container = document.getElementById('ticketsContainer');
-        
-        // ✅ Debug: Vérifier les données reçues
-        if (tickets && tickets.length > 0) {
-            console.log('📊 Données tickets reçues:', tickets[0]);
-            console.log('🔍 Champs importants:', {
-                prenom: tickets[0].prenom,
-                date: tickets[0].date,
-                telephone: tickets[0].telephone,
-                service: tickets[0].service,
-                temps_attente_estime: tickets[0].temps_attente_estime,
-                created_at: tickets[0].created_at
-            });
-        }
         
         if (!tickets || tickets.length === 0) {
             container.innerHTML = `
@@ -1284,54 +1312,60 @@ class AdvisorInterface {
         } else {
             let html = '';
             tickets.forEach((ticket, index) => {
-                // ✅ Valider et nettoyer les données du ticket
                 const validatedTicket = this.validateTicketData(ticket);
                 
-                // ✅ Utiliser temps_attente_estime depuis la base de données
-                const estimatedWaitTime = validatedTicket.temps_attente_estime;
+                // ✅ Calcul temps d'attente RÉEL depuis heure_d_enregistrement
+                const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
                 
-                // ✅ Logique de statut basée sur le temps d'attente estimé de la DB
+                // Logique de statut basée sur le temps d'attente réel
                 let statusClass = 'normal';
-                let statusText = 'Nouveau';
-                let statusColor = 'text-success';
-                
-                if (estimatedWaitTime > 30) {
+                if (waitingTime > 30) {
                     statusClass = 'urgent';
-                    statusText = 'Urgent';
-                    statusColor = 'text-danger';
-                } else if (estimatedWaitTime > 15) {
+                } else if (waitingTime > 15) {
                     statusClass = 'warning';
-                    statusText = 'Moyen';
-                    statusColor = 'text-warning';
                 }
                 
+                // ✅ FIFO : Seul le premier ticket peut être appelé
+                const isFirst = index === 0;
+                const itemClass = isFirst ? 'ticket-item first-in-queue' : 'ticket-item blocked';
+                
                 html += `
-                    <div class="ticket-item fade-in-up ${statusClass}" 
+                    <div class="${itemClass}" 
                          onclick="advisorInterface.showTicketDetails(${validatedTicket.id})" 
                          style="animation-delay: ${index * 0.1}s">
-                        <div class="ticket-position">#${index + 1}</div>
-                        <div class="row align-items-center">
-                            <div class="col-md-3">
+                        
+                        ${isFirst ? '<div class="first-badge">PREMIER</div>' : ''}
+                        
+                        <div class="d-flex align-items-center">
+                            <!-- Code Ticket -->
+                            <div class="queue-col-code">
                                 <div class="ticket-number">${validatedTicket.numero_ticket}</div>
-                                <small class="text-muted">Date: ${validatedTicket.date}</small>
+                                <small class="text-muted">${validatedTicket.date}</small>
                             </div>
-                            <div class="col-md-4">
+                            
+                            <!-- Nom Client -->
+                            <div class="queue-col-client">
                                 <strong class="d-block">${validatedTicket.prenom}</strong>
                                 <small class="text-muted">${validatedTicket.telephone}</small>
                             </div>
-                            <div class="col-md-3">
+                            
+                            <!-- Service -->
+                            <div class="queue-col-service">
                                 <span class="ticket-service">${validatedTicket.service}</span>
-                                <div class="mt-1">
-                                    <span class="status-badge status-${statusClass} ${statusColor}">${statusText}</span>
-                                </div>
                             </div>
-                            <div class="col-md-2 text-right">
-                                <div class="ticket-waiting-time ${statusClass}">${estimatedWaitTime}min</div>
-                                <div class="mt-2">
-                                    <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); advisorInterface.callTicket(${validatedTicket.id})">
-                                        <i data-feather="phone-call" style="width: 14px; height: 14px;"></i>
-                                    </button>
-                                </div>
+                            
+                            <!-- Durée d'attente -->
+                            <div class="queue-col-waiting text-center">
+                                <div class="ticket-waiting-time ${statusClass}">${waitingTime}min</div>
+                            </div>
+                            
+                            <!-- Action -->
+                            <div class="queue-col-action text-center">
+                                <button class="btn btn-success btn-sm btn-call-ticket ${!isFirst ? 'blocked' : ''}" 
+                                        onclick="event.stopPropagation(); advisorInterface.callTicket(${validatedTicket.id})"
+                                        ${!isFirst ? 'disabled title="Seul le premier ticket peut être appelé"' : ''}>
+                                    <i data-feather="phone-call" style="width: 14px; height: 14px;"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1345,6 +1379,86 @@ class AdvisorInterface {
         document.getElementById('queueCountBadge').textContent = queueCount + (queueCount === 1 ? ' ticket' : ' tickets');
         
         if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    // ✅ CORRECTION : Validation et nettoyage des données ticket avec debug
+    validateTicketData(ticket) {
+        // 🔍 DEBUG : Afficher toutes les données reçues pour diagnostic
+        console.log('🔍 DEBUG Ticket data:', {
+            id: ticket.id,
+            numero_ticket: ticket.numero_ticket,
+            prenom: ticket.prenom,
+            nom: ticket.nom,
+            nom_complet: ticket.nom_complet,
+            client_name: ticket.client_name,
+            name: ticket.name,
+            telephone: ticket.telephone,
+            service: ticket.service,
+            date: ticket.date,
+            created_at: ticket.created_at,
+            heure_d_enregistrement: ticket.heure_d_enregistrement
+        });
+
+        // ✅ Essayer plusieurs champs possibles pour le nom du client
+        let clientName = 'Nom non renseigné';
+        
+        // Priorité des champs à vérifier pour le nom
+        const nameFields = ['prenom', 'nom', 'nom_complet', 'client_name', 'name'];
+        
+        for (const field of nameFields) {
+            if (ticket[field] && ticket[field].toString().trim() !== '') {
+                clientName = ticket[field].toString().trim();
+                console.log(`✅ Nom trouvé dans le champ: ${field} = "${clientName}"`);
+                break;
+            }
+        }
+        
+        if (clientName === 'Nom non renseigné') {
+            console.warn('⚠️ ATTENTION: Aucun nom trouvé dans les champs:', nameFields);
+            console.warn('📋 Données brutes du ticket:', ticket);
+        }
+
+        return {
+            id: ticket.id || 0,
+            numero_ticket: ticket.numero_ticket || 'N/A',
+            prenom: clientName,
+            telephone: ticket.telephone && ticket.telephone.toString().trim() !== '' ? ticket.telephone.toString().trim() : 'Non renseigné',
+            date: ticket.date || 'Non définie',
+            service: ticket.service || 'Service non défini',
+            heure_d_enregistrement: ticket.heure_d_enregistrement,
+            created_at: ticket.created_at,
+            commentaire: ticket.commentaire || null
+        };
+    }
+
+    // ✅ NOUVELLE FONCTION : Calcul temps d'attente RÉEL
+    calculateRealWaitingTime(registrationTime) {
+        if (!registrationTime) return 0;
+        
+        const now = new Date();
+        let arrival;
+        
+        try {
+            // Si c'est une heure seule (HH:MM ou HH:MM:SS)
+            if (registrationTime.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+                const today = now.toISOString().split('T')[0];
+                const timeString = registrationTime.length === 5 ? registrationTime + ':00' : registrationTime;
+                arrival = new Date(`${today}T${timeString}`);
+            } 
+            // Si c'est une date complète
+            else {
+                arrival = new Date(registrationTime);
+            }
+            
+            if (!isNaN(arrival.getTime())) {
+                const diffMinutes = Math.floor((now - arrival) / (1000 * 60));
+                return Math.max(0, diffMinutes);
+            }
+        } catch (e) {
+            console.log('Erreur calcul temps d\'attente:', e);
+        }
+        
+        return 0;
     }
 
     updateStats(stats) {
@@ -1389,7 +1503,7 @@ class AdvisorInterface {
             let html = '';
             tickets.slice(0, 5).forEach((ticket, index) => {
                 const validatedTicket = this.validateTicketData(ticket);
-                const estimatedWaitTime = validatedTicket.temps_attente_estime;
+                const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
                 
                 html += `
                     <a href="#" class="dropdown-item py-3" onclick="advisorInterface.callTicket(${validatedTicket.id})">
@@ -1401,7 +1515,7 @@ class AdvisorInterface {
                             </div>
                             <div class="flex-grow-1 ml-3">
                                 <h6 class="mb-0 font-weight-normal">${validatedTicket.numero_ticket}</h6>
-                                <small class="text-muted">${validatedTicket.prenom} - ${estimatedWaitTime}min</small>
+                                <small class="text-muted">${validatedTicket.prenom} - ${waitingTime}min</small>
                             </div>
                             <div class="flex-shrink-0">
                                 <span class="badge badge-light">#${index + 1}</span>
@@ -1428,7 +1542,7 @@ class AdvisorInterface {
                             <i data-feather="user-plus" class="text-muted"></i>
                         </div>
                         <h6 class="text-muted mb-2">Aucun client en cours</h6>
-                        <p class="text-muted small mb-3">File FIFO - Premier arrivé, premier servi</p>
+                        <p class="text-muted small mb-3">File FIFO - Cliquez pour appeler le premier</p>
                         <button class="btn btn-primary btn-sm" onclick="advisorInterface.callNextTicket()">
                             <i data-feather="phone-call" class="mr-1"></i>Appeler premier client
                         </button>
@@ -1438,7 +1552,6 @@ class AdvisorInterface {
             status.textContent = 'Disponible';
             status.className = 'badge badge-success';
         } else {
-            // ✅ Valider les données du ticket en cours
             const validatedTicket = this.validateTicketData(ticket);
             
             panel.innerHTML = `
@@ -1492,19 +1605,16 @@ class AdvisorInterface {
             return;
         }
 
-        // ✅ Valider les données du ticket
         const validatedTicket = this.validateTicketData(ticket);
-        
-        // ✅ Utiliser temps_attente_estime depuis la base de données
-        const estimatedWaitTime = validatedTicket.temps_attente_estime;
+        const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
         
         let statusBadge = '';
         let statusText = '';
         
-        if (estimatedWaitTime > 30) {
+        if (waitingTime > 30) {
             statusBadge = '<span class="badge badge-danger">Urgent</span>';
             statusText = 'Temps d\'attente élevé';
-        } else if (estimatedWaitTime > 15) {
+        } else if (waitingTime > 15) {
             statusBadge = '<span class="badge badge-warning">Moyen</span>';
             statusText = 'Temps d\'attente modéré';
         } else {
@@ -1523,7 +1633,7 @@ class AdvisorInterface {
                             <tr><td class="font-weight-semibold">Service:</td><td>${validatedTicket.service}</td></tr>
                             <tr><td class="font-weight-semibold">Statut:</td><td>${statusBadge}</td></tr>
                             <tr><td class="font-weight-semibold">Priorité:</td><td>${statusText}</td></tr>
-                            <tr><td class="font-weight-semibold">Attente estimée:</td><td>${estimatedWaitTime}min</td></tr>
+                            <tr><td class="font-weight-semibold">Attente réelle:</td><td>${waitingTime}min</td></tr>
                         </table>
                     </div>
                 </div>
@@ -1531,17 +1641,17 @@ class AdvisorInterface {
                     <h6 class="font-weight-semibold mb-3">Informations client</h6>
                     <div class="table-responsive">
                         <table class="table table-borderless table-sm">
-                            <tr><td class="font-weight-semibold">Prénom:</td><td>${ticket.prenom || 'Non renseigné'}</td></tr>
-                            <tr><td class="font-weight-semibold">Téléphone:</td><td>${ticket.telephone || 'Non renseigné'}</td></tr>
-                            <tr><td class="font-weight-semibold">Date de demande:</td><td>${ticket.date || 'Non définie'}</td></tr>
+                            <tr><td class="font-weight-semibold">Prénom:</td><td>${validatedTicket.prenom}</td></tr>
+                            <tr><td class="font-weight-semibold">Téléphone:</td><td>${validatedTicket.telephone}</td></tr>
+                            <tr><td class="font-weight-semibold">Date de demande:</td><td>${validatedTicket.date}</td></tr>
                         </table>
                     </div>
                     
-                    ${ticket.commentaire ? `
+                    ${validatedTicket.commentaire ? `
                         <h6 class="font-weight-semibold mb-2">Commentaire</h6>
                         <div class="alert alert-light">
                             <i data-feather="message-circle" class="mr-2"></i>
-                            ${ticket.commentaire}
+                            ${validatedTicket.commentaire}
                         </div>
                     ` : ''}
                 </div>
@@ -1697,63 +1807,6 @@ class AdvisorInterface {
         return await response.json();
     }
 
-    calculateWaitingTime(heureEnregistrement, createdAt) {
-        const now = new Date();
-        let arrival;
-        
-        // ✅ CORRECTION: Utiliser heure_d_enregistrement en priorité (heure exacte de prise de ticket)
-        if (heureEnregistrement && heureEnregistrement !== '--:--' && heureEnregistrement.trim() !== '') {
-            try {
-                const today = now.toISOString().split('T')[0];
-                
-                // Gérer différents formats d'heure
-                let timeString = heureEnregistrement;
-                
-                // Si format H:i:s, garder tel quel
-                if (timeString.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
-                    arrival = new Date(`${today}T${timeString}`);
-                }
-                // Si format H:i, ajouter les secondes
-                else if (timeString.match(/^\d{1,2}:\d{2}$/)) {
-                    arrival = new Date(`${today}T${timeString}:00`);
-                }
-                
-                if (arrival && !isNaN(arrival.getTime())) {
-                    return Math.max(0, Math.floor((now - arrival) / (1000 * 60)));
-                }
-            } catch (e) {
-                console.log('Erreur calcul temps d\'attente avec heure_d_enregistrement:', e);
-            }
-        }
-        
-        // ✅ FALLBACK: Utiliser created_at si heure_d_enregistrement n'est pas disponible
-        if (createdAt) {
-            try {
-                arrival = new Date(createdAt);
-                if (!isNaN(arrival.getTime())) {
-                    return Math.max(0, Math.floor((now - arrival) / (1000 * 60)));
-                }
-            } catch (e) {
-                console.log('Erreur calcul temps d\'attente avec created_at:', e);
-            }
-        }
-        
-        return 0;
-    }
-
-    formatTime(timeString) {
-        if (!timeString || timeString === '--:--') return '--:--';
-        try {
-            const time = new Date(timeString);
-            return time.toLocaleTimeString('fr-FR', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
-        } catch (e) {
-            return timeString;
-        }
-    }
-
     startTicketTimer(startTime) {
         const start = new Date(startTime);
         const timer = setInterval(() => {
@@ -1851,8 +1904,10 @@ class AdvisorInterface {
     }
 
     destroy() {
-        this.stopAutoRefresh();
-        console.log('AdvisorInterface destroyed');
+        if (this.waitingTimeUpdateInterval) {
+            clearInterval(this.waitingTimeUpdateInterval);
+        }
+        console.log('AdvisorInterface FIFO destroyed');
     }
 }
 
@@ -1866,7 +1921,7 @@ document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
     }
     
-    console.log('🎯 Interface conseiller FIFO ready - Version corrigée');
+    console.log('🎯 Interface conseiller FIFO ready - Version améliorée');
 });
 
 window.addEventListener('beforeunload', function() {

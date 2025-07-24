@@ -14,12 +14,12 @@ use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
-| ROUTES PUBLIQUES (Authentification)
+| ✅ ROUTES PUBLIQUES (Authentification) - CORRIGÉES
 |--------------------------------------------------------------------------
 */
 
-// Page de connexion (page d'accueil)
-Route::get('/', [LoginController::class, 'showLoginForm'])->name('login');
+// ✅ CORRECTION #1 : Noms de routes différents pour éviter les conflits
+Route::get('/', [LoginController::class, 'showLoginForm'])->name('home');
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login'])->name('login.post');
 
@@ -70,13 +70,13 @@ Route::post('/password/mandatory-update', [LoginController::class, 'updateMandat
 
 /*
 |--------------------------------------------------------------------------
-| ROUTES PROTÉGÉES (Utilisateurs connectés)
+| ✅ ROUTES PROTÉGÉES (Utilisateurs connectés) - CORRIGÉES
 |--------------------------------------------------------------------------
 */
 
 Route::middleware(['auth', 'check.user.status'])->group(function () {
     
-    // Dashboard principal - Redirection intelligente selon le type d'utilisateur
+    // ✅ CORRECTION #2 : Dashboard principal avec appels directs au lieu de redirections
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
     /*
@@ -91,7 +91,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
     
     /*
     |--------------------------------------------------------------------------
-    | 🆕 ROUTES UTILISATEURS AVEC DIFFÉRENCIATION AUTOMATIQUE
+    | 🆕 ROUTES UTILISATEURS AVEC DIFFÉRENCIATION AUTOMATIQUE - CORRIGÉES
     |--------------------------------------------------------------------------
     */
     
@@ -115,7 +115,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | 🆕 INTERFACE CONSEILLER DÉDIÉE - NOUVELLES ROUTES
+    | 🆕 INTERFACE CONSEILLER DÉDIÉE - NOUVELLES ROUTES CORRIGÉES
     |--------------------------------------------------------------------------
     */
 
@@ -435,7 +435,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                 ->name('layouts.setting.api.stats');
         });
 
-        // Route alternative pour compatibility
+        // Route alternative pour compatibilité
         Route::get('/settings', function() {
             return redirect()->route('layouts.setting');
         });  
@@ -513,7 +513,6 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         Route::get('/services/{service}/stats', [ServiceController::class, 'getServiceStats'])->name('services.stats');
 
         // ✅ MODIFICATION : Route existante check-letter-availability pour supporter exclude_id
-        // (Remplacer l'existante ou s'assurer qu'elle supporte le paramètre exclude_id)
         Route::post('/services/check-letter-availability', [ServiceController::class, 'checkLetterAvailability'])
             ->name('services.check-letter-availability');
 
@@ -1066,50 +1065,94 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| ROUTES DE COMPATIBILITÉ
+| ✅ ROUTES DE COMPATIBILITÉ - CORRIGÉES POUR ÉVITER LES BOUCLES
 |--------------------------------------------------------------------------
 */
 
-// Redirection des anciennes routes vers la nouvelle logique
+// ✅ CORRECTION #3 : Routes de compatibilité sécurisées avec appels directs
 Route::middleware(['auth', 'check.user.status'])->group(function () {
     Route::get('/app', function () {
-       return redirect()->route('dashboard');
+        $user = auth()->user();
+        
+        try {
+            if ($user->isAdmin()) {
+                return app(DashboardController::class)->adminDashboard();
+            } elseif ($user->isConseillerUser()) {
+                return app(DashboardController::class)->conseillerDashboard();
+            } else {
+                return app(DashboardController::class)->userDashboard();
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur route compatibilité /app', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            auth()->logout();
+            return redirect()->route('login')
+                ->with('error', 'Erreur système. Veuillez vous reconnecter.');
+        }
     });
     
     // 🆕 Redirection spécifique pour les anciens liens directs
     Route::get('/app-ecran', function () {
-        return redirect()->route('layouts.app-users');
+        try {
+            return app(DashboardController::class)->userDashboard();
+        } catch (\Exception $e) {
+            return redirect()->route('login')->with('error', 'Erreur de redirection.');
+        }
     });
     
     Route::get('/app-accueil', function () {
-        return redirect()->route('layouts.app-users');
+        try {
+            return app(DashboardController::class)->userDashboard();
+        } catch (\Exception $e) {
+            return redirect()->route('login')->with('error', 'Erreur de redirection.');
+        }
     });
     
     Route::get('/app-conseiller', function () {
-        return redirect()->route('layouts.app-conseiller');
+        try {
+            return app(DashboardController::class)->conseillerDashboard();
+        } catch (\Exception $e) {
+            return redirect()->route('login')->with('error', 'Erreur de redirection.');
+        }
     });
 });
 
 /*
 |--------------------------------------------------------------------------
-| GESTION DES ERREURS
+| ✅ GESTION DES ERREURS - CORRIGÉE
 |--------------------------------------------------------------------------
 */
 
-// Redirection page non trouvées avec logique améliorée
+// ✅ CORRECTION #4 : Route fallback sécurisée avec appels directs
 Route::fallback(function () {
     if (auth()->check()) {
         $user = auth()->user();
         
-        if ($user->isAdmin()) {
-            return redirect()->route('layouts.app')
-                ->with('warning', 'Page non trouvée. Redirection vers le dashboard admin.');
-        } elseif ($user->isConseillerUser()) {
-            return redirect()->route('layouts.app-conseiller')
-                ->with('warning', 'Page non trouvée. Redirection vers votre interface conseiller.');
-        } else {
-            return redirect()->route('layouts.app-users')
-                ->with('warning', "Page non trouvée. Redirection vers votre espace {$user->getTypeName()}.");
+        try {
+            // Appels directs au contrôleur au lieu de redirections
+            if ($user->isAdmin()) {
+                return app(DashboardController::class)->adminDashboard()
+                    ->with('warning', 'Page non trouvée. Redirection vers le dashboard admin.');
+            } elseif ($user->isConseillerUser()) {
+                return app(DashboardController::class)->conseillerDashboard()
+                    ->with('warning', 'Page non trouvée. Redirection vers votre interface conseiller.');
+            } else {
+                return app(DashboardController::class)->userDashboard()
+                    ->with('warning', "Page non trouvée. Redirection vers votre espace {$user->getTypeName()}.");
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur route fallback', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            // En cas d'erreur, redirection sécurisée vers login
+            auth()->logout();
+            return redirect()->route('login')
+                ->with('error', 'Erreur système. Veuillez vous reconnecter.');
         }
     }
     

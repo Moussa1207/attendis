@@ -10,7 +10,7 @@ use App\Models\AdministratorUser;
 use App\Models\Agency;
 use App\Models\Service;
 use App\Models\Queue;
-use App\Models\Setting; // ✅ Import ajouté
+use App\Models\Setting;
 use Illuminate\Support\Facades\Hash; 
 use Illuminate\Support\Facades\Log;  
 use Illuminate\Support\Facades\Auth;
@@ -32,7 +32,8 @@ class DashboardController extends Controller
     // ===============================================
 
     /**
-     * Dashboard principal - Redirection intelligente selon le type d'utilisateur
+     * ✅ Dashboard principal - CORRIGÉ POUR ÉVITER LES BOUCLES
+     * Logique directe sans redirections multiples
      */
     public function index()
     {
@@ -51,13 +52,29 @@ class DashboardController extends Controller
                 ->with('error', 'Votre compte a été suspendu. Contactez un administrateur.');
         }
 
-        // Redirection selon le type d'utilisateur
-        if ($user->isAdmin()) {
-            return redirect()->route('layouts.app');
-        } elseif ($user->isConseillerUser()) {
-            return redirect()->route('layouts.app-conseiller');
-        } else {
-            return redirect()->route('layouts.app-users');
+        // 🎯 SOLUTION : APPELER DIRECTEMENT LES MÉTHODES AU LIEU DE REDIRIGER
+        try {
+            if ($user->isAdmin()) {
+                // Appeler directement adminDashboard au lieu de rediriger
+                return $this->adminDashboard();
+            } elseif ($user->isConseillerUser()) {
+                // Appeler directement conseillerDashboard au lieu de rediriger
+                return $this->conseillerDashboard();
+            } else {
+                // Appeler directement userDashboard au lieu de rediriger
+                return $this->userDashboard();
+            }
+        } catch (\Exception $e) {
+            Log::error('Dashboard error for user ' . $user->id, [
+                'error' => $e->getMessage(),
+                'user_type' => $user->getUserRole(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // En cas d'erreur, redirection sécurisée vers login
+            Auth::logout();
+            return redirect()->route('login')
+                ->with('error', 'Erreur lors du chargement de votre espace. Veuillez vous reconnecter.');
         }
     }
 
@@ -69,7 +86,7 @@ class DashboardController extends Controller
     {
         // Vérifier que l'utilisateur est bien admin
         if (!Auth::user()->isAdmin()) {
-            return redirect()->route('layouts.app-users')
+            return view('layouts.app-users')
                 ->with('error', 'Accès non autorisé à la zone administrateur.');
         }
 
@@ -172,30 +189,29 @@ class DashboardController extends Controller
             ));
 
         } catch (\Exception $e) {
-            \Log::error('Admin dashboard error', [
+            Log::error('Admin dashboard error', [
                 'admin_id' => Auth::id(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
-            return redirect()->route('login')
-                ->with('error', 'Erreur lors du chargement du dashboard administrateur.');
+            return view('layouts.app')->with('error', 'Erreur lors du chargement du dashboard administrateur.');
         }
     }
 
     /**
-     * 🆕 Dashboard utilisateur avec différenciation selon le type - AMÉLIORÉ
+     * ✅ Dashboard utilisateur avec différenciation selon le type - CORRIGÉ
      * - POSTE ECRAN → Interface sans sidebar + grille services
-     * - CONSEILLER → Redirection vers interface conseiller dédiée  
+     * - CONSEILLER → Interface conseiller (APPEL DIRECT au lieu de redirection)
      * - ACCUEIL → Interface actuelle adaptée
      */
     public function userDashboard()
     {
         $user = Auth::user();
 
-        // Si c'est un admin, on redirige vers le dashboard admin
+        // Si c'est un admin, utiliser adminDashboard
         if ($user->isAdmin()) {
-            return redirect()->route('layouts.app')
-                ->with('info', 'Redirection vers le dashboard administrateur.');
+            return $this->adminDashboard();
         }
 
         try {
@@ -204,23 +220,25 @@ class DashboardController extends Controller
                 return $this->ecranDashboard($user);
             } 
             elseif ($user->isConseillerUser()) {
-                // 🆕 REDIRECTION AUTOMATIQUE vers l'interface conseiller dédiée
-                return redirect()->route('layouts.app-conseiller')
-                    ->with('info', 'Redirection vers votre interface conseiller.');
+                // ✅ APPEL DIRECT au lieu de redirection pour éviter les boucles
+                return $this->conseillerDashboard();
             } 
             else {
                 return $this->normalUserDashboard($user); // Pour les utilisateurs ACCUEIL
             }
 
         } catch (\Exception $e) {
-            \Log::error('User dashboard error', [
+            Log::error('User dashboard error', [
                 'user_id' => Auth::id(),
                 'user_type' => $user->getUserRole(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
-            return redirect()->route('login')
-                ->with('error', 'Erreur lors du chargement de votre espace.');
+            return view('layouts.app-users', [
+                'error' => 'Erreur lors du chargement de votre espace.',
+                'userInfo' => $this->getUserInfo($user)
+            ]);
         }
     }
 
@@ -235,7 +253,7 @@ class DashboardController extends Controller
             $creator = $user->getCreator();
             
             if (!$creator) {
-                \Log::warning("Utilisateur écran sans créateur détecté", [
+                Log::warning("Utilisateur écran sans créateur détecté", [
                     'user_id' => $user->id,
                     'username' => $user->username
                 ]);
@@ -253,7 +271,7 @@ class DashboardController extends Controller
                               ->orderBy('created_at', 'desc')
                               ->get();
 
-            // ✅ ENRICHIR CHAQUE SERVICE AVEC SES STATISTIQUES (sans numero)
+            // ✅ ENRICHIR CHAQUE SERVICE AVEC SES STATISTIQUES
             $services = $services->map(function($service) {
                 $service->queue_stats = Queue::getServiceStats($service->id);
                 return $service;
@@ -292,7 +310,7 @@ class DashboardController extends Controller
                 ]
             ];
 
-            \Log::info("Interface écran chargée avec file avec numérotation par service", [
+            Log::info("Interface écran chargée avec file avec numérotation par service", [
                 'user_id' => $user->id,
                 'creator_id' => $creator->id,
                 'services_count' => $services->count(),
@@ -313,9 +331,10 @@ class DashboardController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Erreur dashboard écran', [
+            Log::error('Erreur dashboard écran', [
                 'user_id' => $user->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return view('layouts.app-ecran', [
@@ -334,46 +353,59 @@ class DashboardController extends Controller
     {
         // Vérifier que c'est bien un utilisateur ACCUEIL
         if (!$user->isAccueilUser()) {
-            return redirect()->route('layouts.app-conseiller')
-                ->with('info', 'Redirection vers votre interface spécialisée.');
+            // ✅ APPEL DIRECT au lieu de redirection
+            return $this->conseillerDashboard();
         }
 
-        // Statistiques personnelles pour l'utilisateur ACCUEIL
-        $userStats = [
-            'days_since_creation' => $user->created_at->diffInDays(now()),
-            'account_age_formatted' => $user->created_at->diffForHumans(),
-            'is_recently_created' => $user->created_at->diffInDays(now()) < 7,
-            'creator_info' => $user->getCreationInfo(),
-            'login_count_today' => 1,
-            'last_password_change' => $user->updated_at->diffForHumans(),
-        ];
+        try {
+            // Statistiques personnelles pour l'utilisateur ACCUEIL
+            $userStats = [
+                'days_since_creation' => $user->created_at->diffInDays(now()),
+                'account_age_formatted' => $user->created_at->diffForHumans(),
+                'is_recently_created' => $user->created_at->diffInDays(now()) < 7,
+                'creator_info' => $user->getCreationInfo(),
+                'login_count_today' => 1,
+                'last_password_change' => $user->updated_at->diffForHumans(),
+            ];
 
-        // Données spécifiques ACCUEIL
-        $typeSpecificData = [
-            'type_description' => 'Poste Accueil - Réception et orientation des visiteurs',
-            'type_features' => [
-                'Accueil des visiteurs',
-                'Orientation et information',
-                'Gestion des rendez-vous',
-                'Communication interne'
-            ],
-            'type_recommendations' => [
-                'Vérifiez régulièrement les nouveaux visiteurs',
-                'Tenez à jour les informations d\'orientation',
-                'Communiquez avec l\'équipe de gestion'
-            ],
-            'queue_info' => [
-                'note' => 'Les tickets sont gérés par l\'équipe de conseillers',
-                'your_role' => 'Accueil et orientation des clients',
-                'ticket_flow' => 'Ecrans → File FIFO → Conseillers'
-            ]
-        ];
+            // Données spécifiques ACCUEIL
+            $typeSpecificData = [
+                'type_description' => 'Poste Accueil - Réception et orientation des visiteurs',
+                'type_features' => [
+                    'Accueil des visiteurs',
+                    'Orientation et information',
+                    'Gestion des rendez-vous',
+                    'Communication interne'
+                ],
+                'type_recommendations' => [
+                    'Vérifiez régulièrement les nouveaux visiteurs',
+                    'Tenez à jour les informations d\'orientation',
+                    'Communiquez avec l\'équipe de gestion'
+                ],
+                'queue_info' => [
+                    'note' => 'Les tickets sont gérés par l\'équipe de conseillers',
+                    'your_role' => 'Accueil et orientation des clients',
+                    'ticket_flow' => 'Ecrans → File FIFO → Conseillers'
+                ]
+            ];
 
-        return view('layouts.app-users', [
-            'userStats' => $userStats,
-            'typeSpecificData' => $typeSpecificData,
-            'userInfo' => $this->getUserInfo($user)
-        ]);
+            return view('layouts.app-users', [
+                'userStats' => $userStats,
+                'typeSpecificData' => $typeSpecificData,
+                'userInfo' => $this->getUserInfo($user)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur dashboard accueil', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return view('layouts.app-users', [
+                'userInfo' => $this->getUserInfo($user),
+                'error' => 'Erreur lors du chargement de votre espace accueil'
+            ]);
+        }
     }
 
     // ===============================================
@@ -390,8 +422,15 @@ class DashboardController extends Controller
 
         // Vérifier que c'est bien un conseiller
         if (!$user->isConseillerUser()) {
-            return redirect()->route('layouts.app-users')
-                ->with('error', 'Interface réservée aux conseillers.');
+            // ✅ RETOUR APPROPRIÉ selon le type au lieu de redirection
+            if ($user->isAdmin()) {
+                return $this->adminDashboard();
+            } else {
+                return view('layouts.app-users', [
+                    'userInfo' => $this->getUserInfo($user),
+                    'error' => 'Interface réservée aux conseillers.'
+                ]);
+            }
         }
 
         try {
@@ -483,7 +522,8 @@ class DashboardController extends Controller
         } catch (\Exception $e) {
             Log::error('Erreur dashboard conseiller', [
                 'conseiller_id' => $user->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return view('layouts.app-conseiller', [
@@ -494,8 +534,12 @@ class DashboardController extends Controller
         }
     }
 
+    // ===============================================
+    // MÉTHODES API CONSEILLER
+    // ===============================================
+
     /**
-     * 🎫 RÉCUPÉRER LES TICKETS EN ATTENTE (FIFO CHRONOLOGIQUE) - AMÉLIORÉ
+     * 🎫 RÉCUPÉRER LES TICKETS EN ATTENTE (FIFO CHRONOLOGIQUE)
      */
     public function getConseillerTickets(Request $request): JsonResponse
     {
@@ -558,7 +602,7 @@ class DashboardController extends Controller
                     'principle' => 'Premier arrivé, premier servi',
                     'next_position' => Queue::calculateQueuePosition(),
                     'total_waiting' => $stats['total_en_attente'],
-                    'default_wait_time' => Setting::getDefaultWaitingTimeMinutes() // ✅ Temps admin
+                    'default_wait_time' => Setting::getDefaultWaitingTimeMinutes()
                 ],
                 'timestamp' => now()->format('H:i:s')
             ]);
@@ -927,7 +971,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ⏸️ TOGGLE PAUSE CONSEILLER (placeholder pour futur développement)
+     * ⏸️ TOGGLE PAUSE CONSEILLER
      */
     public function toggleConseillerPause(Request $request): JsonResponse
     {
@@ -941,7 +985,6 @@ class DashboardController extends Controller
                 ], 403);
             }
 
-            // TODO: Implémenter la logique de pause
             $isPaused = $request->input('is_paused', false);
             
             Log::info('Toggle pause conseiller', [
@@ -964,7 +1007,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🔍 DÉTAILS D'UN TICKET SPÉCIFIQUE - AMÉLIORÉ
+     * 🔍 DÉTAILS D'UN TICKET SPÉCIFIQUE
      */
     public function getTicketDetails(Request $request, $ticketId): JsonResponse
     {
@@ -986,7 +1029,6 @@ class DashboardController extends Controller
                 ], 500);
             }
 
-            // Récupérer le ticket (seulement des services de son admin)
             $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
             
             $ticket = Queue::whereIn('service_id', $myServiceIds)
@@ -1001,12 +1043,11 @@ class DashboardController extends Controller
                 ], 404);
             }
 
-            // ✅ DÉTAILS ENRICHIS avec statut basé sur temps d'attente
             $ticketDetails = $ticket->toTicketArray();
             $ticketDetails['duree_traitement'] = $this->calculateProcessingTime($ticket);
             $ticketDetails['historique'] = $ticket->historique ?? [];
             
-            // ✅ Calcul du statut priorité basé sur temps d'attente
+            // Calcul du statut priorité basé sur temps d'attente
             $waitingTime = $this->calculateTicketWaitingTime($ticket);
             if ($waitingTime > 30) {
                 $ticketDetails['priority_status'] = 'urgent';
@@ -1044,19 +1085,22 @@ class DashboardController extends Controller
     }
 
     /**
+     * 🔄 TRANSFER TICKET
+     */
+    public function transferTicket(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Fonctionnalité en développement'
+        ], 501);
+    }
+
+    /**
      * 🔄 RAFRAÎCHIR LA FILE D'ATTENTE EN TEMPS RÉEL
      */
     public function refreshConseillerQueue(Request $request): JsonResponse
     {
-        try {
-            // Réutiliser la logique de getConseillerTickets
-            return $this->getConseillerTickets($request);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du rafraîchissement'
-            ], 500);
-        }
+        return $this->getConseillerTickets($request);
     }
 
     /**
@@ -1087,7 +1131,7 @@ class DashboardController extends Controller
             $nextTicket = Queue::whereIn('service_id', $myServiceIds)
                               ->whereDate('date', today())
                               ->where('statut_global', 'en_attente')
-                              ->orderBy('created_at', 'asc') // FIFO
+                              ->orderBy('created_at', 'asc')
                               ->with(['service:id,nom,letter_of_service'])
                               ->first();
 
@@ -1102,7 +1146,7 @@ class DashboardController extends Controller
             return response()->json([
                 'success' => true,
                 'next_ticket' => $nextTicket->toTicketArray(),
-                'queue_position' => 1, // C'est le prochain
+                'queue_position' => 1,
                 'estimated_call_time' => 'Maintenant',
                 'fifo_info' => 'Premier arrivé, premier servi'
             ]);
@@ -1184,10 +1228,8 @@ class DashboardController extends Controller
 
             $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
             
-            // Notifications basiques (à enrichir selon les besoins)
             $notifications = [];
             
-            // Nouveaux tickets depuis la dernière vérification
             $newTicketsCount = Queue::whereIn('service_id', $myServiceIds)
                                    ->whereDate('date', today())
                                    ->where('statut_global', 'en_attente')
@@ -1222,15 +1264,7 @@ class DashboardController extends Controller
      */
     public function getLiveConseillerStats(Request $request): JsonResponse
     {
-        try {
-            // Réutiliser la logique de getConseillerStats
-            return $this->getConseillerStats($request);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération des statistiques temps réel'
-            ], 500);
-        }
+        return $this->getConseillerStats($request);
     }
 
     /**
@@ -1263,7 +1297,7 @@ class DashboardController extends Controller
 
             $callback = function() use ($tickets, $user) {
                 $file = fopen('php://output', 'w');
-                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
+                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
                 
                 fputcsv($file, [
                     'Numéro Ticket',
@@ -1309,648 +1343,11 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // MÉTHODES UTILITAIRES PRIVÉES AMÉLIORÉES
+    // GÉNÉRATION DE TICKETS
     // ===============================================
 
     /**
-     * ⏱️ CALCULER LE TEMPS DE TRAITEMENT D'UN TICKET
-     */
-    private function calculateProcessingTime($ticket): int
-    {
-        if (!$ticket->heure_prise_en_charge) {
-            return 0;
-        }
-
-        $start = Carbon::parse($ticket->heure_prise_en_charge);
-        $end = $ticket->heure_de_fin ? Carbon::parse($ticket->heure_de_fin) : now();
-        
-        return $start->diffInMinutes($end);
-    }
-
-    /**
-     * ✅ CALCULER LE TEMPS D'ATTENTE D'UN TICKET SPÉCIFIQUE
-     */
-    private function calculateTicketWaitingTime($ticket): int
-    {
-        $now = now();
-        $arrival = null;
-        
-        if ($ticket->heure_d_enregistrement && $ticket->heure_d_enregistrement !== '--:--') {
-            // Utiliser l'heure d'enregistrement si disponible
-            $today = $now->toDateString();
-            $arrival = Carbon::parse($today . ' ' . $ticket->heure_d_enregistrement);
-        } elseif ($ticket->created_at) {
-            // Sinon utiliser created_at
-            $arrival = Carbon::parse($ticket->created_at);
-        }
-        
-        if (!$arrival) {
-            return 0;
-        }
-        
-        return max(0, $arrival->diffInMinutes($now));
-    }
-
-    /**
-     * 📊 CALCULER LE SCORE D'EFFICACITÉ (placeholder)
-     */
-    private function calculateEfficiencyScore($conseillerId): float
-    {
-        // TODO: Implémenter le calcul du score d'efficacité
-        // Basé sur : temps moyen de traitement, nombre de tickets traités, etc.
-        return 85.5; // Placeholder
-    }
-
-    /**
-     * ⭐ CALCULER LE SCORE DE SATISFACTION CLIENT (placeholder)
-     */
-    private function calculateSatisfactionScore($conseillerId): float
-    {
-        // TODO: Implémenter le calcul de satisfaction client
-        // Basé sur : évaluations clients, tickets résolus vs non résolus, etc.
-        return 4.2; // Placeholder sur 5
-    }
-
-    // ===============================================
-    // 🔒 VÉRIFICATION D'AUTORISATION
-    // ===============================================
-
-    /**
-     * 🔒 Vérifier que l'admin connecté a créé cet utilisateur
-     */
-    private function checkUserOwnership(User $user): bool
-    {
-        $currentAdmin = Auth::user();
-        
-        // L'admin peut toujours se modifier lui-même
-        if ($user->id === $currentAdmin->id) {
-            return true;
-        }
-        
-        // Vérifier via la table administrator_user
-        return AdministratorUser::where('administrator_id', $currentAdmin->id)
-                               ->where('user_id', $user->id)
-                               ->exists();
-    }
-
-    // ===============================================
-    // GESTION DES UTILISATEURS (Pour users-list)
-    // ===============================================
-
-    /**
-     * ✅ Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
-     * ISOLATION COMPLÈTE - Chaque admin ne voit QUE ses utilisateurs créés
-     */
-    public function usersList(Request $request)
-    {
-        try {
-            $currentAdmin = Auth::user();
-            
-            if (!$currentAdmin->isAdmin()) {
-                abort(403, 'Accès non autorisé');
-            }
-
-            // 🔒 FILTRAGE CORRECT : Récupérer seulement les utilisateurs créés par cet admin
-            $myUserIds = AdministratorUser::where('administrator_id', $currentAdmin->id)
-                                          ->pluck('user_id')
-                                          ->toArray();
-            
-            // Inclure l'admin lui-même dans la liste (optionnel)
-            $myUserIds[] = $currentAdmin->id;
-            
-            // 🔒 Variable pour la vue (condition du bouton Modifier)
-            $myCreatedUserIds = $myUserIds;
-
-            $query = User::whereIn('id', $myUserIds)
-                        ->with(['userType', 'status', 'agency', 'createdBy']);
-
-            // Recherche (dans ses utilisateurs uniquement)
-            if ($request->filled('search')) {
-                $search = $request->search;
-                $query->where(function($q) use ($search) {
-                    $q->where('username', 'LIKE', "%{$search}%")
-                      ->orWhere('email', 'LIKE', "%{$search}%")
-                      ->orWhere('mobile_number', 'LIKE', "%{$search}%")
-                      ->orWhere('company', 'LIKE', "%{$search}%");
-                });
-            }
-
-            // Filtres par type
-            if ($request->filled('user_type')) {
-                $typeMapping = [
-                    'admin' => 1,
-                    'ecran' => 2,
-                    'accueil' => 3,
-                    'conseiller' => 4,
-                ];
-                
-                if (isset($typeMapping[$request->user_type])) {
-                    $query->where('user_type_id', $typeMapping[$request->user_type]);
-                }
-            }
-
-            // Filtres par statut
-            if ($request->filled('status')) {
-                $statusMapping = [
-                    'active' => 2,
-                    'inactive' => 1,
-                    'suspended' => 3,
-                ];
-                
-                if (isset($statusMapping[$request->status])) {
-                    $query->where('status_id', $statusMapping[$request->status]);
-                }
-            }
-
-            // Filtres par agence (🔒 seulement ses agences)
-            if ($request->filled('agency_id')) {
-                $query->where('agency_id', $request->agency_id);
-            }
-
-            // Tri
-            $sortBy = $request->get('sort', 'created_at');
-            $sortOrder = $request->get('order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
-
-            // Pagination
-            $users = $query->paginate(15)->appends($request->query());
-
-            // 🔒 STATISTIQUES : Seulement pour les utilisateurs de cet admin
-            $stats = [
-                'total_my_users' => count($myUserIds) - 1, // -1 pour exclure l'admin lui-même du compte
-                'active_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count() - 1,
-                'inactive_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
-                'suspended_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
-                'recent_my_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
-            ];
-
-            // 🔒 AGENCES : Seulement celles créées par cet admin pour les filtres
-            $myAgencies = Agency::where('created_by', $currentAdmin->id)
-                               ->orderBy('name')
-                               ->get();
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'users' => $users->map(function($user) {
-                        return [
-                            'id' => $user->id,
-                            'username' => $user->username,
-                            'email' => $user->email,
-                            'mobile_number' => $user->mobile_number,
-                            'company' => $user->company,
-                            'type' => $user->getTypeName(),
-                            'type_icon' => $user->getTypeIcon(),
-                            'type_badge_color' => $user->getTypeBadgeColor(),
-                            'type_emoji' => $user->getTypeEmoji(),
-                            'agency' => $user->agency ? $user->agency->name : null,
-                            'agency_id' => $user->agency_id,
-                            'status' => $user->getStatusName(),
-                            'status_badge_color' => $user->getStatusBadgeColor(),
-                            'created_at' => $user->created_at->format('d/m/Y H:i'),
-                            'last_login' => $user->last_login_at ? $user->last_login_at->format('d/m/Y H:i') : 'Jamais',
-                            'is_active' => $user->isActive(),
-                            'is_admin' => $user->isAdmin(),
-                            'creation_info' => $user->getCreationInfo(),
-                        ];
-                    }),
-                    'pagination' => [
-                        'current_page' => $users->currentPage(),
-                        'total' => $users->total(),
-                        'per_page' => $users->perPage(),
-                        'last_page' => $users->lastPage()
-                    ],
-                    'stats' => $stats
-                ]);
-            }
-
-            return view('User.users-list', compact('users', 'stats', 'myAgencies', 'myCreatedUserIds'));
-
-        } catch (\Exception $e) {
-            \Log::error("Erreur liste utilisateurs pour admin " . Auth::id() . ": " . $e->getMessage());
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur lors de la récupération des utilisateurs'
-                ], 500);
-            }
-            
-            return redirect()->route('layouts.app')
-                    ->with('error', 'Erreur lors de la récupération des utilisateurs.');
-        }
-    }
-
-    // ===============================================
-    // ACTIONS SUR LES UTILISATEURS (users-list)
-    // ===============================================
-
-    /**
-     * ✅ Activer utilisateur (vérification d'autorisation)
-     */
-    public function activateUser(User $user, Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false, 
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-            abort(403, 'Accès non autorisé');
-        }
-
-        // 🔒 Vérifier l'autorisation
-        if (!$this->checkUserOwnership($user)) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous ne pouvez pas modifier cet utilisateur.'
-                ], 403);
-            }
-            abort(403, 'Vous ne pouvez pas modifier cet utilisateur.');
-        }
-
-        try {
-            $success = $user->activate();
-            
-            if ($success) {
-                \Log::info("Utilisateur {$user->username} activé par " . Auth::user()->username);
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => "Utilisateur {$user->username} activé avec succès !"
-                    ]);
-                }
-                
-                return redirect()->back()->with('success', "Utilisateur {$user->username} activé !");
-            }
-            
-            throw new \Exception('Échec de l\'activation');
-            
-        } catch (\Exception $e) {
-            \Log::error("Erreur activation utilisateur: " . $e->getMessage());
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur lors de l\'activation de l\'utilisateur.'
-                ], 500);
-            }
-            
-            return redirect()->back()->with('error', 'Erreur lors de l\'activation.');
-        }
-    }
-
-    /**
-     * ✅ Suspendre utilisateur (vérification d'autorisation)
-     */
-    public function suspendUser(User $user, Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false, 
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-            abort(403, 'Accès non autorisé');
-        }
-
-        // 🔒 Vérifier l'autorisation
-        if (!$this->checkUserOwnership($user)) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous ne pouvez pas modifier cet utilisateur.'
-                ], 403);
-            }
-            abort(403, 'Vous ne pouvez pas modifier cet utilisateur.');
-        }
-
-        // Empêcher un admin de se suspendre lui-même
-        if ($user->id === Auth::id()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous ne pouvez pas vous suspendre vous-même.'
-                ], 400);
-            }
-            return redirect()->back()->with('error', 'Vous ne pouvez pas vous suspendre vous-même.');
-        }
-
-        try {
-            $success = $user->suspend();
-            
-            if ($success) {
-                \Log::info("Utilisateur {$user->username} suspendu par " . Auth::user()->username);
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => "Utilisateur {$user->username} suspendu avec succès !"
-                    ]);
-                }
-                
-                return redirect()->back()->with('success', "Utilisateur {$user->username} suspendu !");
-            }
-            
-            throw new \Exception('Échec de la suspension');
-            
-        } catch (\Exception $e) {
-            \Log::error("Erreur suspension utilisateur: " . $e->getMessage());
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur lors de la suspension de l\'utilisateur.'
-                ], 500);
-            }
-            
-            return redirect()->back()->with('error', 'Erreur lors de la suspension.');
-        }
-    }
-
-    /**
-     * ✅ Réactiver utilisateur (alias pour activate)
-     */
-    public function reactivateUser(User $user, Request $request)
-    {
-        return $this->activateUser($user, $request);
-    }
-
-    /**
-     * ✅ Supprimer utilisateur (vérification d'autorisation)
-     */
-    public function deleteUser(User $user, Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false, 
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-            abort(403, 'Accès non autorisé');
-        }
-
-        // 🔒 Vérifier l'autorisation
-        if (!$this->checkUserOwnership($user)) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous ne pouvez pas supprimer cet utilisateur.'
-                ], 403);
-            }
-            abort(403, 'Vous ne pouvez pas supprimer cet utilisateur.');
-        }
-
-        // Empêcher un admin de se supprimer lui-même
-        if ($user->id === Auth::id()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous ne pouvez pas vous supprimer vous-même.'
-                ], 400);
-            }
-            return redirect()->back()->with('error', 'Vous ne pouvez pas vous supprimer vous-même.');
-        }
-
-        try {
-            $username = $user->username;
-            
-            // Supprimer la relation administrator_user
-            AdministratorUser::where('user_id', $user->id)->delete();
-            
-            // Supprimer l'utilisateur
-            $user->delete();
-            
-            \Log::info("Utilisateur {$username} supprimé par " . Auth::user()->username);
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Utilisateur {$username} supprimé avec succès !"
-                ]);
-            }
-            
-            return redirect()->back()->with('success', "Utilisateur {$username} supprimé !");
-            
-        } catch (\Exception $e) {
-            \Log::error("Erreur suppression utilisateur: " . $e->getMessage());
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur lors de la suppression de l\'utilisateur.'
-                ], 500);
-            }
-            
-            return redirect()->back()->with('error', 'Erreur lors de la suppression.');
-        }
-    }
-
-    /**
-     * ✅ Actions en masse seulement sur ses utilisateurs
-     */
-    public function bulkActivate(Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Accès non autorisé'
-            ], 403);
-        }
-
-        try {
-            $userIds = $request->input('user_ids', []);
-            $currentAdminId = Auth::id();
-            
-            // 🔒 Récupérer les utilisateurs de l'admin connecté
-            $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
-                                         ->pluck('user_id')
-                                         ->toArray();
-
-            // ✅ Si aucun user_ids, activer TOUS les inactifs
-            if (empty($userIds)) {
-                // Activer tous les utilisateurs inactifs de cet admin
-                $count = User::whereIn('id', $myUserIds)
-                            ->where('status_id', 1) // Seulement les inactifs
-                            ->update(['status_id' => 2]);
-
-                if ($count === 0) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Aucun utilisateur en attente d\'activation.'
-                    ]);
-                }
-
-                return response()->json([
-                    'success' => true,
-                    'message' => "{$count} utilisateur(s) en attente activé(s) avec succès !"
-                ]);
-            }
-
-            // ✅ Mode sélection (gardé intact)
-            // Vérifier que tous les utilisateurs appartiennent à l'admin
-            $validUserIds = array_intersect($userIds, $myUserIds);
-            
-            if (empty($validUserIds)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucun utilisateur autorisé dans la sélection.'
-                ], 403);
-            }
-
-            $count = User::whereIn('id', $validUserIds)
-                        ->where('status_id', '!=', 2)
-                        ->update(['status_id' => 2]);
-
-            return response()->json([
-                'success' => true,
-                'message' => "{$count} de vos utilisateur(s) activé(s) avec succès !"
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error("Erreur activation en masse: " . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de l\'activation en masse.'
-            ], 500);
-        }
-    }
-
-    /**
-     * ✅ Suppression en masse seulement sur ses utilisateurs
-     */
-    public function bulkDeleteUsers(Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Accès non autorisé'
-            ], 403);
-        }
-
-        try {
-            $userIds = $request->input('user_ids', []);
-            
-            if (empty($userIds)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucun utilisateur sélectionné.'
-                ], 400);
-            }
-
-            // Empêcher la suppression de soi-même
-            $userIds = array_filter($userIds, function($id) {
-                return $id != Auth::id();
-            });
-
-            // 🔒 SÉCURITÉ : Vérifier que tous les utilisateurs appartiennent à l'admin
-            $myUserIds = AdministratorUser::where('administrator_id', Auth::id())
-                                         ->pluck('user_id')
-                                         ->toArray();
-            
-            $validUserIds = array_intersect($userIds, $myUserIds);
-            
-            if (empty($validUserIds)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucun utilisateur autorisé dans la sélection.'
-                ], 403);
-            }
-
-            // Supprimer les relations
-            AdministratorUser::whereIn('user_id', $validUserIds)->delete();
-            
-            // Supprimer les utilisateurs
-            $count = User::whereIn('id', $validUserIds)->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => "{$count} de vos utilisateur(s) supprimé(s) avec succès !"
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error("Erreur suppression en masse: " . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la suppression en masse.'
-            ], 500);
-        }
-    }
-
-    /**
-     * ✅ Réinitialiser mot de passe (vérification d'autorisation)
-     */
-    public function resetUserPassword(User $user, Request $request)
-    {
-        if (!Auth::user()->isAdmin()) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Accès non autorisé'
-            ], 403);
-        }
-
-        // 🔒 Vérifier l'autorisation
-        if (!$this->checkUserOwnership($user)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous ne pouvez pas réinitialiser le mot de passe de cet utilisateur.'
-            ], 403);
-        }
-
-        try {
-            // Générer un nouveau mot de passe
-            $newPassword = $this->generateSecurePassword();
-            $user->update(['password' => Hash::make($newPassword)]);
-
-            // Marquer comme nécessitant une réinitialisation
-            $adminUserRecord = AdministratorUser::where('administrator_id', Auth::id())
-                ->where('user_id', $user->id)
-                ->first();
-            
-            if ($adminUserRecord) {
-                $adminUserRecord->update([
-                    'password_reset_required' => true,
-                    'temporary_password' => $newPassword
-                ]);
-            }
-
-            \Log::info("Mot de passe réinitialisé pour {$user->username} par " . Auth::user()->username);
-
-            return response()->json([
-                'success' => true,
-                'message' => "Mot de passe réinitialisé pour {$user->username}",
-                'new_password' => $newPassword,
-                'credentials' => [
-                    'email' => $user->email,
-                    'username' => $user->username,
-                    'password' => $newPassword,
-                    'login_url' => route('login')
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error("Erreur réinitialisation mot de passe: " . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la réinitialisation du mot de passe.'
-            ], 500);
-        }
-    }
-
-    // ===============================================
-    // ✅ GÉNÉRATION DE TICKET AVEC NUMÉROS UNIQUES - PROBLÈME RÉSOLU
-    // ===============================================
-
-    /**
-     * 🎯 GÉNÉRATION DE NUMÉRO DE TICKET UNIQUE (Solution du problème de doublon)
+     * 🎯 GÉNÉRATION DE NUMÉRO DE TICKET UNIQUE
      */
     private function generateUniqueTicketNumber($serviceId, $letterOfService)
     {
@@ -1960,7 +1357,6 @@ class DashboardController extends Controller
         do {
             $ticketNumber = $letterOfService . str_pad($counter, 3, '0', STR_PAD_LEFT);
             
-            // Vérifier si ce numéro existe déjà aujourd'hui
             $exists = DB::table('queues')
                 ->where('numero_ticket', $ticketNumber)
                 ->where('date', $date)
@@ -1972,7 +1368,6 @@ class DashboardController extends Controller
             
             $counter++;
             
-            // Sécurité : éviter une boucle infinie
             if ($counter > 999) {
                 throw new \Exception("Impossible de générer un numéro de ticket unique pour le service");
             }
@@ -1981,13 +1376,11 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🎫 GÉNÉRATION EFFECTIVE D'UN TICKET EN BASE DE DONNÉES - CORRIGÉE
-     * Utilise la nouvelle logique de génération de numéros uniques
+     * 🎫 GÉNÉRATION EFFECTIVE D'UN TICKET EN BASE DE DONNÉES
      */
     public function generateTicket(Request $request): JsonResponse
     {
         try {
-            // 🔒 VÉRIFICATION : Seuls les utilisateurs Ecran peuvent générer des tickets
             $user = Auth::user();
             if (!$user->isEcranUser()) {
                 return response()->json([
@@ -1996,7 +1389,6 @@ class DashboardController extends Controller
                 ], 403);
             }
 
-            // ✅ VALIDATION DES DONNÉES
             $validator = Validator::make($request->all(), [
                 'service_id' => 'required|integer|exists:services,id',
                 'full_name' => 'required|string|max:100',
@@ -2020,7 +1412,6 @@ class DashboardController extends Controller
                 ], 422);
             }
 
-            // ✅ VÉRIFICATION : Le service appartient-il à l'admin créateur de cet utilisateur ?
             $creator = $user->getCreator();
             if (!$creator) {
                 return response()->json([
@@ -2047,21 +1438,16 @@ class DashboardController extends Controller
                 ], 400);
             }
 
-            // 🚀 UTILISATION D'UNE TRANSACTION POUR ÉVITER LES CONFLITS
             $ticket = DB::transaction(function () use ($request, $service, $user, $creator) {
-                // 🎯 GÉNÉRER UN NUMÉRO DE TICKET UNIQUE
                 $letterOfService = strtoupper(substr($service->nom, 0, 1));
                 $uniqueTicketNumber = $this->generateUniqueTicketNumber($service->id, $letterOfService);
                 
-                // Calculer la position dans la file
                 $position = Queue::whereDate('date', today())
                                 ->where('statut_global', '!=', 'termine')
                                 ->count() + 1;
                 
-                // ✅ TEMPS D'ATTENTE : Utiliser le temps configuré par l'admin
                 $estimatedWaitTime = Setting::getDefaultWaitingTimeMinutes();
                 
-                // Données pour créer le ticket
                 $ticketData = [
                     'id_agence' => $user->agency_id ?? 1,
                     'letter_of_service' => $letterOfService,
@@ -2073,7 +1459,7 @@ class DashboardController extends Controller
                     'heure_d_enregistrement' => now()->format('H:i:s'),
                     'numero_ticket' => $uniqueTicketNumber,
                     'position_file' => $position,
-                    'temps_attente_estime' => $estimatedWaitTime, // ✅ Temps admin
+                    'temps_attente_estime' => $estimatedWaitTime,
                     'statut_global' => 'en_attente',
                     'resolu' => 'En cours',
                     'transferer' => 'No',
@@ -2088,17 +1474,13 @@ class DashboardController extends Controller
                     'updated_at' => now()
                 ];
 
-                // Insérer en base de données
                 $ticketId = DB::table('queues')->insertGetId($ticketData);
                 
-                // Retourner le ticket créé
                 return (object) array_merge($ticketData, ['id' => $ticketId]);
             });
 
-            // ✅ ENRICHIR AVEC LES STATISTIQUES DE FILE
             $queueStats = Queue::getServiceStats($service->id);
 
-            // 📊 PRÉPARER LA RÉPONSE POUR LE FRONTEND
             $response = [
                 'success' => true,
                 'message' => 'Ticket généré avec succès !',
@@ -2110,7 +1492,7 @@ class DashboardController extends Controller
                     'position' => $ticket->position_file,
                     'estimated_time' => $ticket->temps_attente_estime,
                     'date' => now()->format('d/m/Y'),
-                    'time' => \Carbon\Carbon::createFromFormat('H:i:s', $ticket->heure_d_enregistrement)->format('H:i'),
+                    'time' => Carbon::createFromFormat('H:i:s', $ticket->heure_d_enregistrement)->format('H:i'),
                     'fullName' => $ticket->prenom,
                     'phone' => $ticket->telephone,
                     'comment' => $ticket->commentaire ?: '',
@@ -2121,7 +1503,7 @@ class DashboardController extends Controller
                         'principle' => 'Numérotation par service avec système anti-doublon',
                         'arrival_time' => $ticket->heure_d_enregistrement,
                         'global_position' => $ticket->position_file,
-                        'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes() // ✅ Temps admin
+                        'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes()
                     ]
                 ],
                 'queue_status' => [
@@ -2164,7 +1546,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ RAFRAÎCHIR LES STATISTIQUES DES SERVICES (avec file chronologique)
+     * ✅ RAFRAÎCHIR LES STATISTIQUES DES SERVICES
      */
     public function refreshUserServices(Request $request): JsonResponse
     {
@@ -2186,9 +1568,8 @@ class DashboardController extends Controller
                 ], 500);
             }
 
-            // 🎯 FILTRAGE AUTOMATIQUE : Récupérer seulement les services actifs
             $services = $creator->createdServices()
-                              ->where('statut', 'actif')  // Filtrage cohérent
+                              ->where('statut', 'actif')
                               ->get()
                               ->map(function($service) {
                                   $queueStats = Queue::getServiceStats($service->id);
@@ -2231,6 +1612,540 @@ class DashboardController extends Controller
     }
 
     // ===============================================
+    // GESTION DES UTILISATEURS
+    // ===============================================
+
+    /**
+     * ✅ Liste des utilisateurs créés par l'admin connecté UNIQUEMENT
+     */
+    public function usersList(Request $request)
+    {
+        try {
+            $currentAdmin = Auth::user();
+            
+            if (!$currentAdmin->isAdmin()) {
+                abort(403, 'Accès non autorisé');
+            }
+
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdmin->id)
+                                          ->pluck('user_id')
+                                          ->toArray();
+            
+            $myUserIds[] = $currentAdmin->id;
+            $myCreatedUserIds = $myUserIds;
+
+            $query = User::whereIn('id', $myUserIds)
+                        ->with(['userType', 'status', 'agency', 'createdBy']);
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('username', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('mobile_number', 'LIKE', "%{$search}%")
+                      ->orWhere('company', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($request->filled('user_type')) {
+                $typeMapping = [
+                    'admin' => 1,
+                    'ecran' => 2,
+                    'accueil' => 3,
+                    'conseiller' => 4,
+                ];
+                
+                if (isset($typeMapping[$request->user_type])) {
+                    $query->where('user_type_id', $typeMapping[$request->user_type]);
+                }
+            }
+
+            if ($request->filled('status')) {
+                $statusMapping = [
+                    'active' => 2,
+                    'inactive' => 1,
+                    'suspended' => 3,
+                ];
+                
+                if (isset($statusMapping[$request->status])) {
+                    $query->where('status_id', $statusMapping[$request->status]);
+                }
+            }
+
+            if ($request->filled('agency_id')) {
+                $query->where('agency_id', $request->agency_id);
+            }
+
+            $sortBy = $request->get('sort', 'created_at');
+            $sortOrder = $request->get('order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            $users = $query->paginate(15)->appends($request->query());
+
+            $stats = [
+                'total_my_users' => count($myUserIds) - 1,
+                'active_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count() - 1,
+                'inactive_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
+                'suspended_my_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
+                'recent_my_users' => User::whereIn('id', $myUserIds)->where('created_at', '>=', now()->subDays(7))->count(),
+            ];
+
+            $myAgencies = Agency::where('created_by', $currentAdmin->id)
+                               ->orderBy('name')
+                               ->get();
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'users' => $users->map(function($user) {
+                        return [
+                            'id' => $user->id,
+                            'username' => $user->username,
+                            'email' => $user->email,
+                            'mobile_number' => $user->mobile_number,
+                            'company' => $user->company,
+                            'type' => $user->getTypeName(),
+                            'type_icon' => $user->getTypeIcon(),
+                            'type_badge_color' => $user->getTypeBadgeColor(),
+                            'type_emoji' => $user->getTypeEmoji(),
+                            'agency' => $user->agency ? $user->agency->name : null,
+                            'agency_id' => $user->agency_id,
+                            'status' => $user->getStatusName(),
+                            'status_badge_color' => $user->getStatusBadgeColor(),
+                            'created_at' => $user->created_at->format('d/m/Y H:i'),
+                            'last_login' => $user->last_login_at ? $user->last_login_at->format('d/m/Y H:i') : 'Jamais',
+                            'is_active' => $user->isActive(),
+                            'is_admin' => $user->isAdmin(),
+                            'creation_info' => $user->getCreationInfo(),
+                        ];
+                    }),
+                    'pagination' => [
+                        'current_page' => $users->currentPage(),
+                        'total' => $users->total(),
+                        'per_page' => $users->perPage(),
+                        'last_page' => $users->lastPage()
+                    ],
+                    'stats' => $stats
+                ]);
+            }
+
+            return view('User.users-list', compact('users', 'stats', 'myAgencies', 'myCreatedUserIds'));
+
+        } catch (\Exception $e) {
+            Log::error("Erreur liste utilisateurs pour admin " . Auth::id() . ": " . $e->getMessage());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la récupération des utilisateurs'
+                ], 500);
+            }
+            
+            return redirect()->route('layouts.app')
+                    ->with('error', 'Erreur lors de la récupération des utilisateurs.');
+        }
+    }
+
+    // ===============================================
+    // ACTIONS SUR LES UTILISATEURS
+    // ===============================================
+
+    /**
+     * 🔒 Vérifier que l'admin connecté a créé cet utilisateur
+     */
+    private function checkUserOwnership(User $user): bool
+    {
+        $currentAdmin = Auth::user();
+        
+        if ($user->id === $currentAdmin->id) {
+            return true;
+        }
+        
+        return AdministratorUser::where('administrator_id', $currentAdmin->id)
+                               ->where('user_id', $user->id)
+                               ->exists();
+    }
+
+    /**
+     * ✅ Activer utilisateur
+     */
+    public function activateUser(User $user, Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+            abort(403, 'Accès non autorisé');
+        }
+
+        if (!$this->checkUserOwnership($user)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas modifier cet utilisateur.'
+                ], 403);
+            }
+            abort(403, 'Vous ne pouvez pas modifier cet utilisateur.');
+        }
+
+        try {
+            $success = $user->activate();
+            
+            if ($success) {
+                Log::info("Utilisateur {$user->username} activé par " . Auth::user()->username);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => "Utilisateur {$user->username} activé avec succès !"
+                    ]);
+                }
+                
+                return redirect()->back()->with('success', "Utilisateur {$user->username} activé !");
+            }
+            
+            throw new \Exception('Échec de l\'activation');
+            
+        } catch (\Exception $e) {
+            Log::error("Erreur activation utilisateur: " . $e->getMessage());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de l\'activation de l\'utilisateur.'
+                ], 500);
+            }
+            
+            return redirect()->back()->with('error', 'Erreur lors de l\'activation.');
+        }
+    }
+
+    /**
+     * ✅ Suspendre utilisateur
+     */
+    public function suspendUser(User $user, Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+            abort(403, 'Accès non autorisé');
+        }
+
+        if (!$this->checkUserOwnership($user)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas modifier cet utilisateur.'
+                ], 403);
+            }
+            abort(403, 'Vous ne pouvez pas modifier cet utilisateur.');
+        }
+
+        if ($user->id === Auth::id()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas vous suspendre vous-même.'
+                ], 400);
+            }
+            return redirect()->back()->with('error', 'Vous ne pouvez pas vous suspendre vous-même.');
+        }
+
+        try {
+            $success = $user->suspend();
+            
+            if ($success) {
+                Log::info("Utilisateur {$user->username} suspendu par " . Auth::user()->username);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => "Utilisateur {$user->username} suspendu avec succès !"
+                    ]);
+                }
+                
+                return redirect()->back()->with('success', "Utilisateur {$user->username} suspendu !");
+            }
+            
+            throw new \Exception('Échec de la suspension');
+            
+        } catch (\Exception $e) {
+            Log::error("Erreur suspension utilisateur: " . $e->getMessage());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la suspension de l\'utilisateur.'
+                ], 500);
+            }
+            
+            return redirect()->back()->with('error', 'Erreur lors de la suspension.');
+        }
+    }
+
+    /**
+     * ✅ Réactiver utilisateur
+     */
+    public function reactivateUser(User $user, Request $request)
+    {
+        return $this->activateUser($user, $request);
+    }
+
+    /**
+     * ✅ Supprimer utilisateur
+     */
+    public function deleteUser(User $user, Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+            abort(403, 'Accès non autorisé');
+        }
+
+        if (!$this->checkUserOwnership($user)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas supprimer cet utilisateur.'
+                ], 403);
+            }
+            abort(403, 'Vous ne pouvez pas supprimer cet utilisateur.');
+        }
+
+        if ($user->id === Auth::id()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas vous supprimer vous-même.'
+                ], 400);
+            }
+            return redirect()->back()->with('error', 'Vous ne pouvez pas vous supprimer vous-même.');
+        }
+
+        try {
+            $username = $user->username;
+            
+            AdministratorUser::where('user_id', $user->id)->delete();
+            $user->delete();
+            
+            Log::info("Utilisateur {$username} supprimé par " . Auth::user()->username);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Utilisateur {$username} supprimé avec succès !"
+                ]);
+            }
+            
+            return redirect()->back()->with('success', "Utilisateur {$username} supprimé !");
+            
+        } catch (\Exception $e) {
+            Log::error("Erreur suppression utilisateur: " . $e->getMessage());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la suppression de l\'utilisateur.'
+                ], 500);
+            }
+            
+            return redirect()->back()->with('error', 'Erreur lors de la suppression.');
+        }
+    }
+
+    /**
+     * ✅ Actions en masse
+     */
+    public function bulkActivate(Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
+
+        try {
+            $userIds = $request->input('user_ids', []);
+            $currentAdminId = Auth::id();
+            
+            $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
+                                         ->pluck('user_id')
+                                         ->toArray();
+
+            if (empty($userIds)) {
+                $count = User::whereIn('id', $myUserIds)
+                            ->where('status_id', 1)
+                            ->update(['status_id' => 2]);
+
+                if ($count === 0) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Aucun utilisateur en attente d\'activation.'
+                    ]);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "{$count} utilisateur(s) en attente activé(s) avec succès !"
+                ]);
+            }
+
+            $validUserIds = array_intersect($userIds, $myUserIds);
+            
+            if (empty($validUserIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun utilisateur autorisé dans la sélection.'
+                ], 403);
+            }
+
+            $count = User::whereIn('id', $validUserIds)
+                        ->where('status_id', '!=', 2)
+                        ->update(['status_id' => 2]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$count} de vos utilisateur(s) activé(s) avec succès !"
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Erreur activation en masse: " . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'activation en masse.'
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ Suppression en masse
+     */
+    public function bulkDeleteUsers(Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
+
+        try {
+            $userIds = $request->input('user_ids', []);
+            
+            if (empty($userIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun utilisateur sélectionné.'
+                ], 400);
+            }
+
+            $userIds = array_filter($userIds, function($id) {
+                return $id != Auth::id();
+            });
+
+            $myUserIds = AdministratorUser::where('administrator_id', Auth::id())
+                                         ->pluck('user_id')
+                                         ->toArray();
+            
+            $validUserIds = array_intersect($userIds, $myUserIds);
+            
+            if (empty($validUserIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun utilisateur autorisé dans la sélection.'
+                ], 403);
+            }
+
+            AdministratorUser::whereIn('user_id', $validUserIds)->delete();
+            $count = User::whereIn('id', $validUserIds)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$count} de vos utilisateur(s) supprimé(s) avec succès !"
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Erreur suppression en masse: " . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression en masse.'
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ Réinitialiser mot de passe
+     */
+    public function resetUserPassword(User $user, Request $request)
+    {
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
+
+        if (!$this->checkUserOwnership($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas réinitialiser le mot de passe de cet utilisateur.'
+            ], 403);
+        }
+
+        try {
+            $newPassword = $this->generateSecurePassword();
+            $user->update(['password' => Hash::make($newPassword)]);
+
+            $adminUserRecord = AdministratorUser::where('administrator_id', Auth::id())
+                ->where('user_id', $user->id)
+                ->first();
+            
+            if ($adminUserRecord) {
+                $adminUserRecord->update([
+                    'password_reset_required' => true,
+                    'temporary_password' => $newPassword
+                ]);
+            }
+
+            Log::info("Mot de passe réinitialisé pour {$user->username} par " . Auth::user()->username);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Mot de passe réinitialisé pour {$user->username}",
+                'new_password' => $newPassword,
+                'credentials' => [
+                    'email' => $user->email,
+                    'username' => $user->username,
+                    'password' => $newPassword,
+                    'login_url' => route('login')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Erreur réinitialisation mot de passe: " . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la réinitialisation du mot de passe.'
+            ], 500);
+        }
+    }
+
+    // ===============================================
     // API AJAX POUR STATISTIQUES ET RECHERCHE
     // ===============================================
 
@@ -2249,19 +2164,15 @@ class DashboardController extends Controller
         try {
             $currentAdmin = Auth::user();
             
-            // 🔒 IDS DES UTILISATEURS : Seulement ceux créés par cet admin
             $myUserIds = AdministratorUser::where('administrator_id', $currentAdmin->id)
                                          ->pluck('user_id')
                                          ->toArray();
             
-            // Inclure l'admin lui-même
             $myUserIds[] = $currentAdmin->id;
-
-            // 🆕 NOUVEAU : Statistiques des services et tickets
             $myServiceIds = Service::where('created_by', $currentAdmin->id)->pluck('id');
 
             $stats = [
-                'my_total_users' => count($myUserIds) - 1, // -1 pour exclure l'admin du compte
+                'my_total_users' => count($myUserIds) - 1,
                 'my_active_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count() - 1,
                 'my_inactive_users' => User::whereIn('id', $myUserIds)->where('status_id', 1)->count(),
                 'my_suspended_users' => User::whereIn('id', $myUserIds)->where('status_id', 3)->count(),
@@ -2270,19 +2181,16 @@ class DashboardController extends Controller
                                                                      ->where('password_reset_required', true)
                                                                      ->count(),
                 
-                // Statistiques par type (seulement mes utilisateurs)
                 'my_admin_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
                 'my_ecran_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
                 'my_accueil_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
                 'my_conseiller_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
                 
-                // Mes agences et services
                 'my_agencies' => Agency::where('created_by', $currentAdmin->id)->count(),
                 'my_active_agencies' => Agency::where('created_by', $currentAdmin->id)->where('status', 'active')->count(),
                 'my_services' => Service::where('created_by', $currentAdmin->id)->count(),
                 'my_active_services' => Service::where('created_by', $currentAdmin->id)->where('statut', 'actif')->count(),
                 
-                // 🆕 NOUVEAU : Statistiques tickets avec file chronologique
                 'my_tickets_today' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->count(),
                 'my_tickets_waiting' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'en_attente')->count(),
                 'my_tickets_processing' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'en_cours')->count(),
@@ -2308,7 +2216,7 @@ class DashboardController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error("Erreur statistiques isolées: " . $e->getMessage());
+            Log::error("Erreur statistiques isolées: " . $e->getMessage());
             
             return response()->json([
                 'success' => false, 
@@ -2339,7 +2247,6 @@ class DashboardController extends Controller
         }
 
         try {
-            // 🔒 RECHERCHE : Seulement dans ses utilisateurs
             $currentAdminId = Auth::id();
             $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
                                          ->pluck('user_id')
@@ -2394,7 +2301,6 @@ class DashboardController extends Controller
             ], 403);
         }
 
-        // 🔒 Vérifier l'autorisation
         if (!$this->checkUserOwnership($user)) {
             return response()->json([
                 'success' => false,
@@ -2425,9 +2331,9 @@ class DashboardController extends Controller
                 'creation_info' => $user->getCreationInfo(),
                 'required_actions' => $user->getRequiredActions(),
                 'permissions' => [
-                    'can_edit' => true, // Puisqu'on a vérifié l'autorisation
-                    'can_delete' => $user->id !== Auth::id(), // Ne peut pas se supprimer
-                    'can_suspend' => $user->id !== Auth::id(), // Ne peut pas se suspendre
+                    'can_edit' => true,
+                    'can_delete' => $user->id !== Auth::id(),
+                    'can_suspend' => $user->id !== Auth::id(),
                     'can_reset_password' => true,
                 ]
             ];
@@ -2438,7 +2344,7 @@ class DashboardController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error("Erreur détails utilisateur: " . $e->getMessage());
+            Log::error("Erreur détails utilisateur: " . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -2446,10 +2352,6 @@ class DashboardController extends Controller
             ], 500);
         }
     }
-
-    // ===============================================
-    // STATISTIQUES AVANCÉES
-    // ===============================================
 
     /**
      * ✅ Statistiques avancées isolées
@@ -2466,13 +2368,11 @@ class DashboardController extends Controller
         try {
             $currentAdminId = Auth::id();
             
-            // 🔒 ISOLATION - Statistiques pour SES utilisateurs uniquement
             $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
                                          ->pluck('user_id')
                                          ->toArray();
-            $myUserIds[] = $currentAdminId; // Inclure l'admin lui-même
+            $myUserIds[] = $currentAdminId;
             
-            // Statistiques détaillées par type
             $statsByType = [
                 'admin' => [
                     'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
@@ -2514,10 +2414,6 @@ class DashboardController extends Controller
         }
     }
 
-    // ===============================================
-    // EXPORT ET UTILITAIRES
-    // ===============================================
-
     /**
      * ✅ Export seulement des utilisateurs de l'admin
      */
@@ -2528,7 +2424,6 @@ class DashboardController extends Controller
         }
 
         try {
-            // 🔒 EXPORT : Seulement ses propres utilisateurs
             $currentAdminId = Auth::id();
             $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
                                          ->pluck('user_id')
@@ -2549,10 +2444,8 @@ class DashboardController extends Controller
             $callback = function() use ($users) {
                 $file = fopen('php://output', 'w');
                 
-                // BOM pour UTF-8
                 fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
                 
-                // En-têtes CSV
                 fputcsv($file, [
                     'ID',
                     'Nom d\'utilisateur',
@@ -2565,7 +2458,6 @@ class DashboardController extends Controller
                     'Dernière modification'
                 ], ';');
                 
-                // Données
                 foreach ($users as $user) {
                     $createdBy = $user->getCreator();
                     
@@ -2588,13 +2480,70 @@ class DashboardController extends Controller
             return response()->stream($callback, 200, $headers);
             
         } catch (\Exception $e) {
-            \Log::error('Export error', [
+            Log::error('Export error', [
                 'admin_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);
             
             return redirect()->back()->with('error', 'Erreur lors de l\'export : ' . $e->getMessage());
         }
+    }
+
+    // ===============================================
+    // MÉTHODES UTILITAIRES PRIVÉES
+    // ===============================================
+
+    /**
+     * ⏱️ CALCULER LE TEMPS DE TRAITEMENT D'UN TICKET
+     */
+    private function calculateProcessingTime($ticket): int
+    {
+        if (!$ticket->heure_prise_en_charge) {
+            return 0;
+        }
+
+        $start = Carbon::parse($ticket->heure_prise_en_charge);
+        $end = $ticket->heure_de_fin ? Carbon::parse($ticket->heure_de_fin) : now();
+        
+        return $start->diffInMinutes($end);
+    }
+
+    /**
+     * ✅ CALCULER LE TEMPS D'ATTENTE D'UN TICKET SPÉCIFIQUE
+     */
+    private function calculateTicketWaitingTime($ticket): int
+    {
+        $now = now();
+        $arrival = null;
+        
+        if ($ticket->heure_d_enregistrement && $ticket->heure_d_enregistrement !== '--:--') {
+            $today = $now->toDateString();
+            $arrival = Carbon::parse($today . ' ' . $ticket->heure_d_enregistrement);
+        } elseif ($ticket->created_at) {
+            $arrival = Carbon::parse($ticket->created_at);
+        }
+        
+        if (!$arrival) {
+            return 0;
+        }
+        
+        return max(0, $arrival->diffInMinutes($now));
+    }
+
+    /**
+     * 📊 CALCULER LE SCORE D'EFFICACITÉ (placeholder)
+     */
+    private function calculateEfficiencyScore($conseillerId): float
+    {
+        return 85.5; // TODO: Implémenter le calcul réel
+    }
+
+    /**
+     * ⭐ CALCULER LE SCORE DE SATISFACTION CLIENT (placeholder)
+     */
+    private function calculateSatisfactionScore($conseillerId): float
+    {
+        return 4.2; // TODO: Implémenter le calcul réel sur 5
     }
 
     /**
@@ -2699,5 +2648,5 @@ class DashboardController extends Controller
             $years = floor($days / 365);
             return $years . ' an' . ($years > 1 ? 's' : '');
         } 
-    }     
+    }
 }
