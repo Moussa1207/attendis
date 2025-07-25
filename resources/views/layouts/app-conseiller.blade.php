@@ -216,9 +216,9 @@
                 </div>
             </div>
 
+            <!-- ✅ NOUVEAU : File d'attente pleine largeur -->
             <div class="row">
-                <!-- File d'attente principale -->
-                <div class="col-xl-8 col-lg-7 mb-4">
+                <div class="col-12 mb-4">
                     <div class="card queue-card">
                         <div class="card-header">
                             <div class="d-flex justify-content-between align-items-center">
@@ -242,22 +242,27 @@
                             </div>
                         </div>
                         <div class="card-body p-0">
-                            <!-- En-têtes de colonnes -->
+                            <!-- ✅ NOUVEAU : En-têtes de colonnes plus spacieux -->
                             <div class="queue-header">
-                                <div class="row align-items-center py-3 px-3 bg-light border-bottom">
+                                <div class="row align-items-center py-3 px-4 bg-light border-bottom">
                                     <div class="col-2">
-                                        <strong class="text-dark">Code</strong>
-                                    </div>
-                                    <div class="col-4">
-                                        <strong class="text-dark">Nom Client</strong>
+                                        <strong class="text-dark">Code Ticket</strong>
                                     </div>
                                     <div class="col-3">
+                                        <strong class="text-dark">Nom Client</strong>
+                                    </div>
+                                    <div class="col-2">
+                                        <strong class="text-dark">Téléphone</strong>
+                                    </div>
+                                    <div class="col-2">
                                         <strong class="text-dark">Service</strong>
                                     </div>
                                     <div class="col-2 text-center">
                                         <strong class="text-dark">Durée d'attente</strong>
                                     </div>
-                                    
+                                    <div class="col-1 text-center">
+                                        <strong class="text-dark">Action</strong>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -274,74 +279,6 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Panel latéral -->
-                <div class="col-xl-4 col-lg-5 mb-4">
-                    <!-- Ticket en cours -->
-                    <div class="card current-ticket-card mb-4">
-                        <div class="card-header">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h5 class="card-title mb-0">
-                                    👤 Client en cours
-                                </h5>
-                                <span class="badge badge-success" id="currentTicketStatus">
-                                    @if(isset($conseillerStats['ticket_en_cours']) && $conseillerStats['ticket_en_cours'])
-                                        En cours
-                                    @else
-                                        Disponible
-                                    @endif
-                                </span>
-                            </div>
-                        </div>
-                        <div class="card-body" id="currentTicketPanel">
-                            @if(isset($conseillerStats['ticket_en_cours']) && $conseillerStats['ticket_en_cours'])
-                                <!-- Ticket en cours initial -->
-                                <div class="current-ticket-panel">
-                                    <div class="current-ticket-info">
-                                        <div class="current-ticket-number">{{ $conseillerStats['ticket_en_cours']->numero_ticket }}</div>
-                                        <div class="current-ticket-name">{{ $conseillerStats['ticket_en_cours']->prenom }}</div>
-                                        <div class="current-ticket-phone">{{ $conseillerStats['ticket_en_cours']->telephone }}</div>
-                                    </div>
-                                    
-                                    <div class="ticket-duration">
-                                        <small>En cours depuis</small>
-                                        <div class="font-weight-bold" id="ticketDuration">
-                                            @php
-                                                $debut = \Carbon\Carbon::createFromFormat('H:i:s', $conseillerStats['ticket_en_cours']->heure_prise_en_charge ?? '00:00:00');
-                                                $maintenant = \Carbon\Carbon::now();
-                                                $duree = $debut->diffInMinutes($maintenant);
-                                            @endphp
-                                            {{ $duree }}min
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="ticket-actions">
-                                        <button class="btn btn-success btn-sm" onclick="advisorInterface.completeCurrentTicket()">
-                                            <i data-feather="check" class="mr-1"></i>Traiter
-                                        </button>
-                                        <button class="btn btn-outline-light btn-sm" onclick="advisorInterface.showTicketDetails({{ $conseillerStats['ticket_en_cours']->id }})">
-                                            <i data-feather="eye" class="mr-1"></i>Détails
-                                        </button>
-                                    </div>
-                                </div>
-                            @else
-                                <!-- Aucun ticket en cours -->
-                                <div class="no-client-state">
-                                    <div class="text-center py-4">
-                                        <div class="empty-state-icon mb-3">
-                                            <i data-feather="user-plus" class="text-muted"></i>
-                                        </div>
-                                        <h6 class="text-muted mb-2">Aucun client en cours</h6>
-                                        <p class="text-muted small mb-3">Cliquez sur "Appeler premier" pour commencer</p>
-                                        <button class="btn btn-primary btn-sm" onclick="advisorInterface.callNextTicket()">
-                                            <i data-feather="phone-call" class="mr-1"></i>Appeler premier client
-                                        </button>
-                                    </div>
-                                </div>
-                            @endif
                         </div>
                     </div>
                 </div>
@@ -400,7 +337,110 @@
     </div>
 </div>
 
-<!-- Modals -->
+<!-- ✅ NOUVEAU : Modal Ticket En Cours (remplace le panel) -->
+<div class="modal fade" id="currentTicketModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content current-ticket-modal">
+            <div class="modal-header bg-primary text-white border-0">
+                <h5 class="modal-title">
+                    <i data-feather="phone-call" class="mr-2"></i>
+                    <span id="modalTicketTitle">Client en cours</span>
+                </h5>
+                <div class="d-flex align-items-center">
+                    <div class="modal-timer mr-3">
+                        <span class="badge badge-light" id="modalTicketDuration">0min</span>
+                    </div>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fermer" onclick="advisorInterface.closeCurrentTicketModal()">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body p-0">
+                <div class="current-ticket-banner">
+                    <div class="container-fluid">
+                        <div class="row align-items-center py-4">
+                            <div class="col-md-8">
+                                <div class="ticket-info-display">
+                                    <div class="ticket-number-large" id="modalTicketNumber">M001</div>
+                                    <div class="client-details">
+                                        <h4 class="client-name mb-1" id="modalClientName">Nom du client</h4>
+                                        <p class="client-phone mb-2" id="modalClientPhone">+225 XX XX XX XX</p>
+                                        <span class="service-badge" id="modalServiceBadge">Service</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="call-status-indicator">
+                                    <div class="pulse-indicator">
+                                        <div class="pulse-ring"></div>
+                                        <div class="pulse-dot"></div>
+                                    </div>
+                                    <p class="status-text mt-3">Appel en cours</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="container-fluid py-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="font-weight-semibold text-primary mb-3">Informations détaillées</h6>
+                            <div class="info-list">
+                                <div class="info-item">
+                                    <span class="info-label">Heure d'appel :</span>
+                                    <span class="info-value" id="modalCallTime">--:--</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Temps d'attente initial :</span>
+                                    <span class="info-value" id="modalWaitTime">-- min</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Date de demande :</span>
+                                    <span class="info-value" id="modalRequestDate">--/--/----</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div id="modalCommentSection" class="comment-section" style="display: none;">
+                                <h6 class="font-weight-semibold text-primary mb-3">Commentaire client</h6>
+                                <div class="comment-display">
+                                    <i data-feather="message-circle" class="mr-2 text-info"></i>
+                                    <span id="modalComment">Commentaire du client...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <div class="w-100">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-outline-secondary btn-block" onclick="advisorInterface.showTicketDetails()">
+                                <i data-feather="eye" class="mr-1"></i>Voir détails
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <!-- ✅ MODIFIÉ : Appel direct à showFinalConfirmationModal -->
+                            <button type="button" class="btn btn-success btn-block" onclick="advisorInterface.showFinalConfirmationModal('traiter')">
+                                <i data-feather="check" class="mr-1"></i>Traiter le ticket
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <!-- ✅ MODIFIÉ : Appel direct à showFinalConfirmationModal -->
+                            <button type="button" class="btn btn-danger btn-block" onclick="advisorInterface.showFinalConfirmationModal('refuser')">
+                                <i data-feather="x" class="mr-1"></i>Refuser le ticket
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals existants -->
 <!-- Modal Détails Ticket -->
 <div class="modal fade" id="ticketDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -422,8 +462,91 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-success" onclick="advisorInterface.completeCurrentTicket()">
+                <!-- ✅ MODIFIÉ : Appel direct -->
+                <button type="button" class="btn btn-success" onclick="advisorInterface.showFinalConfirmationModal('traiter')">
                     <i data-feather="check" class="mr-1"></i>Traiter
+                </button>
+                <button type="button" class="btn btn-danger" onclick="advisorInterface.showFinalConfirmationModal('refuser')">
+                    <i data-feather="x" class="mr-1"></i>Refuser
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ NOUVEAU : Modal de confirmation finale SIMPLIFIÉ -->
+<div class="modal fade" id="finalConfirmationModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header" id="finalConfirmationModalHeader">
+                <h5 class="modal-title" id="finalConfirmationModalTitle">
+                    <i data-feather="check-circle" class="mr-2"></i>Confirmation de traitement
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Résumé du ticket -->
+                <div class="ticket-summary-card mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="font-weight-semibold text-primary mb-3">Ticket à traiter</h6>
+                            <p><strong>Numéro :</strong> <span id="finalTicketNumber">--</span></p>
+                            <p><strong>Client :</strong> <span id="finalClientName">--</span></p>
+                            <p><strong>Service :</strong> <span id="finalServiceName">--</span></p>
+                            <p><strong>Téléphone :</strong> <span id="finalClientPhone">--</span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="font-weight-semibold text-primary mb-3">Informations de traitement</h6>
+                            <p><strong>Prise en charge :</strong> <span id="finalCallTime">--</span></p>
+                            <p><strong>Durée actuelle :</strong> <span id="finalDuration">--</span></p>
+                            <p><strong>Temps d'attente initial :</strong> <span id="finalWaitTime">--</span></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Commentaire initial du client si présent -->
+                    <div id="finalCommentSection" class="mt-3" style="display: none;">
+                        <h6 class="font-weight-semibold text-primary">Commentaire initial du client</h6>
+                        <div class="alert alert-light">
+                            <i data-feather="message-circle" class="mr-2"></i>
+                            <span id="finalComment">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description de l'action -->
+                <div class="action-description mb-4" id="finalActionDescription">
+                    <h6 class="font-weight-semibold mb-2">
+                        <i data-feather="check" class="mr-2"></i>
+                        Action : <span id="finalActionLabel">Traiter le ticket</span>
+                    </h6>
+                    <p class="mb-0" id="finalActionText">Vous allez marquer ce ticket comme traité avec succès.</p>
+                </div>
+
+                <!-- Formulaire de commentaire -->
+                <div class="form-group">
+                    <label for="finalResolutionComment" class="font-weight-semibold">
+                        Commentaire de résolution
+                        <span class="required-indicator" id="finalCommentRequired" style="display: none;">*</span>
+                    </label>
+                    <textarea 
+                        class="form-control" 
+                        id="finalResolutionComment" 
+                        rows="4" 
+                        placeholder="Commentaire sur le traitement du ticket..."
+                        maxlength="500"
+                    ></textarea>
+                    <small class="form-text text-muted" id="finalCommentHelp">
+                        Ce commentaire est optionnel pour un traitement réussi.
+                    </small>
+                    <div id="finalCommentError" class="text-danger mt-2" style="display: none;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-success" id="finalConfirmButton" onclick="advisorInterface.confirmFinalResolution()">
+                    <i data-feather="check" class="mr-1"></i>Confirmer le traitement
                 </button>
             </div>
         </div>
@@ -491,7 +614,7 @@
     </div>
 </div>
 
-<!-- Styles CSS améliorés -->
+<!-- ✅ NOUVEAUX STYLES pour l'interface améliorée -->
 <style>
 /* ===== Variables CSS ===== */
 :root {
@@ -514,7 +637,7 @@
     min-height: 100vh;
 }
 
-/* ===== Cards sans bords arrondis ===== */
+/* ===== Cards ===== */
 .card {
     border: none;
     border-radius: var(--border-radius-sm);
@@ -534,7 +657,7 @@
     border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
 }
 
-/* ===== Stats Cards améliorées ===== */
+/* ===== Stats Cards ===== */
 .stats-card {
     background: white;
     border-radius: var(--border-radius-sm);
@@ -595,7 +718,7 @@
     font-weight: 400;
 }
 
-/* ===== Queue Card améliorée avec en-têtes et colonnes personnalisées ===== */
+/* ===== ✅ NOUVEAU : Queue Card pleine largeur ===== */
 .queue-card {
     background: white;
     box-shadow: var(--shadow-md);
@@ -610,44 +733,18 @@
     z-index: 10;
 }
 
-/* ===== Colonnes personnalisées plus compactes ===== */
-.queue-col-code {
-    flex: 0 0 110px;
-    min-width: 110px;
-}
-
-.queue-col-client {
-    flex: 1;
-    min-width: 160px;
-}
-
-.queue-col-service {
-    flex: 0 0 90px;
-    min-width: 90px;
-}
-
-.queue-col-waiting {
-    flex: 0 0 80px;
-    min-width: 80px;
-}
-
-.queue-col-action {
-    flex: 0 0 65px;
-    min-width: 65px;
-}
-
 .queue-container {
-    max-height: 500px;
+    max-height: 600px; /* Plus de hauteur */
     overflow-y: auto;
 }
 
 .tickets-list {
-    min-height: 200px;
+    min-height: 300px;
 }
 
-/* ===== Ticket Items - Style amélioré avec colonnes alignées ===== */
+/* ===== ✅ NOUVEAU : Ticket Items moins condensés ===== */
 .ticket-item {
-    padding: 1rem 1.5rem;
+    padding: 1.25rem 1.5rem; /* Plus d'espacement */
     border-bottom: 1px solid #f1f3f4;
     transition: var(--transition);
     cursor: pointer;
@@ -666,7 +763,6 @@
     padding-left: calc(1.5rem - 3px);
 }
 
-/* ===== Premier ticket en tête - style spécial ===== */
 .ticket-item.first-in-queue {
     background: linear-gradient(90deg, rgba(40, 167, 69, 0.05) 0%, rgba(40, 167, 69, 0.08) 100%);
     border-left: 4px solid var(--success-color);
@@ -679,7 +775,6 @@
     box-shadow: 0 4px 8px rgba(40, 167, 69, 0.15);
 }
 
-/* ===== Tickets bloqués (pas le premier) ===== */
 .ticket-item.blocked {
     opacity: 0.6;
     background: #f8f9fa;
@@ -692,52 +787,69 @@
     padding-left: 1.5rem;
 }
 
-/* Badge PREMIER */
-.first-badge {
-    position: absolute;
-    top: 0.5rem;
-    right: 1rem;
-    background: linear-gradient(45deg, var(--success-color), #218838);
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
-    animation: pulse 2s infinite;
+/* ===== ✅ NOUVEAU : Colonnes du tableau plus spacieuses ===== */
+.queue-col-code {
+    padding-right: 1rem;
 }
 
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+.queue-col-client {
+    padding-right: 1rem;
+}
+
+.queue-col-phone {
+    padding-right: 1rem;
+}
+
+.queue-col-service {
+    padding-right: 1rem;
+}
+
+.queue-col-waiting {
+    padding-right: 1rem;
+}
+
+.queue-col-action {
+    padding-left: 0.5rem;
 }
 
 .ticket-number {
     font-family: 'Courier New', monospace;
     font-weight: 700;
     color: #2d3748;
-    font-size: 1.1rem;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.client-name {
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.client-phone {
+    color: #718096;
+    font-size: 0.75rem;
 }
 
 .ticket-service {
     color: var(--info-color);
     background: rgba(23, 162, 184, 0.1);
-    padding: 0.25rem 0.75rem;
+    padding: 0.375rem 0.875rem;
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
+    display: inline-block;
 }
 
 .ticket-waiting-time {
     font-weight: 600;
-    font-size: 1rem;
-    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
     border-radius: 6px;
     text-align: center;
-    min-width: 50px;
+    min-width: 60px;
+    display: inline-block;
 }
 
 .ticket-waiting-time.urgent {
@@ -755,85 +867,365 @@
     background: #d4edda;
 }
 
-/* ===== Boutons d'action ===== */
+.first-badge {
+    position: absolute;
+    top: 0.1rem;
+    right: 1rem;
+    background: linear-gradient(45deg, var(--success-color), #218838);
+    color: white;
+    padding: 0.375rem 0.875rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
 .btn-call-ticket {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 6px;
     transition: var(--transition);
 }
 
-.btn-call-ticket:disabled {
+.btn-call-ticket:hover:not(.blocked) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(40, 167, 69, 0.3);
+}
+
+.btn-call-ticket.blocked {
     opacity: 0.5;
     cursor: not-allowed;
 }
 
-.btn-call-ticket.blocked {
-    background: #6c757d;
-    border-color: #6c757d;
-    opacity: 0.5;
+/* ===== ✅ NOUVEAU : Modal Ticket En Cours ===== */
+.current-ticket-modal .modal-dialog {
+    max-width: 900px;
+    margin: 1.75rem auto;
 }
 
-/* ===== Current Ticket Panel ===== */
-.current-ticket-card {
-    background: white;
-    box-shadow: var(--shadow-md);
-    border-radius: var(--border-radius-sm);
+.current-ticket-modal .modal-content {
+    border: none;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
 }
 
-.current-ticket-panel {
-    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
-    border-radius: var(--border-radius-md);
-    color: white;
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.current-ticket-modal .modal-header {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
     padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.current-ticket-modal .modal-header .close {
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: white;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.current-ticket-modal .modal-header .close:hover {
+    opacity: 1;
+    color: white;
+}
+
+.modal-timer .badge {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ===== Centrage responsive amélioré ===== */
+@media (min-width: 576px) {
+    .current-ticket-modal .modal-dialog {
+        max-width: 540px;
+        margin: 1.75rem auto;
+    }
+}
+
+@media (min-width: 768px) {
+    .current-ticket-modal .modal-dialog {
+        max-width: 700px;
+        margin: 1.75rem auto;
+    }
+}
+
+@media (min-width: 992px) {
+    .current-ticket-modal .modal-dialog {
+        max-width: 850px;
+        margin: 1.75rem auto;
+    }
+}
+
+@media (min-width: 1200px) {
+    .current-ticket-modal .modal-dialog {
+        max-width: 900px;
+        margin: 1.75rem auto;
+    }
+}
+
+/* ===== Centrage vertical parfait ===== */
+.modal.fade .modal-dialog {
+    transition: transform 0.3s ease-out;
+    transform: translate(0, -50px);
+}
+
+.modal.show .modal-dialog {
+    transform: none;
+}
+
+.modal-dialog-centered {
+    display: flex;
+    align-items: center;
+    min-height: calc(100% - 1rem);
+}
+
+@media (min-width: 576px) {
+    .modal-dialog-centered {
+        min-height: calc(100% - 3.5rem);
+    }
+}
+
+.current-ticket-banner {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-bottom: 1px solid #dee2e6;
+}
+
+.ticket-info-display {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.ticket-number-large {
+    font-family: 'Courier New', monospace;
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--primary-color);
+    line-height: 1;
+    padding: 1rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    min-width: 120px;
     text-align: center;
 }
 
-.current-ticket-info {
-    margin-bottom: 1.5rem;
+.client-details {
+    flex: 1;
 }
 
-.current-ticket-number {
-    font-size: 2.5rem;
+.client-name {
+    font-size: 1.rem;
     font-weight: 700;
-    font-family: 'Courier New', monospace;
+    color: #2d3748;
     margin-bottom: 0.5rem;
 }
 
-.current-ticket-name {
-    font-size: 1.25rem;
+.client-phone {
+    font-size: 0.75rem;
+    color: #718096;
+    margin-bottom: 1rem;
+}
+
+.service-badge {
+    background: linear-gradient(135deg, var(--info-color), #138496);
+    color: white;
+    padding: 0.5rem 1.25rem;
+    border-radius: 20px;
     font-weight: 600;
-    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
 }
 
-.current-ticket-phone {
-    opacity: 0.8;
-    font-size: 0.95rem;
+.call-status-indicator {
+    text-align: center;
 }
 
-.ticket-duration {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: var(--border-radius-md);
-    padding: 0.75rem;
-    margin: 1rem 0;
-    backdrop-filter: blur(10px);
+.pulse-indicator {
+    position: relative;
+    display: inline-block;
+    margin: 0 auto;
 }
 
-.ticket-actions {
+.pulse-ring {
+    width: 80px;
+    height: 80px;
+    border: 3px solid var(--success-color);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: pulse-ring 2s ease-out infinite;
+}
+
+.pulse-dot {
+    width: 40px;
+    height: 40px;
+    background: var(--success-color);
+    border-radius: 50%;
+    position: relative;
+    margin: 20px;
+}
+
+@keyframes pulse-ring {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0;
+    }
+}
+
+.status-text {
+    color: var(--success-color);
+    font-weight: 600;
+    font-size: 1rem;
+    margin: 0;
+}
+
+.info-list {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.info-item {
     display: flex;
-    gap: 0.75rem;
-    justify-content: center;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+.info-value {
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 1rem;
+}
+
+.comment-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.comment-display {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    border-left: 4px solid var(--info-color);
+    font-style: italic;
+    color: #495057;
+}
+
+/* ===== ✅ NOUVEAU : Modal de confirmation finale ===== */
+.ticket-summary-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+}
+
+.action-description {
+    background: rgba(40, 167, 69, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    border-left: 4px solid var(--success-color);
+}
+
+.action-description.action-refuser {
+    background: rgba(220, 53, 69, 0.1);
+    border-left-color: var(--danger-color);
+}
+
+.required-indicator {
+    color: var(--danger-color);
+    font-weight: 700;
+}
+
+/* ===== ✅ NOUVEAU : Styles pour les commentaires dans l'historique ===== */
+.comment-tooltip {
+    max-width: 300px;
+    word-wrap: break-word;
+}
+
+.comment-preview {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: help;
+}
+
+.comment-modal {
+    max-width: 600px;
+}
+
+.comment-full-text {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    border-left: 4px solid var(--info-color);
+    font-style: italic;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 /* ===== Empty States ===== */
-.no-client-state,
 .empty-queue-state {
-    padding: 2rem 1rem;
+    padding: 3rem 1rem;
     text-align: center;
 }
 
 .empty-state-icon i {
-    width: 48px;
-    height: 48px;
-    opacity: 0.5;
+    width: 64px;
+    height: 64px;
+    opacity: 0.4;
 }
 
 /* ===== Buttons ===== */
@@ -865,20 +1257,7 @@
     box-shadow: var(--shadow-sm);
 }
 
-/* ===== Quick Actions ===== */
-.quick-actions-card {
-    background: white;
-    box-shadow: var(--shadow-sm);
-    border-radius: var(--border-radius-sm);
-}
-
-/* ===== Loading States ===== */
-.loading-state {
-    padding: 2rem;
-    text-align: center;
-}
-
-/* ===== Responsive amélioré ===== */
+/* ===== Responsive ===== */
 @media (max-width: 768px) {
     .stats-card {
         margin-bottom: 1rem;
@@ -891,105 +1270,79 @@
     
     .ticket-item {
         padding: 1rem;
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.75rem;
+    }
+    
+    .ticket-item .row {
+        width: 100%;
+        margin: 0;
+    }
+    
+    .ticket-item .col-2,
+    .ticket-item .col-3 {
+        flex: 0 0 100%;
+        max-width: 100%;
+        margin-bottom: 0.5rem;
     }
     
     .first-badge {
         right: 0.5rem;
-        padding: 0.2rem 0.6rem;
+        top: 0.5rem;
+        padding: 0.25rem 0.75rem;
         font-size: 0.65rem;
     }
     
-    .stats-icon {
-        width: 50px;
-        height: 50px;
-    }
-    
-    .stats-number {
-        font-size: 1.75rem;
-    }
-    
-    /* Ajustement colonnes pour mobile */
-    .queue-col-code {
-        flex: 0 0 100px;
-        min-width: 100px;
-    }
-    
-    .queue-col-client {
-        flex: 1;
-        min-width: 150px;
-    }
-    
-    .queue-col-service {
-        flex: 0 0 80px;
+    .ticket-number-large {
+        font-size: 2rem;
         min-width: 80px;
+        padding: 0.75rem;
     }
     
-    .queue-col-waiting {
-        flex: 0 0 70px;
-        min-width: 70px;
+    .client-name {
+        font-size: 1.25rem;
     }
     
-    .queue-col-action {
-        flex: 0 0 60px;
-        min-width: 60px;
+    .ticket-info-display {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
     }
 }
 
 @media (max-width: 576px) {
-    .current-ticket-number {
-        font-size: 2rem;
+    .queue-header .row {
+        display: none; /* Masquer les en-têtes sur mobile */
     }
     
-    .ticket-actions {
-        flex-direction: column;
-    }
-    
-    .ticket-actions .btn {
-        width: 100%;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Colonnes très petit écran */
-    .queue-col-code {
-        flex: 0 0 80px;
-        min-width: 80px;
-    }
-    
-    .queue-col-service {
-        display: none; /* Masquer service sur très petit écran */
-    }
-    
-    .queue-col-waiting {
-        flex: 0 0 60px;
-        min-width: 60px;
-    }
-    
-    .queue-col-action {
-        flex: 0 0 50px;
-        min-width: 50px;
+    .ticket-item {
+        border-radius: 8px;
+        margin: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 }
 
 /* ===== Scrollbar personnalisé ===== */
 .queue-container::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
 }
 
 .queue-container::-webkit-scrollbar-track {
     background: #f1f1f1;
-    border-radius: 3px;
+    border-radius: 4px;
 }
 
 .queue-container::-webkit-scrollbar-thumb {
     background: #c1c1c1;
-    border-radius: 3px;
+    border-radius: 4px;
 }
 
 .queue-container::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
 }
 
-/* ===== Notifications améliorées ===== */
+/* ===== Notifications ===== */
 .toast-notification {
     position: fixed;
     top: 90px;
@@ -1024,17 +1377,20 @@
 }
 </style>
 
-<!-- JavaScript amélioré -->
+<!-- ✅ NOUVEAU JavaScript CORRIGÉ -->
 <script>
-// ===== Interface Conseiller FIFO - Version améliorée =====
+// ===== Interface Conseiller FIFO avec Flow Simplifié CORRIGÉ =====
 class AdvisorInterface {
     constructor() {
         this.currentTicket = null;
+        this.currentActionType = null; // 'traiter' ou 'refuser'
         this.ticketsData = [];
         this.refreshInterval = null;
         this.isPaused = false;
         this.isInitialized = false;
         this.waitingTimeUpdateInterval = null;
+        this.ticketTimer = null;
+        this.isProcessingResolution = false; // ✅ AJOUT : Éviter les doubles soumissions
         
         this.config = {
             refreshInterval: 30000,
@@ -1058,10 +1414,8 @@ class AdvisorInterface {
             this.startWaitingTimeUpdater();
             this.isInitialized = true;
             
-            // Message de diagnostic
-            this.showNotification('success', 'Interface FIFO prête', 'Seul le premier ticket peut être appelé');
-            console.log('✅ AdvisorInterface FIFO initialized successfully');
-            console.log('🔍 Si les noms n\'apparaissent pas, vérifiez la console pour le debug des données');
+            this.showNotification('success', 'Interface FIFO prête', 'Flow simplifié activé avec corrections');
+            console.log('✅ AdvisorInterface FIFO with simplified flow (FIXED) initialized successfully');
             
         } catch (error) {
             console.error('❌ Failed to initialize AdvisorInterface:', error);
@@ -1098,6 +1452,31 @@ class AdvisorInterface {
             e.preventDefault();
             this.handlePasswordChange();
         });
+
+        // ✅ NOUVEAU : Événement pour la validation en temps réel du commentaire
+        $(document).on('input', '#finalResolutionComment', () => {
+            this.validateResolutionComment();
+        });
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Validation en temps réel du commentaire
+    validateResolutionComment() {
+        if (!this.currentActionType) return;
+
+        const commentaire = document.getElementById('finalResolutionComment').value.trim();
+        const errorDiv = document.getElementById('finalCommentError');
+        const confirmBtn = document.getElementById('finalConfirmButton');
+        
+        if (this.currentActionType === 'refuser' && !commentaire) {
+            errorDiv.textContent = 'Le commentaire est obligatoire pour refuser un ticket';
+            errorDiv.style.display = 'block';
+            confirmBtn.disabled = true;
+            confirmBtn.classList.add('disabled');
+        } else {
+            errorDiv.style.display = 'none';
+            confirmBtn.disabled = false;
+            confirmBtn.classList.remove('disabled');
+        }
     }
 
     async loadInitialData() {
@@ -1107,11 +1486,10 @@ class AdvisorInterface {
         ]);
     }
 
-    // ===== Nouveau : Mise à jour temps d'attente en temps réel =====
     startWaitingTimeUpdater() {
         this.waitingTimeUpdateInterval = setInterval(() => {
             this.updateWaitingTimes();
-        }, 60000); // Mise à jour chaque minute
+        }, 60000);
     }
 
     updateWaitingTimes() {
@@ -1124,7 +1502,6 @@ class AdvisorInterface {
                 if (timeElement) {
                     timeElement.textContent = waitingTime + 'min';
                     
-                    // Mise à jour des classes de style
                     timeElement.classList.remove('normal', 'warning', 'urgent');
                     if (waitingTime > 30) {
                         timeElement.classList.add('urgent');
@@ -1145,25 +1522,6 @@ class AdvisorInterface {
             
             if (response.success) {
                 this.ticketsData = response.tickets || [];
-                
-                // 🔍 DEBUG : Vérifier les données reçues du serveur
-                if (this.ticketsData.length > 0) {
-                    console.log('📡 DEBUG: Données reçues du serveur pour le premier ticket:');
-                    console.log('🎫 Premier ticket brut:', this.ticketsData[0]);
-                    console.log('🔍 Champs disponibles:', Object.keys(this.ticketsData[0]));
-                    
-                    // Vérifier spécifiquement les champs nom
-                    const firstTicket = this.ticketsData[0];
-                    console.log('📝 Champs nom détectés:');
-                    ['prenom', 'nom', 'nom_complet', 'client_name', 'name'].forEach(field => {
-                        if (firstTicket.hasOwnProperty(field)) {
-                            console.log(`   - ${field}: "${firstTicket[field]}"`);
-                        } else {
-                            console.log(`   - ${field}: [ABSENT]`);
-                        }
-                    });
-                }
-                
                 this.updateUI(response);
                 console.log('🔄 Tickets refreshed:', this.ticketsData.length);
             } else {
@@ -1186,13 +1544,11 @@ class AdvisorInterface {
             return;
         }
 
-        // ✅ FIFO : Toujours prendre le premier ticket
         const firstTicket = this.ticketsData[0];
         await this.callTicket(firstTicket.id);
     }
 
     async callTicket(ticketId) {
-        // ✅ RESTRICTION FIFO : Vérifier que c'est bien le premier ticket
         if (this.ticketsData.length > 0 && this.ticketsData[0].id !== ticketId) {
             this.showNotification('warning', 'Restriction FIFO', 'Vous ne pouvez appeler que le premier ticket de la file');
             return;
@@ -1207,7 +1563,8 @@ class AdvisorInterface {
             
             if (response.success) {
                 this.currentTicket = response.ticket;
-                this.updateCurrentTicketPanel(response.ticket);
+                // ✅ NOUVEAU : Afficher le modal au lieu du panel
+                this.showCurrentTicketModal(response.ticket);
                 await this.refreshTickets();
                 this.showNotification('success', 'Premier client appelé', `Ticket ${response.ticket.numero_ticket}`);
                 this.playNotificationSound();
@@ -1222,33 +1579,320 @@ class AdvisorInterface {
         }
     }
 
-    async completeCurrentTicket() {
-        if (!this.currentTicket) {
-            this.showNotification('error', 'Erreur', 'Aucun ticket en cours');
-            return;
+    // ===== ✅ NOUVELLE MÉTHODE : Fermer le modal ticket en cours =====
+    closeCurrentTicketModal() {
+        // Confirmation avant fermeture si un ticket est en cours
+        if (this.currentTicket) {
+            if (confirm('⚠️ Un ticket est en cours. Voulez-vous vraiment fermer cette fenêtre ?\n\nLe ticket restera actif mais vous devrez le traiter depuis les actions rapides.')) {
+                $('#currentTicketModal').modal('hide');
+                this.stopModalTimer();
+                this.showNotification('info', 'Modal fermé', 'Le ticket reste actif. Traitez-le via les actions rapides.');
+            }
+        } else {
+            $('#currentTicketModal').modal('hide');
+            this.stopModalTimer();
         }
+    }
 
+    // ===== ✅ NOUVELLE MÉTHODE : Afficher le modal du ticket en cours =====
+    showCurrentTicketModal(ticket) {
+        const validatedTicket = this.validateTicketData(ticket);
+        
+        // Remplir les informations du modal
+        document.getElementById('modalTicketTitle').textContent = `Client ${validatedTicket.numero_ticket} en cours`;
+        document.getElementById('modalTicketNumber').textContent = validatedTicket.numero_ticket;
+        document.getElementById('modalClientName').textContent = validatedTicket.prenom;
+        document.getElementById('modalClientPhone').textContent = validatedTicket.telephone;
+        document.getElementById('modalServiceBadge').textContent = validatedTicket.service;
+        document.getElementById('modalCallTime').textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        document.getElementById('modalRequestDate').textContent = validatedTicket.date;
+        
+        // Temps d'attente initial
+        const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
+        document.getElementById('modalWaitTime').textContent = `${waitingTime} min`;
+        
+        // Commentaire (si présent)
+        const commentSection = document.getElementById('modalCommentSection');
+        if (validatedTicket.commentaire && validatedTicket.commentaire.trim() !== '') {
+            document.getElementById('modalComment').textContent = validatedTicket.commentaire;
+            commentSection.style.display = 'block';
+        } else {
+            commentSection.style.display = 'none';
+        }
+        
+        // Démarrer le timer
+        this.startModalTimer();
+        
+        // Afficher le modal
+        $('#currentTicketModal').modal('show');
+        
+        if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    // ===== ✅ NOUVELLE MÉTHODE : Timer du modal =====
+    startModalTimer() {
+        const start = new Date();
+        this.ticketTimer = setInterval(() => {
+            const now = new Date();
+            const diff = Math.floor((now - start) / (1000 * 60));
+            const element = document.getElementById('modalTicketDuration');
+            if (element) {
+                element.textContent = diff + 'min';
+            } else {
+                this.stopModalTimer();
+            }
+        }, 60000);
+    }
+
+    stopModalTimer() {
+        if (this.ticketTimer) {
+            clearInterval(this.ticketTimer);
+            this.ticketTimer = null;
+        }
+    }
+
+    // ===== ✅ MÉTHODE CORRIGÉE : Afficher directement le modal de confirmation finale =====
+    showFinalConfirmationModal(actionType) {
         try {
-            const response = await this.apiCall('POST', this.config.apiRoutes.completeTicket, {
-                ticket_id: this.currentTicket.id
-            });
+            if (!this.currentTicket) {
+                this.showNotification('error', 'Erreur', 'Aucun ticket en cours');
+                return;
+            }
+
+            this.currentActionType = actionType;
+            this.isProcessingResolution = false; // ✅ Réinitialiser
             
+            // Configurer le modal selon l'action
+            const isTraiter = actionType === 'traiter';
+            const modal = document.getElementById('finalConfirmationModal');
+            const header = document.getElementById('finalConfirmationModalHeader');
+            const title = document.getElementById('finalConfirmationModalTitle');
+            const actionLabel = document.getElementById('finalActionLabel');
+            const actionText = document.getElementById('finalActionText');
+            const actionDescription = document.querySelector('.action-description');
+            const commentRequired = document.getElementById('finalCommentRequired');
+            const commentHelp = document.getElementById('finalCommentHelp');
+            const confirmButton = document.getElementById('finalConfirmButton');
+            const commentTextarea = document.getElementById('finalResolutionComment');
+
+            // ✅ Modifier l'apparence selon l'action
+            if (isTraiter) {
+                header.className = 'modal-header bg-success text-white';
+                title.innerHTML = '<i data-feather="check-circle" class="mr-2"></i>Confirmation de traitement';
+                actionLabel.textContent = 'Traiter le ticket avec succès';
+                actionText.textContent = 'Vous allez marquer ce ticket comme traité avec succès.';
+                actionDescription.className = 'action-description mb-4';
+                commentRequired.style.display = 'none';
+                commentHelp.textContent = 'Ce commentaire est optionnel pour un traitement réussi.';
+                confirmButton.className = 'btn btn-success';
+                confirmButton.innerHTML = '<i data-feather="check" class="mr-1"></i>Confirmer le traitement';
+                confirmButton.disabled = false; // ✅ Toujours actif pour traiter
+                commentTextarea.placeholder = 'Commentaire optionnel sur le traitement...';
+                commentTextarea.required = false;
+            } else {
+                header.className = 'modal-header bg-danger text-white';
+                title.innerHTML = '<i data-feather="x-circle" class="mr-2"></i>Confirmation de refus';
+                actionLabel.textContent = 'Refuser le ticket';
+                actionText.textContent = 'Vous allez marquer ce ticket comme non résolu. Un commentaire est obligatoire.';
+                actionDescription.className = 'action-description action-refuser mb-4';
+                commentRequired.style.display = 'inline';
+                commentHelp.textContent = 'Ce commentaire est obligatoire pour justifier le refus.';
+                confirmButton.className = 'btn btn-danger';
+                confirmButton.innerHTML = '<i data-feather="x" class="mr-1"></i>Confirmer le refus';
+                confirmButton.disabled = true; // ✅ Désactivé par défaut pour refus
+                commentTextarea.placeholder = 'Expliquez pourquoi le ticket est refusé (obligatoire)...';
+                commentTextarea.required = true;
+            }
+
+            // ✅ Remplir les informations du ticket
+            document.getElementById('finalTicketNumber').textContent = this.currentTicket.numero_ticket;
+            document.getElementById('finalClientName').textContent = this.currentTicket.prenom || this.currentTicket.client_name;
+            document.getElementById('finalServiceName').textContent = this.currentTicket.service;
+            document.getElementById('finalClientPhone').textContent = this.currentTicket.telephone;
+            document.getElementById('finalCallTime').textContent = this.currentTicket.heure_prise_en_charge || '--:--';
+            
+            // Calculer la durée actuelle
+            const currentDuration = this.calculateCurrentDuration();
+            document.getElementById('finalDuration').textContent = currentDuration + ' min';
+            
+            // Temps d'attente initial
+            const waitingTime = this.calculateRealWaitingTime(this.currentTicket.heure_d_enregistrement || this.currentTicket.created_at);
+            document.getElementById('finalWaitTime').textContent = waitingTime + ' min';
+            
+            // Commentaire initial du client
+            const commentSection = document.getElementById('finalCommentSection');
+            if (this.currentTicket.commentaire && this.currentTicket.commentaire.trim() !== '') {
+                document.getElementById('finalComment').textContent = this.currentTicket.commentaire;
+                commentSection.style.display = 'block';
+            } else {
+                commentSection.style.display = 'none';
+            }
+
+            // ✅ Effacer le commentaire précédent et masquer les erreurs
+            commentTextarea.value = '';
+            document.getElementById('finalCommentError').style.display = 'none';
+
+            // ✅ Valider immédiatement l'état du bouton
+            this.validateResolutionComment();
+
+            // ✅ Afficher directement le modal de confirmation finale
+            $('#finalConfirmationModal').modal('show');
+            
+            // ✅ Focus sur le textarea si c'est un refus
+            if (!isTraiter) {
+                setTimeout(() => {
+                    commentTextarea.focus();
+                }, 500);
+            }
+            
+            if (typeof feather !== 'undefined') feather.replace();
+
+            console.log('✅ Modal de confirmation finale affiché', {
+                action: actionType,
+                ticket: this.currentTicket.numero_ticket,
+                commentaire_obligatoire: !isTraiter,
+                button_enabled: !confirmButton.disabled
+            });
+
+        } catch (error) {
+            console.error('❌ Error showing final confirmation modal:', error);
+            this.showNotification('error', 'Erreur', 'Impossible d\'afficher le modal de confirmation');
+        }
+    }
+
+    // ===== ✅ MÉTHODE CORRIGÉE : Confirmer la résolution finale =====
+    async confirmFinalResolution() {
+        try {
+            // ✅ Éviter les doubles soumissions
+            if (this.isProcessingResolution) {
+                console.log('⚠️ Résolution déjà en cours, ignorée');
+                return;
+            }
+
+            if (!this.currentTicket || !this.currentActionType) {
+                this.showNotification('error', 'Erreur', 'Informations de résolution manquantes');
+                return;
+            }
+
+            const commentaire = document.getElementById('finalResolutionComment').value.trim();
+            const errorDiv = document.getElementById('finalCommentError');
+            
+            // ✅ Validation stricte pour refus
+            if (this.currentActionType === 'refuser' && !commentaire) {
+                errorDiv.textContent = 'Le commentaire est obligatoire pour refuser un ticket';
+                errorDiv.style.display = 'block';
+                document.getElementById('finalResolutionComment').focus();
+                return;
+            }
+
+            // ✅ Masquer les erreurs et marquer comme en cours
+            errorDiv.style.display = 'none';
+            this.isProcessingResolution = true;
+
+            // ✅ Désactiver le bouton avec état visuel clair
+            const confirmBtn = document.getElementById('finalConfirmButton');
+            const originalHTML = confirmBtn.innerHTML;
+            const originalClasses = confirmBtn.className;
+            
+            confirmBtn.innerHTML = `
+                <span class="spinner-border spinner-border-sm mr-2"></span>
+                ${this.currentActionType === 'traiter' ? 'Traitement...' : 'Refus...'}
+            `;
+            confirmBtn.disabled = true;
+            confirmBtn.className = 'btn btn-secondary'; // Couleur neutre pendant traitement
+
+            console.log('🔄 Envoi de la résolution:', {
+                action: this.currentActionType,
+                ticket: this.currentTicket.numero_ticket,
+                has_comment: commentaire.length > 0,
+                comment_length: commentaire.length
+            });
+
+            // ✅ Envoyer la résolution avec timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 secondes
+
+            const response = await this.apiCall('POST', this.config.apiRoutes.completeTicket, {
+                action: this.currentActionType,
+                commentaire_resolution: commentaire,
+                ticket_id: this.currentTicket.id // ✅ S'assurer d'envoyer l'ID
+            }, controller.signal);
+
+            clearTimeout(timeoutId);
+
             if (response.success) {
+                // ✅ Fermer tous les modals
+                $('#finalConfirmationModal').modal('hide');
+                $('#currentTicketModal').modal('hide');
+                this.stopModalTimer();
+                
+                // ✅ Réinitialiser les variables
+                const actionText = this.currentActionType === 'traiter' ? 'traité' : 'refusé';
+                const ticketNumber = this.currentTicket.numero_ticket;
+                
                 this.currentTicket = null;
-                this.updateCurrentTicketPanel(null);
+                this.currentActionType = null;
+                this.isProcessingResolution = false;
+                
+                // ✅ Rafraîchir les données
                 await Promise.all([
                     this.refreshTickets(),
                     this.loadMyStats()
                 ]);
-                this.showNotification('success', 'Ticket terminé', 'Client traité avec succès');
-                $('#ticketDetailsModal').modal('hide');
+
+                this.showNotification('success', 'Résolution confirmée', `Ticket ${ticketNumber} ${actionText} avec succès`);
+                
+                console.log('✅ Ticket resolved successfully:', {
+                    ticket: ticketNumber,
+                    action: actionText,
+                    has_comment: commentaire.length > 0,
+                    response: response
+                });
+                
             } else {
-                throw new Error(response.message || 'Erreur lors de la finalisation');
+                throw new Error(response.message || 'Erreur lors de la résolution');
             }
+
         } catch (error) {
-            console.error('❌ Error completing ticket:', error);
-            this.showNotification('error', 'Erreur', error.message);
+            console.error('❌ Error confirming final resolution:', error);
+            this.isProcessingResolution = false;
+            
+            // ✅ Afficher l'erreur spécifique
+            if (error.name === 'AbortError') {
+                this.showNotification('error', 'Timeout', 'La requête a pris trop de temps');
+            } else {
+                this.showNotification('error', 'Erreur', error.message);
+            }
+        } finally {
+            // ✅ Réactiver le bouton dans tous les cas
+            const confirmBtn = document.getElementById('finalConfirmButton');
+            if (confirmBtn && this.currentActionType) {
+                const isTraiter = this.currentActionType === 'traiter';
+                confirmBtn.innerHTML = isTraiter ? 
+                    '<i data-feather="check" class="mr-1"></i>Confirmer le traitement' : 
+                    '<i data-feather="x" class="mr-1"></i>Confirmer le refus';
+                confirmBtn.className = isTraiter ? 'btn btn-success' : 'btn btn-danger';
+                
+                // ✅ Révalider l'état du bouton
+                this.validateResolutionComment();
+                
+                if (typeof feather !== 'undefined') feather.replace();
+            }
         }
+    }
+
+    // ===== ✅ MÉTHODE : Calculer la durée actuelle =====
+    calculateCurrentDuration() {
+        if (!this.currentTicket || !this.currentTicket.heure_prise_en_charge) {
+            return 0;
+        }
+        
+        const now = new Date();
+        const callTime = new Date();
+        const timeParts = this.currentTicket.heure_prise_en_charge.split(':');
+        callTime.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), parseInt(timeParts[2] || 0));
+        
+        return Math.floor((now - callTime) / (1000 * 60));
     }
 
     async loadMyStats() {
@@ -1270,7 +1914,7 @@ class AdvisorInterface {
             const response = await this.apiCall('GET', this.config.apiRoutes.history);
             
             if (response.success) {
-                this.renderHistoryModal(response.tickets);
+                this.renderHistoryModal(response.tickets, response.summary);
             } else {
                 throw new Error(response.message || 'Erreur lors du chargement');
             }
@@ -1293,7 +1937,7 @@ class AdvisorInterface {
         this.updateNotifications(response.tickets);
     }
 
-    // ✅ AMÉLIORATION MAJEURE : Nouvelle fonction updateTicketsList avec structure en colonnes
+    // ===== ✅ NOUVEAU : Mise à jour liste tickets pleine largeur =====
     updateTicketsList(tickets) {
         const container = document.getElementById('ticketsContainer');
         
@@ -1313,11 +1957,8 @@ class AdvisorInterface {
             let html = '';
             tickets.forEach((ticket, index) => {
                 const validatedTicket = this.validateTicketData(ticket);
-                
-                // ✅ Calcul temps d'attente RÉEL depuis heure_d_enregistrement
                 const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
                 
-                // Logique de statut basée sur le temps d'attente réel
                 let statusClass = 'normal';
                 if (waitingTime > 30) {
                     statusClass = 'urgent';
@@ -1325,7 +1966,6 @@ class AdvisorInterface {
                     statusClass = 'warning';
                 }
                 
-                // ✅ FIFO : Seul le premier ticket peut être appelé
                 const isFirst = index === 0;
                 const itemClass = isFirst ? 'ticket-item first-in-queue' : 'ticket-item blocked';
                 
@@ -1337,34 +1977,32 @@ class AdvisorInterface {
                         ${isFirst ? '<div class="first-badge">PREMIER</div>' : ''}
                         
                         <div class="d-flex align-items-center">
-                            <!-- Code Ticket -->
-                            <div class="queue-col-code">
+                            <div class="col-2 queue-col-code">
                                 <div class="ticket-number">${validatedTicket.numero_ticket}</div>
                                 <small class="text-muted">${validatedTicket.date}</small>
                             </div>
                             
-                            <!-- Nom Client -->
-                            <div class="queue-col-client">
-                                <strong class="d-block">${validatedTicket.prenom}</strong>
-                                <small class="text-muted">${validatedTicket.telephone}</small>
+                            <div class="col-3 queue-col-client">
+                                <div class="client-name">${validatedTicket.prenom}</div>
                             </div>
                             
-                            <!-- Service -->
-                            <div class="queue-col-service">
+                            <div class="col-2 queue-col-phone">
+                                <div class="client-phone">${validatedTicket.telephone}</div>
+                            </div>
+                            
+                            <div class="col-2 queue-col-service">
                                 <span class="ticket-service">${validatedTicket.service}</span>
                             </div>
                             
-                            <!-- Durée d'attente -->
-                            <div class="queue-col-waiting text-center">
+                            <div class="col-2 queue-col-waiting text-center">
                                 <div class="ticket-waiting-time ${statusClass}">${waitingTime}min</div>
                             </div>
                             
-                            <!-- Action -->
-                            <div class="queue-col-action text-center">
+                            <div class="col-1 queue-col-action text-center">
                                 <button class="btn btn-success btn-sm btn-call-ticket ${!isFirst ? 'blocked' : ''}" 
                                         onclick="event.stopPropagation(); advisorInterface.callTicket(${validatedTicket.id})"
                                         ${!isFirst ? 'disabled title="Seul le premier ticket peut être appelé"' : ''}>
-                                    <i data-feather="phone-call" style="width: 14px; height: 14px;"></i>
+                                    <i data-feather="phone-call" style="width: 16px; height: 16px;"></i>
                                 </button>
                             </div>
                         </div>
@@ -1374,35 +2012,16 @@ class AdvisorInterface {
             container.innerHTML = html;
         }
 
-        // Mettre à jour le badge
         const queueCount = tickets ? tickets.length : 0;
         document.getElementById('queueCountBadge').textContent = queueCount + (queueCount === 1 ? ' ticket' : ' tickets');
         
         if (typeof feather !== 'undefined') feather.replace();
     }
 
-    // ✅ CORRECTION : Validation et nettoyage des données ticket avec debug
     validateTicketData(ticket) {
-        // 🔍 DEBUG : Afficher toutes les données reçues pour diagnostic
-        console.log('🔍 DEBUG Ticket data:', {
-            id: ticket.id,
-            numero_ticket: ticket.numero_ticket,
-            prenom: ticket.prenom,
-            nom: ticket.nom,
-            nom_complet: ticket.nom_complet,
-            client_name: ticket.client_name,
-            name: ticket.name,
-            telephone: ticket.telephone,
-            service: ticket.service,
-            date: ticket.date,
-            created_at: ticket.created_at,
-            heure_d_enregistrement: ticket.heure_d_enregistrement
-        });
+        console.log('🔍 DEBUG Ticket data:', ticket);
 
-        // ✅ Essayer plusieurs champs possibles pour le nom du client
         let clientName = 'Nom non renseigné';
-        
-        // Priorité des champs à vérifier pour le nom
         const nameFields = ['prenom', 'nom', 'nom_complet', 'client_name', 'name'];
         
         for (const field of nameFields) {
@@ -1415,7 +2034,6 @@ class AdvisorInterface {
         
         if (clientName === 'Nom non renseigné') {
             console.warn('⚠️ ATTENTION: Aucun nom trouvé dans les champs:', nameFields);
-            console.warn('📋 Données brutes du ticket:', ticket);
         }
 
         return {
@@ -1431,7 +2049,6 @@ class AdvisorInterface {
         };
     }
 
-    // ✅ NOUVELLE FONCTION : Calcul temps d'attente RÉEL
     calculateRealWaitingTime(registrationTime) {
         if (!registrationTime) return 0;
         
@@ -1439,14 +2056,11 @@ class AdvisorInterface {
         let arrival;
         
         try {
-            // Si c'est une heure seule (HH:MM ou HH:MM:SS)
             if (registrationTime.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
                 const today = now.toISOString().split('T')[0];
                 const timeString = registrationTime.length === 5 ? registrationTime + ':00' : registrationTime;
                 arrival = new Date(`${today}T${timeString}`);
-            } 
-            // Si c'est une date complète
-            else {
+            } else {
                 arrival = new Date(registrationTime);
             }
             
@@ -1530,71 +2144,8 @@ class AdvisorInterface {
         if (typeof feather !== 'undefined') feather.replace();
     }
 
-    updateCurrentTicketPanel(ticket) {
-        const panel = document.getElementById('currentTicketPanel');
-        const status = document.getElementById('currentTicketStatus');
-        
-        if (!ticket) {
-            panel.innerHTML = `
-                <div class="no-client-state">
-                    <div class="text-center py-4">
-                        <div class="empty-state-icon mb-3">
-                            <i data-feather="user-plus" class="text-muted"></i>
-                        </div>
-                        <h6 class="text-muted mb-2">Aucun client en cours</h6>
-                        <p class="text-muted small mb-3">File FIFO - Cliquez pour appeler le premier</p>
-                        <button class="btn btn-primary btn-sm" onclick="advisorInterface.callNextTicket()">
-                            <i data-feather="phone-call" class="mr-1"></i>Appeler premier client
-                        </button>
-                    </div>
-                </div>
-            `;
-            status.textContent = 'Disponible';
-            status.className = 'badge badge-success';
-        } else {
-            const validatedTicket = this.validateTicketData(ticket);
-            
-            panel.innerHTML = `
-                <div class="current-ticket-panel">
-                    <div class="current-ticket-info">
-                        <div class="current-ticket-number">${validatedTicket.numero_ticket}</div>
-                        <div class="current-ticket-name">${validatedTicket.prenom}</div>
-                        <div class="current-ticket-phone">${validatedTicket.telephone}</div>
-                        <small class="text-muted">Date: ${validatedTicket.date}</small>
-                    </div>
-                    
-                    <div class="ticket-duration">
-                        <small>En cours depuis</small>
-                        <div class="font-weight-bold" id="ticketDuration">0min</div>
-                    </div>
-                    
-                    <div class="ticket-actions">
-                        <button class="btn btn-success btn-sm" onclick="advisorInterface.completeCurrentTicket()">
-                            <i data-feather="check" class="mr-1"></i>Traiter
-                        </button>
-                        <button class="btn btn-outline-light btn-sm" onclick="advisorInterface.showTicketDetails(${validatedTicket.id})">
-                            <i data-feather="eye" class="mr-1"></i>Détails
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            status.textContent = 'En cours';
-            status.className = 'badge badge-warning';
-            
-            this.startTicketTimer(ticket.called_at || new Date().toISOString());
-        }
-        
-        if (typeof feather !== 'undefined') feather.replace();
-    }
-
     updateMyStats(stats) {
-        if (!stats && !stats.aujourdhui) return;
-        
-        const elements = document.getElementsByClassName('my-stats');
-        if (elements.length > 0) {
-            // Logique de mise à jour des stats personnelles
-        }
+        // Implémenter si nécessaire
     }
 
     // ===== Modal Methods =====
@@ -1662,7 +2213,8 @@ class AdvisorInterface {
         if (typeof feather !== 'undefined') feather.replace();
     }
 
-    renderHistoryModal(tickets) {
+    // ===== ✅ MÉTHODE CORRIGÉE : Rendu de l'historique avec commentaires =====
+    renderHistoryModal(tickets, summary) {
         const content = document.getElementById('historyContent');
         
         if (!tickets || tickets.length === 0) {
@@ -1675,6 +2227,33 @@ class AdvisorInterface {
             `;
         } else {
             let html = `
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-primary">${summary.total_tickets_traites || 0}</h4>
+                            <small class="text-muted">Total traités</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-success">${summary.tickets_resolus || 0}</h4>
+                            <small class="text-muted">Résolus</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-danger">${summary.tickets_non_resolus || 0}</h4>
+                            <small class="text-muted">Non résolus</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-info">${summary.taux_resolution || 0}%</h4>
+                            <small class="text-muted">Taux résolution</small>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead class="thead-light">
@@ -1685,24 +2264,69 @@ class AdvisorInterface {
                                 <th>Début</th>
                                 <th>Fin</th>
                                 <th>Durée</th>
-                                <th>Statut</th>
+                                <th>Résolution</th>
+                                <th>Commentaire</th>
                             </tr>
                         </thead>
                         <tbody>
             `;
             
-            tickets.forEach(ticket => {
+            tickets.forEach((ticket, index) => {
                 const validatedTicket = this.validateTicketData(ticket);
+                const resolutionDetails = ticket.resolution_details || {};
+                
+                // ✅ CORRECTION : Gestion appropriée des commentaires
+                let commentCell = '<span class="text-muted">-</span>';
+                
+                // Chercher le commentaire dans plusieurs endroits possibles
+                const commentSource = 
+                    ticket.commentaire_resolution || 
+                    resolutionDetails.commentaire_resolution || 
+                    resolutionDetails.commentaire || 
+                    ticket.commentaire || 
+                    null;
+                
+                if (commentSource && commentSource.trim() !== '') {
+                    const commentText = commentSource.trim();
+                    const shortComment = commentText.length > 50 ? 
+                        commentText.substring(0, 50) + '...' : 
+                        commentText;
+                    
+                    commentCell = `
+                        <span class="comment-preview" 
+                              title="${this.escapeHtml(commentText)}"
+                              onclick="advisorInterface.showCommentModal('${this.escapeHtml(commentText)}', '${validatedTicket.numero_ticket}')"
+                              style="cursor: pointer; color: #007bff;">
+                            <i data-feather="message-circle" class="mr-1" style="width: 14px; height: 14px;"></i>
+                            ${this.escapeHtml(shortComment)}
+                        </span>
+                    `;
+                }
+                
+                // ✅ Déterminer le statut de résolution
+                let resolutionBadge = '<span class="badge badge-secondary">Inconnu</span>';
+                if (resolutionDetails.resolu !== undefined) {
+                    if (resolutionDetails.resolu === 1 || resolutionDetails.resolu === '1' || resolutionDetails.resolu === true) {
+                        resolutionBadge = '<span class="badge badge-success">Résolu</span>';
+                    } else {
+                        resolutionBadge = '<span class="badge badge-danger">Non résolu</span>';
+                    }
+                } else if (resolutionDetails.resolu_libelle) {
+                    const isResolved = resolutionDetails.resolu_libelle.toLowerCase().includes('résolu') || 
+                                     resolutionDetails.resolu_libelle.toLowerCase().includes('traite');
+                    resolutionBadge = `<span class="badge badge-${isResolved ? 'success' : 'danger'}">${resolutionDetails.resolu_libelle}</span>`;
+                }
                 
                 html += `
                     <tr>
                         <td><strong>${validatedTicket.numero_ticket}</strong></td>
                         <td>${validatedTicket.prenom}</td>
                         <td><span class="badge badge-info">${validatedTicket.service}</span></td>
-                        <td>${ticket.debut_traitement || '--:--'}</td>
-                        <td>${ticket.fin_traitement || '--:--'}</td>
+                        <td>${ticket.debut_traitement || ticket.heure_prise_en_charge || '--:--'}</td>
+                        <td>${ticket.fin_traitement || ticket.heure_fin_traitement || '--:--'}</td>
                         <td><span class="badge badge-light">${ticket.duree_traitement || 0}min</span></td>
-                        <td><span class="badge badge-success">Terminé</span></td>
+                        <td>${resolutionBadge}</td>
+                        <td>${commentCell}</td>
                     </tr>
                 `;
             });
@@ -1716,6 +2340,58 @@ class AdvisorInterface {
         }
         
         if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    // ===== ✅ NOUVELLE MÉTHODE : Afficher le modal des commentaires =====
+    showCommentModal(commentText, ticketNumber) {
+        // Créer un modal dynamique pour afficher le commentaire complet
+        const modalId = 'commentModal_' + Date.now();
+        const modalHTML = `
+            <div class="modal fade" id="${modalId}" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog comment-modal" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header bg-info text-white">
+                            <h5 class="modal-title">
+                                <i data-feather="message-circle" class="mr-2"></i>
+                                Commentaire - Ticket ${ticketNumber}
+                            </h5>
+                            <button type="button" class="close text-white" data-dismiss="modal">
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="comment-full-text">
+                                ${this.escapeHtml(commentText)}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Fermer</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Ajouter le modal au DOM
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Afficher le modal
+        $(`#${modalId}`).modal('show');
+        
+        // Nettoyer le modal après fermeture
+        $(`#${modalId}`).on('hidden.bs.modal', function () {
+            $(this).remove();
+        });
+        
+        if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    // ===== ✅ MÉTHODE UTILITAIRE : Échapper HTML =====
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // ===== Action Methods =====
@@ -1785,7 +2461,7 @@ class AdvisorInterface {
     }
 
     // ===== Utility Methods =====
-    async apiCall(method, url, data = null) {
+    async apiCall(method, url, data = null, signal = null) {
         const options = {
             method,
             headers: {
@@ -1793,6 +2469,11 @@ class AdvisorInterface {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             }
         };
+
+        // ✅ Ajouter le signal d'abort si fourni
+        if (signal) {
+            options.signal = signal;
+        }
 
         if (data) {
             if (data instanceof FormData) {
@@ -1804,21 +2485,12 @@ class AdvisorInterface {
         }
 
         const response = await fetch(url, options);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         return await response.json();
-    }
-
-    startTicketTimer(startTime) {
-        const start = new Date(startTime);
-        const timer = setInterval(() => {
-            const now = new Date();
-            const diff = Math.floor((now - start) / (1000 * 60));
-            const element = document.getElementById('ticketDuration');
-            if (element) {
-                element.textContent = diff + 'min';
-            } else {
-                clearInterval(timer);
-            }
-        }, 60000);
     }
 
     setButtonLoading(selector, isLoading) {
@@ -1907,7 +2579,10 @@ class AdvisorInterface {
         if (this.waitingTimeUpdateInterval) {
             clearInterval(this.waitingTimeUpdateInterval);
         }
-        console.log('AdvisorInterface FIFO destroyed');
+        if (this.ticketTimer) {
+            clearInterval(this.ticketTimer);
+        }
+        console.log('AdvisorInterface FIFO with simplified flow destroyed');
     }
 }
 
@@ -1917,11 +2592,26 @@ let advisorInterface;
 document.addEventListener('DOMContentLoaded', function() {
     advisorInterface = new AdvisorInterface();
     
+    // ✅ NOUVEAU : Gérer la fermeture du modal lors de la résolution
+    $('#currentTicketModal').on('hidden.bs.modal', function () {
+        if (advisorInterface && advisorInterface.ticketTimer) {
+            advisorInterface.stopModalTimer();
+        }
+    });
+    
+    // ✅ NOUVEAU : Gérer les raccourcis clavier
+    $(document).on('keydown', function(e) {
+        // Échap pour fermer le modal du ticket en cours
+        if (e.key === 'Escape' && $('#currentTicketModal').hasClass('show')) {
+            advisorInterface.closeCurrentTicketModal();
+        }
+    });
+    
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
     
-    console.log('🎯 Interface conseiller FIFO ready - Version améliorée');
+    console.log('🎯 Interface conseiller FIFO avec flow simplifié ready - Version CORRIGÉE avec commentaires');
 });
 
 window.addEventListener('beforeunload', function() {

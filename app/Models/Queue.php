@@ -13,7 +13,7 @@ class Queue extends Model
     use HasFactory;
 
     /**
-     * ✅ ATTRIBUTS REMPLISSABLES (colonne 'numero' supprimée)
+     * ✅ ATTRIBUTS REMPLISSABLES - MODIFIÉ pour resolu tinyint
      */
     protected $fillable = [
         'id_agence',
@@ -29,7 +29,7 @@ class Queue extends Model
         'heure_transfert',
         'conseiller_client_id',
         'conseiller_transfert',
-        'resolu',
+        'resolu', // ✅ MODIFIÉ : maintenant tinyint (0/1)
         'commentaire_resolution',
         'transferer',
         'debut',
@@ -43,13 +43,14 @@ class Queue extends Model
     ];
 
     /**
-     * ✅ CASTS CORRIGÉS (colonne 'numero' supprimée)
+     * ✅ CASTS MODIFIÉS pour resolu tinyint
      */
     protected $casts = [
         'date' => 'date',
         'historique' => 'json',
         'position_file' => 'integer',
         'temps_attente_estime' => 'integer',
+        'resolu' => 'integer', // ✅ NOUVEAU : cast en integer (0/1)
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -78,7 +79,7 @@ class Queue extends Model
     }
 
     /**
-     * ✅ SCOPES POUR REQUÊTES (suppression du scope OrderByNumero)
+     * ✅ SCOPES POUR REQUÊTES (inchangés)
      */
     public function scopeToday($query)
     {
@@ -105,50 +106,61 @@ class Queue extends Model
         return $query->where('service_id', $serviceId);
     }
 
-    // 🆕 NOUVEAU SCOPE : Ordonner par ordre chronologique d'arrivée (FIFO)
     public function scopeOrderByArrival($query)
     {
         return $query->orderBy('created_at', 'asc');
     }
 
     /**
+     * ✅ NOUVELLES MÉTHODES pour resolu tinyint
+     */
+    public function isResolu(): bool
+    {
+        return $this->resolu === 1;
+    }
+
+    public function isNonResolu(): bool
+    {
+        return $this->resolu === 0;
+    }
+
+    public function getResoluLibelle(): string
+    {
+        return match($this->resolu) {
+            1 => 'Résolu',
+            0 => 'Non résolu',
+            default => 'Inconnu'
+        };
+    }
+
+    /**
      * 🆕 GÉNÉRATION AUTOMATIQUE DU NUMÉRO DE TICKET - PAR SERVICE AVEC FILE CHRONOLOGIQUE
-     * Format : Lettre du service + compteur du service (C001, C002, E001, E002...)
-     * Mais ordre de traitement basé sur l'heure d'arrivée (FIFO chronologique)
      */
     public static function generateTicketNumber($serviceId, $date = null): string
     {
         $date = $date ?: today();
 
-        // Récupérer la lettre du service
         $service = Service::find($serviceId);
         if (!$service) {
             throw new \Exception('Service introuvable pour génération ticket');
         }
 
-        // 🎯 LOGIQUE CORRIGÉE : Compter les tickets de CE SERVICE pour cette date
         $serviceTicketCount = self::where('service_id', $serviceId)
                                  ->where('date', $date)
                                  ->count();
 
-        // Prochain numéro pour ce service
         $nextServiceNumber = $serviceTicketCount + 1;
 
-        // Format : Lettre service + compteur service
-        // Exemples : C001, C002, E001, E002, B001... (chaque service a ses numéros)
         return $service->letter_of_service . str_pad($nextServiceNumber, 3, '0', STR_PAD_LEFT);
     }
 
     /**
      * 🆕 CALCUL DE LA POSITION DANS LA FILE UNIQUE CHRONOLOGIQUE
-     * Position basée sur l'ordre d'arrivée (created_at)
      */
     public static function calculateQueuePosition($date = null): int
     {
         $date = $date ?: today();
         
-        // Position globale dans la file chronologique
-        // Compter TOUS les tickets en attente de TOUS les services pour cette date
         $currentPosition = self::where('date', $date)
                               ->where('statut_global', 'en_attente')
                               ->count();
@@ -157,22 +169,19 @@ class Queue extends Model
     }
 
     /**
-     * ✅ ESTIMATION DU TEMPS D'ATTENTE - INCHANGÉE (basée sur config admin)
+     * ✅ ESTIMATION DU TEMPS D'ATTENTE
      */
     public static function estimateWaitingTime($position = null): int
     {
-        // Récupération du temps configuré par l'admin
         $adminConfiguredTime = \App\Models\Setting::getDefaultWaitingTimeMinutes();
         
         if ($position === null) {
             $position = self::calculateQueuePosition();
         }
 
-        // Calcul basé sur le temps configuré par l'admin
         $waitingCount = max(0, $position - 1);
         $estimatedTime = $waitingCount * $adminConfiguredTime;
         
-        // Minimum 0 minute, maximum 300 minutes (5h)
         return max(0, min(300, $estimatedTime));
     }
 
@@ -184,7 +193,6 @@ class Queue extends Model
         try {
             DB::beginTransaction();
 
-            // Validation des données requises
             if (!isset($data['service_id']) || !isset($data['prenom']) || !isset($data['telephone'])) {
                 throw new \Exception('Données obligatoires manquantes');
             }
@@ -193,7 +201,6 @@ class Queue extends Model
             $agenceId = $data['id_agence'] ?? null;
             $date = today();
 
-            // Vérifier que le service existe et est actif
             $service = Service::find($serviceId);
             if (!$service) {
                 throw new \Exception('Service introuvable');
@@ -203,14 +210,12 @@ class Queue extends Model
                 throw new \Exception('Service actuellement fermé');
             }
 
-            // 🆕 GÉNÉRATION CORRIGÉE : Numéro par service + position globale chronologique
             $ticketNumber = self::generateTicketNumber($serviceId, $date);
             $position = self::calculateQueuePosition($date);
             $estimatedTime = self::estimateWaitingTime($position);
 
             $currentTime = now()->format('H:i:s');
 
-            // Créer le ticket avec la logique FIFO chronologique
             $ticket = self::create([
                 'id_agence' => $agenceId,
                 'letter_of_service' => $service->letter_of_service,
@@ -220,11 +225,11 @@ class Queue extends Model
                 'commentaire' => isset($data['commentaire']) ? trim($data['commentaire']) : null,
                 'date' => $date,
                 'heure_d_enregistrement' => $currentTime,
-                'numero_ticket' => $ticketNumber, // Ex: A001, B001, A002, C001...
-                'position_file' => $position, // Position chronologique globale
-                'temps_attente_estime' => $estimatedTime, // Basé sur config admin
+                'numero_ticket' => $ticketNumber,
+                'position_file' => $position,
+                'temps_attente_estime' => $estimatedTime,
                 'statut_global' => 'en_attente',
-                'resolu' => 'En cours',
+                'resolu' => 1, // ✅ MODIFIÉ : Par défaut résolu (1)
                 'transferer' => 'No',
                 'debut' => 'No',
                 'created_by_ip' => request()->ip() ?? null,
@@ -232,30 +237,27 @@ class Queue extends Model
                     [
                         'action' => 'creation',
                         'timestamp' => now()->toISOString(),
-                        'details' => 'Ticket créé - Numérotation par service avec file chronologique unique'
+                        'details' => 'Ticket créé - File chronologique avec resolu tinyint'
                     ]
                 ]
             ]);
 
             DB::commit();
 
-            Log::info('Nouveau ticket créé - Numérotation par service avec file chronologique', [
+            Log::info('Nouveau ticket créé avec resolu tinyint', [
                 'ticket_id' => $ticket->id,
                 'numero_ticket' => $ticket->numero_ticket,
                 'service_name' => $service->nom,
-                'service_letter' => $service->letter_of_service,
-                'agence_id' => $agenceId,
                 'client_name' => $ticket->prenom,
+                'resolu_default' => $ticket->resolu, // Log du nouveau format
                 'position_chronologique' => $ticket->position_file,
-                'temps_attente_admin' => $estimatedTime,
-                'order_concept' => 'Numérotation par service, traitement chronologique'
             ]);
 
             return $ticket;
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Erreur création ticket - Numérotation par service avec file chronologique', [
+            Log::error('Erreur création ticket avec resolu tinyint', [
                 'error' => $e->getMessage(),
                 'data' => $data
             ]);
@@ -287,7 +289,7 @@ class Queue extends Model
     }
 
     /**
-     * ✅ ACTIONS SUR LE TICKET (inchangées)
+     * ✅ PRISE EN CHARGE (inchangé - automatisation fonctionnelle)
      */
     public function priseEnCharge($conseillerId): bool
     {
@@ -295,8 +297,8 @@ class Queue extends Model
             $currentTime = now()->format('H:i:s');
             
             $this->update([
-                'conseiller_client_id' => $conseillerId,
-                'heure_prise_en_charge' => $currentTime,
+                'conseiller_client_id' => $conseillerId, // ✅ Auto: ID conseiller
+                'heure_prise_en_charge' => $currentTime, // ✅ Auto: Heure d'appel
                 'statut_global' => 'en_cours',
                 'debut' => 'Yes',
                 'historique' => array_merge($this->historique ?? [], [
@@ -319,24 +321,41 @@ class Queue extends Model
         }
     }
 
-    public function terminer($resolu = 'Yes', $commentaire = null): bool
+    /**
+     * ✅ TERMINER - MODIFIÉ pour supporter resolu tinyint et commentaire obligatoire
+     */
+    public function terminer($resolu = 1, $commentaire = null): bool
     {
         try {
             $currentTime = now()->format('H:i:s');
             
+            // ✅ VALIDATION : Commentaire obligatoire pour les refus
+            if ($resolu === 0 && empty($commentaire)) {
+                throw new \Exception('Commentaire obligatoire pour les tickets non résolus');
+            }
+            
             $this->update([
-                'heure_de_fin' => $currentTime,
+                'heure_de_fin' => $currentTime, // ✅ Auto: Heure de fin
                 'statut_global' => 'termine',
-                'resolu' => $resolu,
+                'resolu' => (int)$resolu, // ✅ MODIFIÉ : tinyint (0/1)
                 'commentaire_resolution' => $commentaire,
                 'historique' => array_merge($this->historique ?? [], [
                     [
                         'action' => 'terminer',
                         'timestamp' => now()->toISOString(),
                         'resolu' => $resolu,
+                        'resolu_libelle' => $resolu === 1 ? 'Résolu' : 'Non résolu',
                         'commentaire' => $commentaire
                     ]
                 ])
+            ]);
+
+            Log::info('Ticket terminé avec nouveau format resolu', [
+                'ticket_id' => $this->id,
+                'numero_ticket' => $this->numero_ticket,
+                'resolu' => $resolu,
+                'resolu_libelle' => $this->getResoluLibelle(),
+                'has_comment' => !empty($commentaire)
             ]);
 
             return true;
@@ -350,32 +369,41 @@ class Queue extends Model
     }
 
     /**
-     * 🆕 DONNÉES POUR L'API/FRONTEND - SANS NUMERO
+     * 🆕 DONNÉES POUR L'API/FRONTEND - MODIFIÉ pour resolu tinyint
      */
     public function toTicketArray(): array
     {
         return [
             'id' => $this->id,
-            'numero_ticket' => $this->numero_ticket, // Format : C001, C002, E001, E002... (par service)
+            'numero_ticket' => $this->numero_ticket,
             'service' => $this->service ? $this->service->nom : 'Service inconnu',
             'service_letter' => $this->letter_of_service,
             'agence_id' => $this->id_agence,
             'client_name' => $this->prenom,
+            'prenom' => $this->prenom, // ✅ Champ principal pour les noms
             'telephone' => $this->telephone,
             'commentaire' => $this->commentaire,
             'date' => $this->date->format('d/m/Y'),
             'heure' => $this->formatHeureEnregistrement(),
-            'position' => $this->position_file, // Position chronologique globale
+            'heure_d_enregistrement' => $this->heure_d_enregistrement, // ✅ Pour calcul temps réel
+            'position' => $this->position_file,
             'temps_attente_estime' => $this->temps_attente_estime,
             'statut' => $this->statut_global,
             'statut_libelle' => $this->getStatutLibelle(),
+            'resolu' => $this->resolu, // ✅ NOUVEAU : 0/1
+            'resolu_libelle' => $this->getResoluLibelle(), // ✅ NOUVEAU : "Résolu"/"Non résolu"
+            'commentaire_resolution' => $this->commentaire_resolution,
             'is_en_attente' => $this->isEnAttente(),
             'is_en_cours' => $this->isEnCours(),
             'is_termine' => $this->isTermine(),
+            'is_resolu' => $this->isResolu(), // ✅ NOUVEAU
+            'is_non_resolu' => $this->isNonResolu(), // ✅ NOUVEAU
             'conseiller' => $this->conseillerClient ? $this->conseillerClient->username : null,
+            'heure_prise_en_charge' => $this->heure_prise_en_charge, // ✅ Auto-rempli
+            'heure_de_fin' => $this->heure_de_fin, // ✅ Auto-rempli
             'created_at' => $this->created_at->format('d/m/Y H:i:s'),
-            'queue_type' => 'service_numbering_chronological_processing', // Numérotation par service, traitement chronologique
-            'arrival_order' => $this->created_at->format('H:i:s') // Heure d'arrivée pour référence
+            'queue_type' => 'service_numbering_chronological_processing',
+            'arrival_order' => $this->created_at->format('H:i:s')
         ];
     }
 
@@ -389,7 +417,7 @@ class Queue extends Model
         }
         
         if (is_string($this->heure_d_enregistrement)) {
-            return substr($this->heure_d_enregistrement, 0, 5); // H:i
+            return substr($this->heure_d_enregistrement, 0, 5);
         }
         
         try {
@@ -414,8 +442,7 @@ class Queue extends Model
     }
 
     /**
-     * 🔄 OBTENIR LA LISTE D'ATTENTE CHRONOLOGIQUE (FIFO)
-     * Ordre chronologique global - tous services confondus
+     * 🔄 OBTENIR LA LISTE D'ATTENTE CHRONOLOGIQUE (FIFO) - inchangé
      */
     public static function getChronologicalQueue($date = null): \Illuminate\Support\Collection
     {
@@ -423,14 +450,13 @@ class Queue extends Model
 
         return self::where('date', $date)
                    ->where('statut_global', 'en_attente')
-                   ->orderBy('created_at', 'asc') // 🎯 ORDRE CHRONOLOGIQUE FIFO
+                   ->orderBy('created_at', 'asc')
                    ->with(['service', 'agence'])
                    ->get();
     }
 
     /**
-     * 🔄 OBTENIR LE PROCHAIN TICKET À TRAITER GLOBALEMENT
-     * Le plus ancien ticket en attente (tous services confondus)
+     * 🔄 OBTENIR LE PROCHAIN TICKET À TRAITER GLOBALEMENT - inchangé
      */
     public static function getNextTicketGlobal($date = null)
     {
@@ -438,12 +464,12 @@ class Queue extends Model
 
         return self::where('date', $date)
                    ->where('statut_global', 'en_attente')
-                   ->orderBy('created_at', 'asc') // Premier arrivé
+                   ->orderBy('created_at', 'asc')
                    ->first();
     }
 
     /**
-     * 🔄 OBTENIR LES PROCHAINS TICKETS D'UN SERVICE (ordre chronologique)
+     * 🔄 OBTENIR LES PROCHAINS TICKETS D'UN SERVICE - inchangé
      */
     public static function getServiceQueueChronological($serviceId, $date = null): \Illuminate\Support\Collection
     {
@@ -452,13 +478,13 @@ class Queue extends Model
         return self::where('service_id', $serviceId)
                    ->where('date', $date)
                    ->where('statut_global', 'en_attente')
-                   ->orderBy('created_at', 'asc') // Ordre chronologique d'arrivée
+                   ->orderBy('created_at', 'asc')
                    ->with(['service', 'agence'])
                    ->get();
     }
 
     /**
-     * 🔄 STATISTIQUES DU SERVICE - ADAPTÉES SANS NUMERO
+     * 🔄 STATISTIQUES DU SERVICE - MODIFIÉES pour resolu tinyint
      */
     public static function getServiceStats($serviceId, $date = null): array
     {
@@ -469,15 +495,17 @@ class Queue extends Model
             'en_attente' => self::where('service_id', $serviceId)->where('date', $date)->where('statut_global', 'en_attente')->count(),
             'en_cours' => self::where('service_id', $serviceId)->where('date', $date)->where('statut_global', 'en_cours')->count(),
             'termines' => self::where('service_id', $serviceId)->where('date', $date)->where('statut_global', 'termine')->count(),
+            // ✅ NOUVELLES STATS avec resolu tinyint
+            'resolus' => self::where('service_id', $serviceId)->where('date', $date)->where('resolu', 1)->count(),
+            'non_resolus' => self::where('service_id', $serviceId)->where('date', $date)->where('resolu', 0)->count(),
             'temps_attente_moyen' => self::where('service_id', $serviceId)->where('date', $date)->avg('temps_attente_estime') ?? 0,
             'dernier_ticket' => self::where('service_id', $serviceId)->where('date', $date)->orderBy('created_at', 'desc')->first(),
         ];
 
-        // 🆕 STATISTIQUES CHRONOLOGIQUES
         $prochains_tickets = self::where('service_id', $serviceId)
                                 ->where('date', $date)
                                 ->where('statut_global', 'en_attente')
-                                ->orderBy('created_at', 'asc') // Ordre chronologique
+                                ->orderBy('created_at', 'asc')
                                 ->limit(5)
                                 ->get(['numero_ticket', 'created_at', 'heure_d_enregistrement']);
 
@@ -493,13 +521,19 @@ class Queue extends Model
                         'created_at' => $ticket->created_at->format('H:i:s')
                     ];
                 })->toArray(),
-                'ordre_traitement' => 'Premier arrivé, premier servi (FIFO)'
+                'ordre_traitement' => 'Premier arrivé, premier servi (FIFO)',
+                // ✅ NOUVELLES INFOS resolu
+                'resolution_stats' => [
+                    'taux_resolution' => $baseStats['total_tickets'] > 0 ? round(($baseStats['resolus'] / $baseStats['total_tickets']) * 100, 2) : 0,
+                    'tickets_resolus' => $baseStats['resolus'],
+                    'tickets_non_resolus' => $baseStats['non_resolus']
+                ]
             ]
         ]);
     }
 
     /**
-     * 🆕 STATISTIQUES GLOBALES DE LA FILE CHRONOLOGIQUE FIFO
+     * 🆕 STATISTIQUES GLOBALES - MODIFIÉES pour resolu tinyint
      */
     public static function getGlobalQueueStats($date = null): array
     {
@@ -509,6 +543,8 @@ class Queue extends Model
         $enAttente = self::where('date', $date)->where('statut_global', 'en_attente')->count();
         $enCours = self::where('date', $date)->where('statut_global', 'en_cours')->count();
         $termines = self::where('date', $date)->where('statut_global', 'termine')->count();
+        $resolus = self::where('date', $date)->where('resolu', 1)->count(); // ✅ NOUVEAU
+        $nonResolus = self::where('date', $date)->where('resolu', 0)->count(); // ✅ NOUVEAU
 
         return [
             'date' => $date->format('d/m/Y'),
@@ -517,48 +553,52 @@ class Queue extends Model
                 'en_attente' => $enAttente,
                 'en_cours' => $enCours,
                 'termines' => $termines,
+                'resolus' => $resolus, // ✅ NOUVEAU
+                'non_resolus' => $nonResolus, // ✅ NOUVEAU
+                'taux_resolution' => $totalToday > 0 ? round(($resolus / $totalToday) * 100, 2) : 0, // ✅ NOUVEAU
                 'prochaine_position' => self::calculateQueuePosition($date),
                 'temps_attente_configure' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
                 'temps_attente_estime_prochain' => self::estimateWaitingTime(),
                 'dernier_numero_genere' => self::where('date', $date)
                                               ->orderBy('created_at', 'desc')
                                               ->first()?->numero_ticket ?? 'Aucun',
-                'principe' => 'Numérotation par service, traitement chronologique'
+                'principe' => 'Numérotation par service, traitement chronologique avec résolution binaire'
             ],
             'repartition_par_service' => self::where('date', $date)
                                            ->join('services', 'queues.service_id', '=', 'services.id')
-                                           ->selectRaw('services.nom as service_name, services.letter_of_service, COUNT(*) as tickets_count')
+                                           ->selectRaw('services.nom as service_name, services.letter_of_service, COUNT(*) as tickets_count, SUM(resolu) as resolus_count')
                                            ->groupBy('services.id', 'services.nom', 'services.letter_of_service')
                                            ->get()
                                            ->toArray(),
             'sequence_chronologique_today' => self::where('date', $date)
                                                  ->orderBy('created_at', 'asc')
                                                  ->limit(20)
-                                                 ->get(['numero_ticket', 'created_at', 'heure_d_enregistrement'])
+                                                 ->get(['numero_ticket', 'created_at', 'heure_d_enregistrement', 'resolu'])
                                                  ->map(function($ticket) {
                                                      return [
                                                          'numero' => $ticket->numero_ticket,
-                                                         'heure' => $ticket->heure_d_enregistrement ?: $ticket->created_at->format('H:i:s')
+                                                         'heure' => $ticket->heure_d_enregistrement ?: $ticket->created_at->format('H:i:s'),
+                                                         'resolu' => $ticket->resolu,
+                                                         'resolu_libelle' => $ticket->resolu === 1 ? 'Résolu' : 'Non résolu'
                                                      ];
                                                  })
                                                  ->toArray(),
-                                                 // 🆕 APERÇU DE L'ORDRE CHRONOLOGIQUE (numérotation par service)
-                                                   'ordre_traitement_actuel' => self::where('date', $date)
-                                                    ->where('statut_global', 'en_attente')
-                                                    ->orderBy('created_at', 'asc')
-                                                    ->limit(10)
-                                                    ->with('service:id,nom,letter_of_service')
-                                                    ->get()
-                                                    ->map(function($ticket) {
-                                                return [
-                                                    'numero_ticket' => $ticket->numero_ticket,
-                                                    'service_name' => $ticket->service->nom ?? 'N/A',
-                                                    'service_letter' => $ticket->service->letter_of_service ?? 'N/A',
-                                                    'heure_arrivee' => $ticket->heure_d_enregistrement ?: $ticket->created_at->format('H:i:s'),
-                                                    'rang_chronologique' => 'Ordre d\'arrivée (numérotation par service)'
-                                                ];
-                                            })
-                                            ->toArray()
+            'ordre_traitement_actuel' => self::where('date', $date)
+                                            ->where('statut_global', 'en_attente')
+                                            ->orderBy('created_at', 'asc')
+                                            ->limit(10)
+                                            ->with('service:id,nom,letter_of_service')
+                                            ->get()
+                                            ->map(function($ticket) {
+                                        return [
+                                            'numero_ticket' => $ticket->numero_ticket,
+                                            'service_name' => $ticket->service->nom ?? 'N/A',
+                                            'service_letter' => $ticket->service->letter_of_service ?? 'N/A',
+                                            'heure_arrivee' => $ticket->heure_d_enregistrement ?: $ticket->created_at->format('H:i:s'),
+                                            'rang_chronologique' => 'Ordre d\'arrivée avec résolution binaire'
+                                        ];
+                                    })
+                                    ->toArray()
         ];
     }
 
@@ -582,7 +622,7 @@ class Queue extends Model
     }
 
     /**
-     * ✅ BOOT METHOD POUR LES ÉVÉNEMENTS (modifié sans references au numero)
+     * ✅ BOOT METHOD - MODIFIÉ pour resolu tinyint par défaut
      */
     protected static function boot()
     {
@@ -600,18 +640,24 @@ class Queue extends Model
             if (empty($queue->statut_global)) {
                 $queue->statut_global = 'en_attente';
             }
+
+            // ✅ NOUVEAU : resolu par défaut à 1 (résolu)
+            if (!isset($queue->resolu)) {
+                $queue->resolu = 1;
+            }
         });
 
         static::created(function ($queue) {
-            Log::info('Ticket créé - Numérotation par service avec traitement chronologique', [
+            Log::info('Ticket créé avec nouveau format resolu', [
                 'id' => $queue->id,
-                'numero_ticket' => $queue->numero_ticket, // Ex: C001, C002, E001, E002
+                'numero_ticket' => $queue->numero_ticket,
                 'service' => $queue->service->nom ?? 'N/A',
                 'service_letter' => $queue->letter_of_service,
                 'agence_id' => $queue->id_agence,
                 'position_chronologique' => $queue->position_file,
                 'heure_arrivee' => $queue->heure_d_enregistrement,
-                'ordre_concept' => 'Numérotation par service, traitement par ordre d\'arrivée'
+                'resolu_default' => $queue->resolu, // ✅ Log du nouveau format
+                'ordre_concept' => 'Numérotation par service, traitement chronologique avec résolution binaire'
             ]);
         });
     }

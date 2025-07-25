@@ -11,6 +11,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\PasswordManagementController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
+use App\Models\Queue;
 
 /*
 |--------------------------------------------------------------------------
@@ -115,7 +118,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | 🆕 INTERFACE CONSEILLER DÉDIÉE - NOUVELLES ROUTES CORRIGÉES
+    | 🆕 INTERFACE CONSEILLER DÉDIÉE - NOUVELLES ROUTES AMÉLIORÉES AVEC RÉSOLUTION
     |--------------------------------------------------------------------------
     */
 
@@ -124,10 +127,10 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         ->name('layouts.app-conseiller')
         ->middleware('conseiller');
 
-    // 👨‍💼 ROUTES CONSEILLER UNIQUEMENT
+    // 👨‍💼 ROUTES CONSEILLER UNIQUEMENT - AMÉLIORÉES AVEC RÉSOLUTION
     Route::middleware('conseiller')->group(function () {
         
-        // 🎫 GESTION FILE D'ATTENTE FIFO
+        // 🎫 GESTION FILE D'ATTENTE FIFO AVEC RÉSOLUTION
         Route::prefix('conseiller')->group(function () {
             
             // Récupérer les tickets en attente (FIFO chronologique)
@@ -138,15 +141,15 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             Route::post('/call-ticket', [DashboardController::class, 'callNextTicket'])
                 ->name('conseiller.call-ticket');
             
-            // Terminer le ticket en cours
+            // ✅ MODIFIÉ : Terminer le ticket en cours avec résolution et commentaire
             Route::post('/complete-ticket', [DashboardController::class, 'completeCurrentTicket'])
                 ->name('conseiller.complete-ticket');
             
-            // Mes statistiques personnelles
+            // Mes statistiques personnelles (avec stats de résolution)
             Route::get('/my-stats', [DashboardController::class, 'getConseillerStats'])
                 ->name('conseiller.my-stats');
             
-            // Mon historique des tickets traités
+            // Mon historique des tickets traités (avec résolution)
             Route::get('/history', [DashboardController::class, 'getConseillerHistory'])
                 ->name('conseiller.history');
             
@@ -158,6 +161,10 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             Route::get('/ticket/{id}/details', [DashboardController::class, 'getTicketDetails'])
                 ->name('conseiller.ticket-details');
             
+            // ✅ NOUVELLE ROUTE : Détails d'un ticket pour résolution (modal)
+            Route::get('/ticket/{id}/resolution-details', [DashboardController::class, 'getTicketResolutionDetails'])
+                ->name('conseiller.ticket-resolution-details');
+            
             // Transférer un ticket vers un autre conseiller (futur)
             Route::post('/transfer-ticket', [DashboardController::class, 'transferTicket'])
                 ->name('conseiller.transfer-ticket');
@@ -165,9 +172,183 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             // Export des données conseiller
             Route::get('/export', [DashboardController::class, 'exportConseillerData'])
                 ->name('conseiller.export');
+            
+            // ✅ NOUVELLES ROUTES pour validation et résolution avancée
+            
+            // API pour valider un commentaire avant soumission
+            Route::post('/validate-resolution-comment', function(Request $request) {
+                $validator = Validator::make($request->all(), [
+                    'action' => 'required|in:traiter,refuser',
+                    'commentaire' => 'nullable|string|max:500'
+                ]);
+
+                if ($validator->fails()) {
+                    return response()->json([
+                        'success' => false,
+                        'errors' => $validator->errors()
+                    ], 422);
+                }
+
+                $action = $request->input('action');
+                $commentaire = $request->input('commentaire', '');
+
+                // Validation spécifique pour les refus
+                if ($action === 'refuser' && empty(trim($commentaire))) {
+                    return response()->json([
+                        'success' => false,
+                        'errors' => ['commentaire' => ['Le commentaire est obligatoire pour refuser un ticket']]
+                    ], 422);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Validation réussie',
+                    'data' => [
+                        'action' => $action,
+                        'commentaire_length' => strlen(trim($commentaire)),
+                        'is_comment_required' => $action === 'refuser',
+                        'is_comment_provided' => !empty(trim($commentaire))
+                    ]
+                ]);
+            })->name('conseiller.validate-resolution-comment');
+            
+            // API pour obtenir les statistiques de résolution du conseiller
+            Route::get('/resolution-stats', function(Request $request) {
+                try {
+                    $user = Auth::user();
+                    
+                    if (!$user->isConseillerUser()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Accès non autorisé'
+                        ], 403);
+                    }
+
+                    $date = $request->get('date', today());
+                    $period = $request->get('period', 'today'); // today, week, month
+
+                    $dateRange = match($period) {
+                        'today' => [$date, $date],
+                        'week' => [now()->startOfWeek(), now()->endOfWeek()],
+                        'month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        default => [$date, $date]
+                    };
+
+                    $baseQuery = Queue::where('conseiller_client_id', $user->id)
+                                     ->where('statut_global', 'termine');
+
+                    if ($period === 'today') {
+                        $baseQuery = $baseQuery->whereDate('date', $date);
+                    } else {
+                        $baseQuery = $baseQuery->whereBetween('date', $dateRange);
+                    }
+
+                    $totalTraites = $baseQuery->count();
+                    $resolus = (clone $baseQuery)->where('resolu', 1)->count();
+                    $nonResolus = (clone $baseQuery)->where('resolu', 0)->count();
+                    $avecCommentaires = (clone $baseQuery)->whereNotNull('commentaire_resolution')
+                                                         ->where('commentaire_resolution', '!=', '')
+                                                         ->count();
+
+                    $tauxResolution = $totalTraites > 0 ? round(($resolus / $totalTraites) * 100, 2) : 0;
+                    $tauxCommentaires = $totalTraites > 0 ? round(($avecCommentaires / $totalTraites) * 100, 2) : 0;
+
+                    return response()->json([
+                        'success' => true,
+                        'period' => $period,
+                        'date_range' => $dateRange,
+                        'resolution_stats' => [
+                            'total_traites' => $totalTraites,
+                            'tickets_resolus' => $resolus,
+                            'tickets_non_resolus' => $nonResolus,
+                            'tickets_avec_commentaires' => $avecCommentaires,
+                            'taux_resolution' => $tauxResolution,
+                            'taux_commentaires' => $tauxCommentaires,
+                            'performance_score' => $tauxResolution, // Score basé sur résolution
+                        ],
+                        'conseiller_info' => [
+                            'username' => $user->username,
+                            'email' => $user->email
+                        ],
+                        'format_info' => [
+                            'resolu_format' => 'tinyint (0=non résolu, 1=résolu)',
+                            'commentaire_obligatoire_refus' => true
+                        ]
+                    ]);
+
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors du calcul des statistiques de résolution'
+                    ], 500);
+                }
+            })->name('conseiller.resolution-stats');
+            
+            // API pour obtenir l'historique de résolution d'un conseiller par action
+            Route::get('/resolution-history/{action?}', function(Request $request, $action = null) {
+                try {
+                    $user = Auth::user();
+                    
+                    if (!$user->isConseillerUser()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Accès non autorisé'
+                        ], 403);
+                    }
+
+                    $date = $request->get('date', today());
+                    $limit = min($request->get('limit', 20), 50);
+
+                    $query = Queue::where('conseiller_client_id', $user->id)
+                                 ->whereDate('date', $date)
+                                 ->where('statut_global', 'termine')
+                                 ->with(['service:id,nom,letter_of_service']);
+
+                    // Filtrer par action si spécifiée
+                    if ($action === 'traiter') {
+                        $query = $query->where('resolu', 1);
+                    } elseif ($action === 'refuser') {
+                        $query = $query->where('resolu', 0);
+                    }
+
+                    $tickets = $query->orderBy('heure_de_fin', 'desc')
+                                   ->limit($limit)
+                                   ->get()
+                                   ->map(function($ticket) {
+                                       return [
+                                           'id' => $ticket->id,
+                                           'numero_ticket' => $ticket->numero_ticket,
+                                           'client_name' => $ticket->prenom,
+                                           'service_name' => $ticket->service->nom ?? 'N/A',
+                                           'telephone' => $ticket->telephone,
+                                           'heure_prise_en_charge' => $ticket->heure_prise_en_charge,
+                                           'heure_de_fin' => $ticket->heure_de_fin,
+                                           'resolu' => $ticket->resolu,
+                                           'resolu_libelle' => $ticket->resolu === 1 ? 'Résolu' : 'Non résolu',
+                                           'commentaire_resolution' => $ticket->commentaire_resolution,
+                                           'has_comment' => !empty($ticket->commentaire_resolution),
+                                           'action_performed' => $ticket->resolu === 1 ? 'traiter' : 'refuser'
+                                       ];
+                                   });
+
+                    return response()->json([
+                        'success' => true,
+                        'action_filter' => $action,
+                        'tickets' => $tickets,
+                        'count' => $tickets->count(),
+                        'date' => $date
+                    ]);
+
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors de la récupération de l\'historique de résolution'
+                    ], 500);
+                }
+            })->name('conseiller.resolution-history');
         });
         
-        // 🔄 API TEMPS RÉEL CONSEILLER
+        // 🔄 API TEMPS RÉEL CONSEILLER AVEC RÉSOLUTION
         Route::prefix('api/conseiller')->group(function () {
             
             // Rafraîchir la file en temps réel
@@ -186,9 +367,82 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             Route::get('/notifications', [DashboardController::class, 'getConseillerNotifications'])
                 ->name('api.conseiller.notifications');
             
-            // Statistiques temps réel
+            // Statistiques temps réel (avec résolution)
             Route::get('/live-stats', [DashboardController::class, 'getLiveConseillerStats'])
                 ->name('api.conseiller.live-stats');
+            
+            // ✅ NOUVELLE API : Statistiques de résolution temps réel
+            Route::get('/live-resolution-stats', function(Request $request) {
+                try {
+                    $user = Auth::user();
+                    
+                    if (!$user->isConseillerUser()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Accès non autorisé'
+                        ], 403);
+                    }
+
+                    $date = today();
+                    
+                    // Statistiques en temps réel
+                    $todayStats = [
+                        'total_traites' => Queue::where('conseiller_client_id', $user->id)
+                                               ->whereDate('date', $date)
+                                               ->where('statut_global', 'termine')
+                                               ->count(),
+                        
+                        'resolus_aujourdhui' => Queue::where('conseiller_client_id', $user->id)
+                                                    ->whereDate('date', $date)
+                                                    ->where('statut_global', 'termine')
+                                                    ->where('resolu', 1)
+                                                    ->count(),
+                        
+                        'refuses_aujourdhui' => Queue::where('conseiller_client_id', $user->id)
+                                                    ->whereDate('date', $date)
+                                                    ->where('statut_global', 'termine')
+                                                    ->where('resolu', 0)
+                                                    ->count(),
+                        
+                        'avec_commentaire_aujourdhui' => Queue::where('conseiller_client_id', $user->id)
+                                                             ->whereDate('date', $date)
+                                                             ->where('statut_global', 'termine')
+                                                             ->whereNotNull('commentaire_resolution')
+                                                             ->where('commentaire_resolution', '!=', '')
+                                                             ->count(),
+                        
+                        'ticket_en_cours' => Queue::where('conseiller_client_id', $user->id)
+                                                 ->whereDate('date', $date)
+                                                 ->where('statut_global', 'en_cours')
+                                                 ->exists()
+                    ];
+
+                    // Calculs de taux
+                    $todayStats['taux_resolution_aujourd_hui'] = $todayStats['total_traites'] > 0 
+                        ? round(($todayStats['resolus_aujourdhui'] / $todayStats['total_traites']) * 100, 2)
+                        : 0;
+
+                    $todayStats['taux_commentaire_aujourd_hui'] = $todayStats['total_traites'] > 0 
+                        ? round(($todayStats['avec_commentaire_aujourdhui'] / $todayStats['total_traites']) * 100, 2)
+                        : 0;
+
+                    return response()->json([
+                        'success' => true,
+                        'live_resolution_stats' => $todayStats,
+                        'timestamp' => now()->format('H:i:s'),
+                        'conseiller_info' => [
+                            'username' => $user->username,
+                            'status' => $todayStats['ticket_en_cours'] ? 'En cours' : 'Disponible'
+                        ]
+                    ]);
+
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors de la récupération des statistiques temps réel'
+                    ], 500);
+                }
+            })->name('api.conseiller.live-resolution-stats');
         });
     });
 
@@ -535,7 +789,9 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                     'processing_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->where('statut_global', 'en_cours')->count(),
                     'completed_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->where('statut_global', 'termine')->count(),
                     'average_wait_time' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->avg('temps_attente_estime') ?? 0,
-                    // 🆕 NOUVEAU : Statistiques de la file chronologique
+                    // 🆕 NOUVEAU : Statistiques de la file chronologique avec résolution
+                    'resolved_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->where('resolu', 1)->count(),
+                    'unresolved_tickets' => \App\Models\Queue::whereIn('service_id', $serviceIds)->whereDate('date', today())->where('resolu', 0)->count(),
                     'next_global_position' => \App\Models\Queue::calculateQueuePosition(),
                     'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
                 ];
@@ -584,6 +840,15 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                     $query->where('statut_global', $request->statut);
                 }
                 
+                // ✅ NOUVEAU FILTRE : Par résolution
+                if ($request->filled('resolu')) {
+                    if ($request->resolu === 'resolved') {
+                        $query->where('resolu', 1);
+                    } elseif ($request->resolu === 'unresolved') {
+                        $query->where('resolu', 0);
+                    }
+                }
+                
                 if ($request->filled('search')) {
                     $search = $request->search;
                     $query->where(function($q) use ($search) {
@@ -604,7 +869,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                 return view('admin.queue.tickets', compact('tickets', 'services'));
             })->name('admin.queue.tickets');
 
-            // 📈 Statistiques avancées avec file chronologique
+            // 📈 Statistiques avancées avec file chronologique et résolution
             Route::get('/stats', function(Request $request) {
                 $admin = auth()->user();
                 $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
@@ -625,6 +890,15 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                                                           ->whereBetween('date', $dateRange)
                                                           ->where('statut_global', 'termine')
                                                           ->count(),
+                    // ✅ NOUVELLES STATS de résolution
+                    'period_resolved' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                         ->whereBetween('date', $dateRange)
+                                                         ->where('resolu', 1)
+                                                         ->count(),
+                    'period_unresolved' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                           ->whereBetween('date', $dateRange)
+                                                           ->where('resolu', 0)
+                                                           ->count(),
                     'average_processing_time' => \App\Models\Queue::whereIn('service_id', $serviceIds)
                                                                  ->whereBetween('date', $dateRange)
                                                                  ->whereNotNull('heure_de_fin')
@@ -636,11 +910,25 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                                                          ->orderBy('ticket_count', 'desc')
                                                          ->with('service')
                                                          ->first(),
-                    // 🆕 NOUVEAU : Statistiques spécifiques à la file chronologique
-                    'chronological_stats' => [
-                        'queue_type' => 'fifo_chronological',
-                        'principle' => 'Premier arrivé, premier servi',
+                    // 🆕 NOUVEAU : Statistiques spécifiques à la file chronologique avec résolution
+                    'chronological_resolution_stats' => [
+                        'queue_type' => 'fifo_chronological_with_resolution',
+                        'principle' => 'Premier arrivé, premier servi avec résolution binaire',
                         'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                        'resolution_rate' => function() use ($serviceIds, $dateRange) {
+                            $total = \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                     ->whereBetween('date', $dateRange)
+                                                     ->where('statut_global', 'termine')
+                                                     ->count();
+                            if ($total === 0) return 0;
+                            
+                            $resolved = \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                        ->whereBetween('date', $dateRange)
+                                                        ->where('statut_global', 'termine')
+                                                        ->where('resolu', 1)
+                                                        ->count();
+                            return round(($resolved / $total) * 100, 2);
+                        },
                         'peak_hours' => \App\Models\Queue::whereIn('service_id', $serviceIds)
                                                         ->whereBetween('date', $dateRange)
                                                         ->selectRaw('HOUR(heure_d_enregistrement) as hour, COUNT(*) as count')
@@ -652,24 +940,27 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                     ]
                 ];
                 
+                // Exécuter la closure pour resolution_rate
+                $stats['chronological_resolution_stats']['resolution_rate'] = $stats['chronological_resolution_stats']['resolution_rate']();
+                
                 return view('admin.queue.stats', compact('stats', 'period'));
             })->name('admin.queue.stats');
 
-            // 🗂️ Export des données avec ordre chronologique
+            // 🗂️ Export des données avec ordre chronologique et résolution
             Route::get('/export', function(Request $request) {
                 $admin = auth()->user();
                 $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
                 
                 $date = $request->get('date', today());
                 
-                // 🆕 TRI CHRONOLOGIQUE pour l'export
+                // 🆕 TRI CHRONOLOGIQUE pour l'export avec résolution
                 $tickets = \App\Models\Queue::whereIn('service_id', $serviceIds)
                                           ->whereDate('date', $date)
                                           ->with('service')
                                           ->orderBy('created_at', 'asc') // FIFO dans l'export
                                           ->get();
                 
-                $filename = 'tickets_chronological_' . \Carbon\Carbon::parse($date)->format('Y-m-d') . '.csv';
+                $filename = 'tickets_chronological_resolution_' . \Carbon\Carbon::parse($date)->format('Y-m-d') . '.csv';
                 
                 $headers = [
                     'Content-Type' => 'text/csv; charset=utf-8',
@@ -691,8 +982,10 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                         'Position Globale',
                         'Temps Attente Estimé',
                         'Statut',
+                        'Résolution', // ✅ NOUVEAU
+                        'Commentaire Résolution', // ✅ NOUVEAU
                         'Conseiller',
-                        'Commentaire'
+                        'Commentaire Initial'
                     ], ';');
                     
                     foreach ($tickets as $index => $ticket) {
@@ -707,6 +1000,8 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                             $ticket->position_file,
                             $ticket->temps_attente_estime . ' min',
                             $ticket->getStatutLibelle(),
+                            $ticket->getResoluLibelle(), // ✅ NOUVEAU
+                            $ticket->commentaire_resolution ?: '', // ✅ NOUVEAU
                             $ticket->conseillerClient ? $ticket->conseillerClient->username : 'N/A',
                             $ticket->commentaire ?: ''
                         ], ';');
@@ -718,7 +1013,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                 return response()->stream($callback, 200, $headers);
             })->name('admin.queue.export');
 
-            // 🆕 NOUVEAU : API pour la file chronologique globale (Admin)
+            // 🆕 NOUVEAU : API pour la file chronologique globale avec résolution (Admin)
             Route::get('/api/chronological-global', function(Request $request) {
                 $admin = auth()->user();
                 $serviceIds = \App\Models\Service::where('created_by', $admin->id)->pluck('id');
@@ -738,7 +1033,9 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                                                               'service' => $ticket->service->nom,
                                                               'client' => $ticket->prenom,
                                                               'heure_arrivee' => $ticket->heure_d_enregistrement,
-                                                              'temps_attente_estime' => $ticket->temps_attente_estime
+                                                              'temps_attente_estime' => $ticket->temps_attente_estime,
+                                                              'resolu' => $ticket->resolu,
+                                                              'resolu_libelle' => $ticket->getResoluLibelle()
                                                           ];
                                                       });
 
@@ -747,9 +1044,9 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                     'global_stats' => $globalStats,
                     'chronological_order' => $chronologicalOrder,
                     'queue_info' => [
-                        'type' => 'fifo_chronological',
-                        'principle' => 'Premier arrivé, premier servi',
-                        'note' => 'Ordre de traitement basé sur l\'heure d\'arrivée'
+                        'type' => 'fifo_chronological_with_resolution',
+                        'principle' => 'Premier arrivé, premier servi avec résolution binaire',
+                        'note' => 'Ordre de traitement basé sur l\'heure d\'arrivée avec gestion de résolution'
                     ],
                     'timestamp' => now()->format('H:i:s')
                 ]);
@@ -832,11 +1129,11 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
         
         /*
         |--------------------------------------------------------------------------
-        | API AJAX POUR ADMINS (avec statistiques file chronologique)
+        | API AJAX POUR ADMINS (avec statistiques file chronologique et résolution)
         |--------------------------------------------------------------------------
         */
         
-        // Statistiques en temps réel (incluant file chronologique)
+        // Statistiques en temps réel (incluant file chronologique et résolution)
         Route::get('/admin/api/stats', [DashboardController::class, 'getStats'])
             ->name('admin.api.stats');
         Route::get('/admin/api/advanced-stats', [DashboardController::class, 'getAdvancedStats'])
@@ -920,9 +1217,9 @@ Route::prefix('api/settings')->group(function () {
             'maintenance_mode' => Setting::get('maintenance_mode', false),
             'auto_session_closure' => Setting::isAutoSessionClosureEnabled(),
             'closure_time' => Setting::getSessionClosureTime(),
-            // 🆕 NOUVEAU : Paramètres de la file d'attente
-            'queue_type' => 'fifo_chronological',
-            'queue_principle' => 'Premier arrivé, premier servi',
+            // 🆕 NOUVEAU : Paramètres de la file d'attente avec résolution
+            'queue_type' => 'fifo_chronological_with_resolution',
+            'queue_principle' => 'Premier arrivé, premier servi avec résolution binaire',
             'default_wait_time' => Setting::getDefaultWaitingTimeMinutes()
         ]);
     });
@@ -948,21 +1245,23 @@ Route::prefix('api/settings')->group(function () {
         ]);
     });
 
-    // 🆕 NOUVEAU : API pour les paramètres de file d'attente
+    // 🆕 NOUVEAU : API pour les paramètres de file d'attente avec résolution
     Route::get('/queue-settings', function() {
         return response()->json([
-            'queue_type' => 'fifo_chronological',
-            'principle' => 'Premier arrivé, premier servi',
+            'queue_type' => 'fifo_chronological_with_resolution',
+            'principle' => 'Premier arrivé, premier servi avec résolution binaire',
             'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
             'admin_can_configure' => true,
-            'description' => 'Les tickets sont traités dans l\'ordre chronologique d\'arrivée, peu importe le service'
+            'resolution_format' => 'tinyint (0=non résolu, 1=résolu)',
+            'comment_required_for_refusal' => true,
+            'description' => 'Les tickets sont traités dans l\'ordre chronologique d\'arrivée avec gestion de résolution et commentaire obligatoire pour les refus'
         ]);
     });
 });
 
 /*
 |--------------------------------------------------------------------------
-| 🆕 ROUTES API UTILITAIRES POUR LES INTERFACES (avec file chronologique)
+| 🆕 ROUTES API UTILITAIRES POUR LES INTERFACES (avec file chronologique et résolution)
 |--------------------------------------------------------------------------
 */
 
@@ -986,10 +1285,10 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                     'inactive_services' => $services->where('statut', 'inactif')->count(),
                     'recent_services' => $services->where('created_at', '>=', now()->subDays(7))->count(),
                     'last_update' => now()->format('H:i:s'),
-                    // 🆕 NOUVEAU : Informations sur la file chronologique
+                    // 🆕 NOUVEAU : Informations sur la file chronologique avec résolution
                     'queue_info' => [
-                        'type' => 'fifo_chronological',
-                        'principle' => 'Premier arrivé, premier servi',
+                        'type' => 'fifo_chronological_with_resolution',
+                        'principle' => 'Premier arrivé, premier servi avec résolution binaire',
                         'next_position' => \App\Models\Queue::calculateQueuePosition(),
                         'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
                     ]
@@ -997,7 +1296,7 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             ]);
             
         } elseif ($user->isConseillerUser()) {
-            // Données pour interface Conseiller
+            // Données pour interface Conseiller avec résolution
             return response()->json([
                 'success' => true,
                 'type' => 'conseiller',
@@ -1007,9 +1306,9 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                     'last_login' => $user->last_login_at ? $user->last_login_at->format('d/m/Y H:i') : 'Jamais',
                     'last_update' => now()->format('H:i:s'),
                     'queue_info' => [
-                        'type' => 'fifo_chronological',
-                        'principle' => 'Premier arrivé, premier servi',
-                        'role' => 'Traitement des tickets dans l\'ordre chronologique'
+                        'type' => 'fifo_chronological_with_resolution',
+                        'principle' => 'Premier arrivé, premier servi avec résolution binaire',
+                        'role' => 'Traitement des tickets dans l\'ordre chronologique avec gestion de résolution'
                     ]
                 ]
             ]);
@@ -1049,9 +1348,10 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             'conseiller' => [
                 '🎯 Traitez les tickets dans l\'ordre chronologique (FIFO)',
                 '📞 Utilisez "Appeler suivant" pour le prochain ticket',
-                '✅ Documentez la résolution de chaque ticket',
+                '✅ Choisissez "Traiter" ou "Refuser" avec commentaire si nécessaire',
+                '📝 Le commentaire est obligatoire pour les refus',
                 '⏸️ Activez la pause si vous devez vous absenter',
-                '📊 Consultez vos statistiques pour améliorer vos performances'
+                '📊 Consultez vos statistiques de résolution pour améliorer vos performances'
             ]
         ];
         
@@ -1229,8 +1529,8 @@ if (app()->environment('local')) {
         ]);
     })->middleware('auth');
 
-    // ✅ AMÉLIORÉ : Test de génération de tickets avec file chronologique FIFO
-    Route::get('/dev/test-ticket-generation-fifo', function () {
+    // ✅ AMÉLIORÉ : Test de génération de tickets avec file chronologique FIFO et résolution
+    Route::get('/dev/test-ticket-generation-fifo-resolution', function () {
         if (!auth()->check()) {
             return response()->json(['error' => 'Non connecté']);
         }
@@ -1251,19 +1551,19 @@ if (app()->environment('local')) {
         $service = $services->first();
         
         try {
-            // Test de génération de ticket avec file chronologique
+            // Test de génération de ticket avec file chronologique et résolution
             $ticketData = [
                 'service_id' => $service->id,
-                'prenom' => 'Test Client FIFO',
+                'prenom' => 'Test Client FIFO Resolution',
                 'telephone' => '0123456789',
-                'commentaire' => 'Test de génération automatique - File chronologique FIFO'
+                'commentaire' => 'Test de génération automatique - File chronologique FIFO avec résolution binaire'
             ];
             
             $ticket = \App\Models\Queue::createTicket($ticketData);
             
             return response()->json([
                 'success' => true,
-                'message' => 'Ticket de test généré avec succès - File chronologique FIFO',
+                'message' => 'Ticket de test généré avec succès - File chronologique FIFO avec résolution',
                 'ticket' => $ticket->toTicketArray(),
                 'service' => [
                     'id' => $service->id,
@@ -1272,10 +1572,12 @@ if (app()->environment('local')) {
                 ],
                 'queue_stats' => \App\Models\Queue::getServiceStats($service->id),
                 'queue_info' => [
-                    'type' => 'fifo_chronological',
-                    'principle' => 'Premier arrivé, premier servi',
+                    'type' => 'fifo_chronological_with_resolution',
+                    'principle' => 'Premier arrivé, premier servi avec résolution binaire',
                     'next_position' => \App\Models\Queue::calculateQueuePosition(),
-                    'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes()
+                    'configured_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
+                    'resolution_format' => 'tinyint (0=non résolu, 1=résolu)',
+                    'comment_required_for_refusal' => true
                 ],
                 'chronological_queue' => \App\Models\Queue::getChronologicalQueue(),
                 'global_stats' => \App\Models\Queue::getGlobalQueueStats()
@@ -1283,13 +1585,13 @@ if (app()->environment('local')) {
             
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Erreur génération ticket FIFO: ' . $e->getMessage()
+                'error' => 'Erreur génération ticket FIFO avec résolution: ' . $e->getMessage()
             ]);
         }
     })->middleware('auth');
 
-    // 🆕 NOUVEAU : Test de l'interface conseiller
-    Route::get('/dev/test-conseiller-interface', function () {
+    // 🆕 NOUVEAU : Test de l'interface conseiller avec résolution
+    Route::get('/dev/test-conseiller-interface-resolution', function () {
         if (!auth()->check()) {
             return response()->json(['error' => 'Non connecté']);
         }
@@ -1304,7 +1606,7 @@ if (app()->environment('local')) {
             $creator = $user->getCreator();
             $myServiceIds = \App\Models\Service::where('created_by', $creator->id)->pluck('id');
             
-            // Simuler les données de l'interface conseiller
+            // Simuler les données de l'interface conseiller avec résolution
             $interfaceData = [
                 'file_stats' => [
                     'tickets_en_attente' => \App\Models\Queue::whereIn('service_id', $myServiceIds)
@@ -1319,12 +1621,30 @@ if (app()->environment('local')) {
                                                           ->whereDate('date', today())
                                                           ->where('statut_global', 'termine')
                                                           ->count(),
+                    'tickets_resolus' => \App\Models\Queue::whereIn('service_id', $myServiceIds)
+                                                         ->whereDate('date', today())
+                                                         ->where('resolu', 1)
+                                                         ->count(),
+                    'tickets_non_resolus' => \App\Models\Queue::whereIn('service_id', $myServiceIds)
+                                                             ->whereDate('date', today())
+                                                             ->where('resolu', 0)
+                                                             ->count(),
                 ],
                 'conseiller_stats' => [
                     'tickets_traites_aujourd_hui' => \App\Models\Queue::where('conseiller_client_id', $user->id)
                                                                       ->whereDate('date', today())
                                                                       ->where('statut_global', 'termine')
                                                                       ->count(),
+                    'tickets_resolus_aujourdhui' => \App\Models\Queue::where('conseiller_client_id', $user->id)
+                                                                     ->whereDate('date', today())
+                                                                     ->where('statut_global', 'termine')
+                                                                     ->where('resolu', 1)
+                                                                     ->count(),
+                    'tickets_refuses_aujourdhui' => \App\Models\Queue::where('conseiller_client_id', $user->id)
+                                                                     ->whereDate('date', today())
+                                                                     ->where('statut_global', 'termine')
+                                                                     ->where('resolu', 0)
+                                                                     ->count(),
                     'ticket_en_cours' => \App\Models\Queue::where('conseiller_client_id', $user->id)
                                                           ->whereDate('date', today())
                                                           ->where('statut_global', 'en_cours')
@@ -1336,19 +1656,26 @@ if (app()->environment('local')) {
                                                           ->orderBy('created_at', 'asc')
                                                           ->first(),
                 'queue_info' => [
-                    'type' => 'fifo_chronological',
-                    'principle' => 'Premier arrivé, premier servi',
-                    'interface_status' => 'ready'
+                    'type' => 'fifo_chronological_with_resolution',
+                    'principle' => 'Premier arrivé, premier servi avec résolution binaire',
+                    'interface_status' => 'ready',
+                    'resolution_format' => 'tinyint (0=non résolu, 1=résolu)'
                 ]
             ];
             
+            // Calculer le taux de résolution
+            $total = $interfaceData['conseiller_stats']['tickets_traites_aujourd_hui'];
+            $resolus = $interfaceData['conseiller_stats']['tickets_resolus_aujourdhui'];
+            $tauxResolution = $total > 0 ? round(($resolus / $total) * 100, 2) : 0;
+            
             return response()->json([
                 'success' => true,
-                'message' => 'Interface conseiller testée avec succès',
+                'message' => 'Interface conseiller avec résolution testée avec succès',
                 'conseiller_info' => [
                     'username' => $user->username,
                     'email' => $user->email,
-                    'creator' => $creator->username
+                    'creator' => $creator->username,
+                    'taux_resolution' => $tauxResolution
                 ],
                 'interface_data' => $interfaceData,
                 'routes_available' => [
@@ -1356,19 +1683,21 @@ if (app()->environment('local')) {
                     'conseiller.call-ticket' => route('conseiller.call-ticket'),
                     'conseiller.complete-ticket' => route('conseiller.complete-ticket'),
                     'conseiller.my-stats' => route('conseiller.my-stats'),
-                    'conseiller.history' => route('conseiller.history')
+                    'conseiller.history' => route('conseiller.history'),
+                    'conseiller.validate-resolution-comment' => route('conseiller.validate-resolution-comment'),
+                    'conseiller.resolution-stats' => route('conseiller.resolution-stats')
                 ]
             ]);
             
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Erreur test interface conseiller: ' . $e->getMessage()
+                'error' => 'Erreur test interface conseiller avec résolution: ' . $e->getMessage()
             ]);
         }
     })->middleware('auth');
 
-    // 🆕 NOUVEAU : Test de la file chronologique
-    Route::get('/dev/test-chronological-queue', function () {
+    // 🆕 NOUVEAU : Test de la résolution de tickets
+    Route::get('/dev/test-ticket-resolution', function () {
         if (!auth()->check()) {
             return response()->json(['error' => 'Non connecté']);
         }
@@ -1383,100 +1712,51 @@ if (app()->environment('local')) {
             
             $serviceIds = $creator->createdServices()->pluck('id');
             
+            // Statistiques de résolution
+            $resolutionStats = [
+                'total_tickets_today' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                         ->whereDate('date', today())
+                                                         ->count(),
+                'tickets_resolus' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                      ->whereDate('date', today())
+                                                      ->where('resolu', 1)
+                                                      ->count(),
+                'tickets_non_resolus' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                          ->whereDate('date', today())
+                                                          ->where('resolu', 0)
+                                                          ->count(),
+                'tickets_avec_commentaires' => \App\Models\Queue::whereIn('service_id', $serviceIds)
+                                                               ->whereDate('date', today())
+                                                               ->whereNotNull('commentaire_resolution')
+                                                               ->where('commentaire_resolution', '!=', '')
+                                                               ->count(),
+            ];
+            
+            // Calculer les taux
+            $total = $resolutionStats['total_tickets_today'];
+            $resolutionStats['taux_resolution'] = $total > 0 ? round(($resolutionStats['tickets_resolus'] / $total) * 100, 2) : 0;
+            $resolutionStats['taux_commentaires'] = $total > 0 ? round(($resolutionStats['tickets_avec_commentaires'] / $total) * 100, 2) : 0;
+            
             return response()->json([
                 'success' => true,
-                'queue_type' => 'fifo_chronological',
-                'principle' => 'Premier arrivé, premier servi',
-                'chronological_queue' => \App\Models\Queue::getChronologicalQueue(),
-                'next_ticket_global' => \App\Models\Queue::getNextTicketGlobal(),
-                'global_queue_stats' => \App\Models\Queue::getGlobalQueueStats(),
-                'services_queue_stats' => $serviceIds->map(function($serviceId) {
-                    return [
-                        'service_id' => $serviceId,
-                        'stats' => \App\Models\Queue::getServiceStats($serviceId),
-                        'chronological_queue' => \App\Models\Queue::getServiceQueueChronological($serviceId)
-                    ];
-                })->toArray(),
-                'configured_wait_time' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
-                'next_global_position' => \App\Models\Queue::calculateQueuePosition()
+                'resolution_format' => 'tinyint (0=non résolu, 1=résolu)',
+                'comment_policy' => 'Commentaire obligatoire pour les refus',
+                'resolution_stats' => $resolutionStats,
+                'validation_rules' => [
+                    'action_required' => true,
+                    'comment_required_for_refusal' => true,
+                    'comment_max_length' => 500
+                ],
+                'queue_info' => [
+                    'type' => 'fifo_chronological_with_resolution',
+                    'principle' => 'Premier arrivé, premier servi avec résolution binaire'
+                ]
             ]);
             
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Erreur test file chronologique: ' . $e->getMessage()
+                'error' => 'Erreur test résolution tickets: ' . $e->getMessage()
             ]);
         }
     })->middleware('auth');
-
-    /*
-    |--------------------------------------------------------------------------
-    | ROUTES DE DÉVELOPPEMENT POUR LES PARAMÈTRES (avec file chronologique)
-    |--------------------------------------------------------------------------
-    */
-
-    Route::prefix('dev/settings')->middleware(['auth', 'admin'])->group(function () {
-        
-        // Tester tous les paramètres (incluant file d'attente)
-        Route::get('/test-all', function() {
-            return response()->json([
-                'user_management' => Setting::getUserManagementSettings(),
-                'security' => Setting::getSecuritySettings(),
-                'all_settings' => Setting::getAllSettings(),
-                'stats' => Setting::getStats(),
-                'consistency_check' => Setting::checkConsistency(),
-                // 🆕 NOUVEAU : Paramètres de file d'attente
-                'queue_settings' => [
-                    'type' => 'fifo_chronological',
-                    'principle' => 'Premier arrivé, premier servi',
-                    'default_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
-                    'admin_configurable' => true
-                ]
-            ]);
-        });
-        
-        // Forcer une valeur pour test
-        Route::post('/force/{key}', function(Request $request, $key) {
-            $value = $request->input('value');
-            $type = $request->input('type', 'string');
-            
-            $success = Setting::set($key, $value, $type);
-            
-            return response()->json([
-                'success' => $success,
-                'key' => $key,
-                'new_value' => Setting::get($key),
-                'message' => $success ? 'Paramètre forcé avec succès' : 'Erreur lors du forçage'
-            ]);
-        });
-        
-        // Simuler la fermeture automatique
-        Route::post('/simulate-closure', function() {
-            // Forcer la fermeture pour test
-            Setting::set('enable_auto_session_closure', true, 'boolean');
-            Setting::set('auto_session_closure_time', now()->format('H:i'), 'time');
-            
-            return response()->json([
-                'message' => 'Fermeture automatique simulée',
-                'closure_time' => Setting::getSessionClosureTime(),
-                'should_close_now' => Setting::shouldCloseSessionsNow()
-            ]);
-        });
-
-        // 🆕 NOUVEAU : Tester les paramètres de temps d'attente
-        Route::post('/test-wait-time/{minutes}', function($minutes) {
-            Setting::set('default_waiting_time_minutes', (int)$minutes, 'integer');
-            
-            // Tester le calcul avec le nouveau temps
-            $position = 5; // Exemple : 5ème en file
-            $estimatedTime = \App\Models\Queue::estimateWaitingTime($position);
-            
-            return response()->json([
-                'message' => 'Temps d\'attente modifié pour test',
-                'configured_time' => (int)$minutes,
-                'position_test' => $position,
-                'estimated_time_calculated' => $estimatedTime,
-                'calculation_formula' => "({$position} - 1) × {$minutes} = {$estimatedTime} minutes"
-            ]);
-        });
-    });     
 }

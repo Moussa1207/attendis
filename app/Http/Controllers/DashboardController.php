@@ -748,18 +748,40 @@ class DashboardController extends Controller
                 ], 404);
             }
 
-            // Validation optionnelle
-            $resolu = $request->input('resolu', 'Yes');
-            $commentaire = $request->input('commentaire_resolution');
+            // ✅ NOUVELLE VALIDATION pour résolution et commentaire
+            $validator = Validator::make($request->all(), [
+                'action' => 'required|in:traiter,refuser',
+                'commentaire_resolution' => 'nullable|string|max:500'
+            ], [
+                'action.required' => 'L\'action est obligatoire',
+                'action.in' => 'Action invalide. Utilisez "traiter" ou "refuser"',
+                'commentaire_resolution.max' => 'Le commentaire ne peut pas dépasser 500 caractères'
+            ]);
 
-            if ($resolu === 'No' && empty($commentaire)) {
+            if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Commentaire obligatoire pour les problèmes non résolus'
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
                 ], 422);
             }
 
-            // ✅ TERMINER LE TICKET
+            $action = $request->input('action');
+            $commentaire = $request->input('commentaire_resolution');
+
+            // ✅ NOUVELLE LOGIQUE : Déterminer resolu selon l'action
+            $resolu = ($action === 'traiter') ? 1 : 0;
+
+            // ✅ VALIDATION : Commentaire obligatoire pour les refus
+            if ($action === 'refuser' && empty($commentaire)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le commentaire est obligatoire pour refuser un ticket',
+                    'field_error' => 'commentaire_resolution'
+                ], 422);
+            }
+
+            // ✅ TERMINER LE TICKET avec nouvelle logique
             DB::beginTransaction();
             
             $success = $currentTicket->terminer($resolu, $commentaire);
@@ -774,26 +796,43 @@ class DashboardController extends Controller
 
             DB::commit();
 
-            Log::info('Ticket terminé par conseiller', [
+            // ✅ NOUVEAU LOG avec action détaillée
+            Log::info('Ticket terminé par conseiller avec nouvelle interface', [
                 'ticket_id' => $currentTicket->id,
                 'numero_ticket' => $currentTicket->numero_ticket,
                 'conseiller_id' => $user->id,
+                'action' => $action,
                 'resolu' => $resolu,
+                'resolu_libelle' => $resolu === 1 ? 'Résolu' : 'Non résolu',
+                'has_comment' => !empty($commentaire),
+                'comment_length' => strlen($commentaire ?? ''),
                 'duree_traitement' => $this->calculateProcessingTime($currentTicket)
             ]);
 
+            // ✅ RÉPONSE ENRICHIE avec nouvelles informations
             return response()->json([
                 'success' => true,
-                'message' => "Ticket {$currentTicket->numero_ticket} terminé avec succès",
+                'message' => $action === 'traiter' 
+                    ? "Ticket {$currentTicket->numero_ticket} traité avec succès" 
+                    : "Ticket {$currentTicket->numero_ticket} refusé",
                 'ticket' => $currentTicket->fresh()->toTicketArray(),
-                'processing_time' => $this->calculateProcessingTime($currentTicket)
+                'action_performed' => $action,
+                'resolution_info' => [
+                    'resolu' => $resolu,
+                    'resolu_libelle' => $resolu === 1 ? 'Résolu' : 'Non résolu',
+                    'commentaire_fourni' => !empty($commentaire),
+                    'commentaire_longueur' => strlen($commentaire ?? '')
+                ],
+                'processing_time' => $this->calculateProcessingTime($currentTicket),
+                'next_action' => 'Vous pouvez maintenant appeler le prochain ticket'
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Erreur finalisation ticket', [
+            Log::error('Erreur finalisation ticket avec nouvelle interface', [
                 'conseiller_id' => Auth::id(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
             ]);
 
             return response()->json([
@@ -806,7 +845,7 @@ class DashboardController extends Controller
     /**
      * 📊 STATISTIQUES PERSONNELLES CONSEILLER
      */
-    public function getConseillerStats(Request $request): JsonResponse
+   public function getConseillerStats(Request $request): JsonResponse
     {
         try {
             $user = Auth::user();
@@ -820,12 +859,43 @@ class DashboardController extends Controller
 
             $date = $request->get('date', today());
             
+            // ✅ NOUVELLES STATISTIQUES avec resolu tinyint
             $stats = [
                 'aujourd_hui' => [
                     'tickets_traites' => Queue::where('conseiller_client_id', $user->id)
                                             ->whereDate('date', $date)
                                             ->where('statut_global', 'termine')
                                             ->count(),
+                    
+                    // ✅ NOUVELLES STATS de résolution
+                    'tickets_resolus' => Queue::where('conseiller_client_id', $user->id)
+                                             ->whereDate('date', $date)
+                                             ->where('statut_global', 'termine')
+                                             ->where('resolu', 1)
+                                             ->count(),
+                    
+                    'tickets_non_resolus' => Queue::where('conseiller_client_id', $user->id)
+                                                  ->whereDate('date', $date)
+                                                  ->where('statut_global', 'termine')
+                                                  ->where('resolu', 0)
+                                                  ->count(),
+                                                  
+                    'taux_resolution' => function() use ($user, $date) {
+                        $total = Queue::where('conseiller_client_id', $user->id)
+                                     ->whereDate('date', $date)
+                                     ->where('statut_global', 'termine')
+                                     ->count();
+                        
+                        if ($total === 0) return 0;
+                        
+                        $resolus = Queue::where('conseiller_client_id', $user->id)
+                                       ->whereDate('date', $date)
+                                       ->where('statut_global', 'termine')
+                                       ->where('resolu', 1)
+                                       ->count();
+                        
+                        return round(($resolus / $total) * 100, 2);
+                    },
                                             
                     'temps_moyen_traitement' => Queue::where('conseiller_client_id', $user->id)
                                                     ->whereDate('date', $date)
@@ -856,6 +926,19 @@ class DashboardController extends Controller
                                             ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
                                             ->where('statut_global', 'termine')
                                             ->count(),
+                    
+                    // ✅ NOUVELLES STATS hebdomadaires
+                    'tickets_resolus' => Queue::where('conseiller_client_id', $user->id)
+                                             ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                             ->where('statut_global', 'termine')
+                                             ->where('resolu', 1)
+                                             ->count(),
+                                             
+                    'tickets_non_resolus' => Queue::where('conseiller_client_id', $user->id)
+                                                  ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                                  ->where('statut_global', 'termine')
+                                                  ->where('resolu', 0)
+                                                  ->count(),
                                             
                     'temps_moyen' => Queue::where('conseiller_client_id', $user->id)
                                          ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
@@ -870,8 +953,29 @@ class DashboardController extends Controller
                     'efficacite' => $this->calculateEfficiencyScore($user->id),
                     'satisfaction_client' => $this->calculateSatisfactionScore($user->id),
                     'temps_pause_total' => 0, // TODO: Implémenter
+                    // ✅ NOUVEAU : Score de résolution
+                    'score_resolution' => function() use ($user) {
+                        $totalMois = Queue::where('conseiller_client_id', $user->id)
+                                         ->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])
+                                         ->where('statut_global', 'termine')
+                                         ->count();
+                        
+                        if ($totalMois === 0) return 100;
+                        
+                        $resolusMois = Queue::where('conseiller_client_id', $user->id)
+                                           ->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])
+                                           ->where('statut_global', 'termine')
+                                           ->where('resolu', 1)
+                                           ->count();
+                        
+                        return round(($resolusMois / $totalMois) * 100, 2);
+                    }
                 ]
             ];
+
+            // ✅ Exécuter les closures pour les taux
+            $stats['aujourd_hui']['taux_resolution'] = $stats['aujourd_hui']['taux_resolution']();
+            $stats['performance']['score_resolution'] = $stats['performance']['score_resolution']();
 
             return response()->json([
                 'success' => true,
@@ -880,11 +984,15 @@ class DashboardController extends Controller
                     'username' => $user->username,
                     'email' => $user->email,
                     'actif_depuis' => $user->created_at->diffForHumans()
+                ],
+                'resolution_info' => [
+                    'format' => 'tinyint (0=non résolu, 1=résolu)',
+                    'principe' => 'Résolution binaire avec commentaire obligatoire pour refus'
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur statistiques conseiller', [
+            Log::error('Erreur statistiques conseiller avec resolu tinyint', [
                 'conseiller_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);
@@ -896,6 +1004,92 @@ class DashboardController extends Controller
         }
     }
 
+
+    public function getTicketResolutionDetails(Request $request, $ticketId): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            // Vérifier que c'est bien le ticket en cours du conseiller
+            $ticket = Queue::where('id', $ticketId)
+                          ->where('conseiller_client_id', $user->id)
+                          ->where('statut_global', 'en_cours')
+                          ->with(['service:id,nom,letter_of_service'])
+                          ->first();
+
+            if (!$ticket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket non trouvé ou non autorisé'
+                ], 404);
+            }
+
+            $ticketDetails = $ticket->toTicketArray();
+            
+            // Calculer le temps de traitement en cours
+            $processingTime = $this->calculateProcessingTime($ticket);
+            $waitingTime = $this->calculateTicketWaitingTime($ticket);
+            
+            // Enrichir avec informations de résolution
+            $resolutionInfo = [
+                'ticket_id' => $ticket->id,
+                'numero_ticket' => $ticket->numero_ticket,
+                'client_name' => $ticket->prenom,
+                'service_name' => $ticket->service->nom,
+                'telephone' => $ticket->telephone,
+                'commentaire_initial' => $ticket->commentaire,
+                'heure_prise_en_charge' => $ticket->heure_prise_en_charge,
+                'temps_traitement_actuel' => $processingTime,
+                'temps_attente_initial' => $waitingTime,
+                'actions_disponibles' => [
+                    'traiter' => [
+                        'label' => 'Traiter avec succès',
+                        'description' => 'Marquer le ticket comme résolu',
+                        'resolu_value' => 1,
+                        'commentaire_obligatoire' => false,
+                        'button_class' => 'btn-success'
+                    ],
+                    'refuser' => [
+                        'label' => 'Refuser le ticket',
+                        'description' => 'Marquer comme non résolu avec commentaire obligatoire',
+                        'resolu_value' => 0,
+                        'commentaire_obligatoire' => true,
+                        'button_class' => 'btn-danger'
+                    ]
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'ticket' => $ticketDetails,
+                'resolution_info' => $resolutionInfo,
+                'validation_rules' => [
+                    'action_required' => true,
+                    'comment_required_for_refusal' => true,
+                    'comment_max_length' => 500
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur détails résolution ticket', [
+                'conseiller_id' => Auth::id(),
+                'ticket_id' => $ticketId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des détails'
+            ], 500);
+        }
+    }
     /**
      * 📜 HISTORIQUE DES TICKETS TRAITÉS
      */
@@ -929,8 +1123,63 @@ class DashboardController extends Controller
                 $ticketArray['duree_traitement'] = $this->calculateProcessingTime($ticket);
                 $ticketArray['debut_traitement'] = $ticket->heure_prise_en_charge;
                 $ticketArray['fin_traitement'] = $ticket->heure_de_fin;
+                
+                // ✅ CORRIGÉ : Accès direct aux propriétés avec debug
+                $resoluValue = (int) $ticket->resolu; // Force cast en integer
+                
+                // Debug pour identifier le problème
+                Log::info('Debug ticket resolution', [
+                    'ticket_id' => $ticket->id,
+                    'numero_ticket' => $ticket->numero_ticket,
+                    'resolu_raw' => $ticket->resolu,
+                    'resolu_cast' => $resoluValue,
+                    'resolu_type' => gettype($ticket->resolu),
+                    'commentaire_resolution' => $ticket->commentaire_resolution,
+                    'has_comment' => !empty($ticket->commentaire_resolution)
+                ]);
+                
+                $ticketArray['resolution_details'] = [
+                    'resolu' => $resoluValue,
+                    'resolu_libelle' => $resoluValue === 1 ? 'Résolu' : 'Non résolu', // ✅ CORRIGÉ : Logique directe
+                    'commentaire_resolution' => $ticket->commentaire_resolution ?: '',
+                    'has_comment' => !empty($ticket->commentaire_resolution)
+                ];
+                
                 return $ticketArray;
             }, $ticketsFormatted);
+
+            // ✅ NOUVEAU RÉSUMÉ avec stats de résolution CORRIGÉES
+            $summary = [
+                'total_tickets_traites' => Queue::where('conseiller_client_id', $user->id)
+                                               ->whereDate('date', $date)
+                                               ->where('statut_global', 'termine')
+                                               ->count(),
+                
+                'tickets_resolus' => Queue::where('conseiller_client_id', $user->id)
+                                         ->whereDate('date', $date)
+                                         ->where('statut_global', 'termine')
+                                         ->where('resolu', 1) // ✅ CORRIGÉ : Comparaison avec integer
+                                         ->count(),
+                
+                'tickets_non_resolus' => Queue::where('conseiller_client_id', $user->id)
+                                             ->whereDate('date', $date)
+                                             ->where('statut_global', 'termine')
+                                             ->where('resolu', 0) // ✅ CORRIGÉ : Comparaison avec integer
+                                             ->count(),
+                                             
+                'temps_moyen_traitement' => Queue::where('conseiller_client_id', $user->id)
+                                                ->whereDate('date', $date)
+                                                ->where('statut_global', 'termine')
+                                                ->whereNotNull('heure_de_fin')
+                                                ->whereNotNull('heure_prise_en_charge')
+                                                ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
+                                                ->value('avg_minutes') ?? 0,
+            ];
+            
+            // Calculer le taux de résolution
+            $summary['taux_resolution'] = $summary['total_tickets_traites'] > 0 
+                ? round(($summary['tickets_resolus'] / $summary['total_tickets_traites']) * 100, 2) 
+                : 0;
 
             return response()->json([
                 'success' => true,
@@ -941,26 +1190,20 @@ class DashboardController extends Controller
                     'per_page' => $tickets->perPage(),
                     'last_page' => $tickets->lastPage()
                 ],
-                'summary' => [
-                    'total_tickets_traites' => Queue::where('conseiller_client_id', $user->id)
-                                                   ->whereDate('date', $date)
-                                                   ->where('statut_global', 'termine')
-                                                   ->count(),
-                    'temps_moyen_traitement' => Queue::where('conseiller_client_id', $user->id)
-                                                    ->whereDate('date', $date)
-                                                    ->where('statut_global', 'termine')
-                                                    ->whereNotNull('heure_de_fin')
-                                                    ->whereNotNull('heure_prise_en_charge')
-                                                    ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
-                                                    ->value('avg_minutes') ?? 0,
-                ],
-                'date' => Carbon::parse($date)->format('d/m/Y')
+                'summary' => $summary,
+                'date' => Carbon::parse($date)->format('d/m/Y'),
+                'resolution_info' => [
+                    'format_resolu' => 'tinyint (0=non résolu, 1=résolu)',
+                    'commentaire_obligatoire_refus' => true,
+                    'debug_enabled' => true // ✅ NOUVEAU : Debug activé
+                ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur historique conseiller', [
+            Log::error('Erreur historique conseiller avec resolu tinyint', [
                 'conseiller_id' => Auth::id(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -1461,14 +1704,14 @@ class DashboardController extends Controller
                     'position_file' => $position,
                     'temps_attente_estime' => $estimatedWaitTime,
                     'statut_global' => 'en_attente',
-                    'resolu' => 'En cours',
+                    'resolu' => 1, // ✅ CORRIGÉ : Valeur numérique au lieu de 'En cours'
                     'transferer' => 'No',
                     'debut' => 'No',
                     'created_by_ip' => $request->ip(),
                     'historique' => json_encode([[
                         'action' => 'creation',
                         'timestamp' => now()->toISOString(),
-                        'details' => 'Ticket créé avec numéro unique - Système anti-doublon'
+                        'details' => 'Ticket créé avec numéro unique - Système anti-doublon - resolu tinyint'
                     ]]),
                     'created_at' => now(),
                     'updated_at' => now()
@@ -1503,7 +1746,8 @@ class DashboardController extends Controller
                         'principle' => 'Numérotation par service avec système anti-doublon',
                         'arrival_time' => $ticket->heure_d_enregistrement,
                         'global_position' => $ticket->position_file,
-                        'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes()
+                        'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
+                        'resolu_format' => 'tinyint (1=résolu par défaut)'
                     ]
                 ],
                 'queue_status' => [
@@ -1514,7 +1758,7 @@ class DashboardController extends Controller
                 ]
             ];
 
-            Log::info('✅ Ticket généré avec succès - Système anti-doublon', [
+            Log::info('✅ Ticket généré avec succès - resolu tinyint corrigé', [
                 'ticket_id' => $ticket->id,
                 'numero_ticket' => $ticket->numero_ticket,
                 'service_name' => $service->nom,
@@ -1525,13 +1769,14 @@ class DashboardController extends Controller
                 'position_chronologique' => $ticket->position_file,
                 'heure_arrivee' => $ticket->heure_d_enregistrement,
                 'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
+                'resolu_value' => $ticket->resolu, // Log de la nouvelle valeur
                 'anti_duplicate_system' => 'active'
             ]);
 
             return response()->json($response, 201);
 
         } catch (\Exception $e) {
-            Log::error('❌ Erreur génération ticket - Système anti-doublon', [
+            Log::error('❌ Erreur génération ticket - resolu tinyint', [
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
                 'request_data' => $request->all(),
