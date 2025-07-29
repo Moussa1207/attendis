@@ -26,7 +26,7 @@
                 <li class="dropdown notification-list">
                     <a class="nav-link dropdown-toggle arrow-none waves-light waves-effect position-relative" data-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
                         <i data-feather="bell" class="align-self-center topbar-icon"></i>
-                        <span class="badge badge-danger badge-pill noti-icon-badge" id="ticketsWaitingCount">{{ $fileStats['tickets_en_attente'] ?? 0 }}</span>
+                        <span class="badge badge-primary badge-pill noti-icon-badge" id="ticketsWaitingCount">{{ $fileStats['tickets_en_attente'] ?? 0 }}</span>
                     </a>
                     <div class="dropdown-menu dropdown-menu-right dropdown-lg pt-0">
                         <h6 class="dropdown-item-text font-15 m-0 py-3 border-bottom d-flex justify-content-between align-items-center">
@@ -127,7 +127,7 @@
                             </div>
                             <div class="col-auto align-self-center">
                                 <div class="btn-group" role="group">
-                                    <button class="btn btn-outline-primary btn-sm" onclick="advisorInterface.refreshTickets()">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="advisorInterface.refreshTickets()" id="refreshButton">
                                         <i data-feather="refresh-cw" class="mr-1"></i> Actualiser
                                     </button>
                                     <button class="btn btn-outline-secondary btn-sm" onclick="advisorInterface.exportData()">
@@ -164,9 +164,9 @@
             <!-- Statistiques de la file d'attente -->
             <div class="row mb-4">
                 <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="stats-card card-waiting">
-                        <div class="stats-icon bg-warning">
-                            <i data-feather="clock" class="text-white"></i>
+                    <div class="stats-card card-waiting clickable-card" onclick="advisorInterface.showWaitingTickets()">
+                        <div class="stats-icon bg-soft-warning">
+                            <i data-feather="clock" class="text-warning"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-warning" id="waitingTicketsCount">{{ $fileStats['tickets_en_attente'] ?? 0 }}</h3>
@@ -177,9 +177,9 @@
                 </div>
 
                 <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="stats-card card-processing">
-                        <div class="stats-icon bg-info">
-                            <i data-feather="phone-call" class="text-white"></i>
+                    <div class="stats-card card-processing clickable-card" onclick="advisorInterface.showCurrentTicket()">
+                        <div class="stats-icon bg-soft-info">
+                            <i data-feather="phone-call" class="text-info"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-info" id="processingTicketsCount">{{ $fileStats['tickets_en_cours'] ?? 0 }}</h3>
@@ -190,9 +190,9 @@
                 </div>
 
                 <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="stats-card card-completed">
-                        <div class="stats-icon bg-success">
-                            <i data-feather="check-circle" class="text-white"></i>
+                    <div class="stats-card card-completed clickable-card" onclick="advisorInterface.showCompletedTickets()">
+                        <div class="stats-icon bg-soft-success">
+                            <i data-feather="check-circle" class="text-success"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-success" id="completedTicketsCount">{{ $fileStats['tickets_termines'] ?? 0 }}</h3>
@@ -204,8 +204,8 @@
 
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card card-time">
-                        <div class="stats-icon bg-primary">
-                            <i data-feather="users" class="text-white"></i>
+                        <div class="stats-icon bg-soft-primary">
+                            <i data-feather="users" class="text-primary"></i>
                         </div>
                         <div class="stats-content">
                             <h3 class="stats-number text-primary" id="averageWaitTime">{{ $defaultWaitTime ?? 15 }}min</h3>
@@ -216,7 +216,7 @@
                 </div>
             </div>
 
-            <!-- ✅ NOUVEAU : File d'attente pleine largeur -->
+            <!-- File d'attente pleine largeur -->
             <div class="row">
                 <div class="col-12 mb-4">
                     <div class="card queue-card">
@@ -227,7 +227,7 @@
                                         🎯 File d'attente FIFO
                                         <span class="badge badge-light ml-2" id="queueCountBadge">{{ $fileStats['tickets_en_attente'] ?? 0 }} tickets</span>
                                     </h5>
-                                    <small class="text-muted">Premier arrivé, premier servi - Seul le premier peut être appelé</small>
+                                    <small class="text-muted">Premier arrivé, premier servi - Les tickets "new" (reçus) ont la priorité absolue</small>
                                 </div>
                                 <div>
                                     <div class="btn-group btn-group-sm" role="group">
@@ -242,13 +242,13 @@
                             </div>
                         </div>
                         <div class="card-body p-0">
-                            <!-- ✅ NOUVEAU : En-têtes de colonnes plus spacieux -->
+                            <!-- En-têtes de colonnes avec nouvelle colonne Transféré -->
                             <div class="queue-header">
                                 <div class="row align-items-center py-3 px-4 bg-light border-bottom">
                                     <div class="col-2">
                                         <strong class="text-dark">Code Ticket</strong>
                                     </div>
-                                    <div class="col-3">
+                                    <div class="col-2">
                                         <strong class="text-dark">Nom Client</strong>
                                     </div>
                                     <div class="col-2">
@@ -256,6 +256,9 @@
                                     </div>
                                     <div class="col-2">
                                         <strong class="text-dark">Service</strong>
+                                    </div>
+                                    <div class="col-1 text-center">
+                                        <strong class="text-dark">Trans.</strong>
                                     </div>
                                     <div class="col-2 text-center">
                                         <strong class="text-dark">Durée d'attente</strong>
@@ -337,7 +340,7 @@
     </div>
 </div>
 
-<!-- ✅ NOUVEAU : Modal Ticket En Cours (remplace le panel) -->
+<!-- Modal Ticket En Cours -->
 <div class="modal fade" id="currentTicketModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
         <div class="modal-content current-ticket-modal">
@@ -366,6 +369,13 @@
                                         <h4 class="client-name mb-1" id="modalClientName">Nom du client</h4>
                                         <p class="client-phone mb-2" id="modalClientPhone">+225 XX XX XX XX</p>
                                         <span class="service-badge" id="modalServiceBadge">Service</span>
+                                        <!-- 🆕 NOUVEAU : Badge de transfert dans le modal -->
+                                        <div id="modalTransferBadge" class="mt-2" style="display: none;">
+                                            <span class="badge badge-soft-warning transfer-badge">
+                                                <i data-feather="share" class="mr-1" style="width: 12px; height: 12px;"></i>
+                                                Ticket transféré
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -409,6 +419,24 @@
                                     <span id="modalComment">Commentaire du client...</span>
                                 </div>
                             </div>
+                            <!-- 🆕 NOUVEAU : Section informations transfert -->
+                            <div id="modalTransferInfo" class="transfer-info-section" style="display: none;">
+                                <h6 class="font-weight-semibold text-warning mb-3">Informations de transfert</h6>
+                                <div class="transfer-display">
+                                    <div class="info-item">
+                                        <span class="info-label">Transféré par :</span>
+                                        <span class="info-value" id="modalTransferredBy">--</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label">Motif :</span>
+                                        <span class="info-value" id="modalTransferReason">--</span>
+                                    </div>
+                                    <div class="info-item" id="modalTransferNotesItem" style="display: none;">
+                                        <span class="info-label">Notes :</span>
+                                        <span class="info-value" id="modalTransferNotes">--</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -417,20 +445,18 @@
                 <div class="w-100">
                     <div class="row">
                         <div class="col-md-4">
-                            <button type="button" class="btn btn-outline-secondary btn-block" onclick="advisorInterface.showTicketDetails()">
-                                <i data-feather="eye" class="mr-1"></i>Voir détails
-                            </button>
-                        </div>
-                        <div class="col-md-4">
-                            <!-- ✅ MODIFIÉ : Appel direct à showFinalConfirmationModal -->
-                            <button type="button" class="btn btn-success btn-block" onclick="advisorInterface.showFinalConfirmationModal('traiter')">
-                                <i data-feather="check" class="mr-1"></i>Traiter le ticket
-                            </button>
-                        </div>
-                        <div class="col-md-4">
-                            <!-- ✅ MODIFIÉ : Appel direct à showFinalConfirmationModal -->
                             <button type="button" class="btn btn-danger btn-block" onclick="advisorInterface.showFinalConfirmationModal('refuser')">
                                 <i data-feather="x" class="mr-1"></i>Refuser le ticket
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-warning btn-block" onclick="advisorInterface.showTransferModal()">
+                                <i data-feather="share" class="mr-1"></i>Transférer
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-success btn-block" onclick="advisorInterface.showFinalConfirmationModal('traiter')">
+                                <i data-feather="check" class="mr-1"></i>Traiter le ticket
                             </button>
                         </div>
                     </div>
@@ -440,7 +466,6 @@
     </div>
 </div>
 
-<!-- Modals existants -->
 <!-- Modal Détails Ticket -->
 <div class="modal fade" id="ticketDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -462,19 +487,21 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Fermer</button>
-                <!-- ✅ MODIFIÉ : Appel direct -->
-                <button type="button" class="btn btn-success" onclick="advisorInterface.showFinalConfirmationModal('traiter')">
-                    <i data-feather="check" class="mr-1"></i>Traiter
-                </button>
                 <button type="button" class="btn btn-danger" onclick="advisorInterface.showFinalConfirmationModal('refuser')">
                     <i data-feather="x" class="mr-1"></i>Refuser
+                </button>
+                <button type="button" class="btn btn-warning" onclick="advisorInterface.showTransferModal()">
+                    <i data-feather="share" class="mr-1"></i>Transférer
+                </button>
+                <button type="button" class="btn btn-success" onclick="advisorInterface.showFinalConfirmationModal('traiter')">
+                    <i data-feather="check" class="mr-1"></i>Traiter
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ✅ NOUVEAU : Modal de confirmation finale SIMPLIFIÉ -->
+<!-- Modal de confirmation finale -->
 <div class="modal fade" id="finalConfirmationModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
@@ -614,7 +641,146 @@
     </div>
 </div>
 
-<!-- ✅ NOUVEAUX STYLES pour l'interface améliorée -->
+<!-- Modal de transfert avec données dynamiques -->
+<div class="modal fade" id="transferModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i data-feather="share" class="mr-2"></i>Transférer le ticket
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Résumé du ticket à transférer -->
+                <div class="transfer-ticket-card mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="font-weight-semibold text-warning mb-3">Ticket à transférer</h6>
+                            <p><strong>Numéro :</strong> <span id="transferTicketNumber">--</span></p>
+                            <p><strong>Client :</strong> <span id="transferClientName">--</span></p>
+                            <p><strong>Service actuel :</strong> <span id="transferCurrentService">--</span></p>
+                            <p><strong>Téléphone :</strong> <span id="transferClientPhone">--</span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="font-weight-semibold text-warning mb-3">Informations de transfert</h6>
+                            <p><strong>Prise en charge :</strong> <span id="transferCallTime">--</span></p>
+                            <p><strong>Durée actuelle :</strong> <span id="transferDuration">--</span></p>
+                            <p><strong>Temps d'attente initial :</strong> <span id="transferWaitTime">--</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulaire de transfert -->
+                <div class="transfer-form">
+                    <!-- Choix du type de transfert -->
+                    <div class="form-group">
+                        <label class="font-weight-semibold">Type de transfert</label>
+                        <div class="transfer-type-selector">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="transferType" id="transferToService" value="service" checked>
+                                <label class="form-check-label" for="transferToService">
+                                    <i data-feather="layers" class="mr-1"></i>Vers un service
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="transferType" id="transferToAdvisor" value="advisor">
+                                <label class="form-check-label" for="transferToAdvisor">
+                                    <i data-feather="user" class="mr-1"></i>Vers un conseiller
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="transferType" id="transferToBoth" value="both">
+                                <label class="form-check-label" for="transferToBoth">
+                                    <i data-feather="users" class="mr-1"></i>Service + Conseiller
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sélection du service -->
+                    <div class="form-group" id="serviceSelectionGroup">
+                        <label for="transferService" class="font-weight-semibold">
+                            Transférer vers le service <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-control" id="transferService">
+                            <option value="">-- Chargement des services... --</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            <i data-feather="info" class="mr-1" style="width: 14px; height: 14px;"></i>
+                            Seuls les services actifs créés par votre administrateur sont affichés
+                        </small>
+                    </div>
+
+                    <!-- Sélection du conseiller -->
+                    <div class="form-group" id="advisorSelectionGroup" style="display: none;">
+                        <label for="transferAdvisor" class="font-weight-semibold">
+                            Transférer vers le conseiller <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-control" id="transferAdvisor">
+                            <option value="">-- Chargement des conseillers... --</option>
+                        </select>
+                        <small class="form-text text-muted" id="advisorSelectionHelp">
+                            <i data-feather="info" class="mr-1" style="width: 14px; height: 14px;"></i>
+                            Conseillers actifs de votre équipe
+                        </small>
+                        <!-- Informations sur la charge de travail -->
+                        <div id="advisorWorkloadInfo" class="mt-2" style="display: none;">
+                            <div class="alert alert-info alert-sm">
+                                <strong>Charge de travail :</strong> <span id="advisorWorkloadText">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="transferReason" class="font-weight-semibold">
+                            Motif du transfert <span class="text-danger">*</span>
+                        </label>
+                        <textarea 
+                            class="form-control" 
+                            id="transferReason" 
+                            rows="3" 
+                            placeholder="Expliquez pourquoi vous transférez ce ticket (obligatoire)..."
+                            maxlength="300"
+                            required
+                        ></textarea>
+                        <small class="form-text text-muted">
+                            Ce motif sera visible par le service/conseiller destinataire.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="transferNotes" class="font-weight-semibold">
+                            Notes additionnelles (optionnel)
+                        </label>
+                        <textarea 
+                            class="form-control" 
+                            id="transferNotes" 
+                            rows="2" 
+                            placeholder="Informations supplémentaires pour le destinataire..."
+                            maxlength="200"
+                        ></textarea>
+                    </div>
+
+                    <div id="transferError" class="alert alert-danger" style="display: none;">
+                        <i data-feather="alert-circle" class="mr-2"></i>
+                        <span id="transferErrorText">Erreur</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-warning" id="confirmTransferButton" onclick="advisorInterface.confirmTransfer()">
+                    <i data-feather="share" class="mr-1"></i>Confirmer le transfert
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- STYLES AMÉLIORÉS avec couleurs douces bleu ciel -->
 <style>
 /* ===== Variables CSS ===== */
 :root {
@@ -629,6 +795,13 @@
     --transition: all 0.3s ease;
     --border-radius-sm: 4px;
     --border-radius-md: 6px;
+    
+    /* 🎨 Variables pour notifications bleu ciel doux */
+    --notification-blue: #87ceeb;
+    --notification-blue-light: #b8dcf0;
+    --notification-blue-dark: #5fa8d3;
+    --notification-bg: rgba(135, 206, 235, 0.95);
+    --notification-shadow: 0 8px 25px rgba(135, 206, 235, 0.3);
 }
 
 /* ===== Layout général ===== */
@@ -675,287 +848,77 @@
     box-shadow: var(--shadow-md);
 }
 
-.stats-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 0.75rem;
-    flex-shrink: 0;
+.stats-card.clickable-card {
+    cursor: pointer;
+    position: relative;
 }
 
-.stats-icon i {
-    width: 14px;
-    height: 14px;
+.stats-card.clickable-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
 }
 
-.stats-content {
-    flex: 1;
-    min-width: 0;
-}
-
-.stats-number {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 0.125rem;
-    line-height: 1.1;
-}
-
-.stats-label {
-    font-weight: 500;
-    color: #2d3748;
-    margin-bottom: 0.125rem;
-    font-size: 0.8rem;
-    line-height: 1.2;
-}
-
-.stats-desc {
-    color: #718096;
-    font-size: 0.7rem;
-    line-height: 1.2;
-    font-weight: 400;
-}
-
-/* ===== ✅ NOUVEAU : Queue Card pleine largeur ===== */
-.queue-card {
-    background: white;
-    box-shadow: var(--shadow-md);
+.stats-card.clickable-card:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+    opacity: 0;
+    transition: opacity 0.3s ease;
     border-radius: var(--border-radius-sm);
 }
 
-.queue-header {
-    background: #f8f9fa;
-    border-bottom: 2px solid #e9ecef;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.queue-container {
-    max-height: 600px; /* Plus de hauteur */
-    overflow-y: auto;
-}
-
-.tickets-list {
-    min-height: 300px;
-}
-
-/* ===== ✅ NOUVEAU : Ticket Items moins condensés ===== */
-.ticket-item {
-    padding: 1.25rem 1.5rem; /* Plus d'espacement */
-    border-bottom: 1px solid #f1f3f4;
-    transition: var(--transition);
-    cursor: pointer;
-    position: relative;
-    background: white;
-    margin-bottom: 0;
-}
-
-.ticket-item:last-child {
-    border-bottom: none;
-}
-
-.ticket-item:hover {
-    background: linear-gradient(90deg, rgba(0, 123, 255, 0.02) 0%, rgba(0, 123, 255, 0.04) 100%);
-    border-left: 3px solid var(--primary-color);
-    padding-left: calc(1.5rem - 3px);
-}
-
-.ticket-item.first-in-queue {
-    background: linear-gradient(90deg, rgba(40, 167, 69, 0.05) 0%, rgba(40, 167, 69, 0.08) 100%);
-    border-left: 4px solid var(--success-color);
-    padding-left: calc(1.5rem - 4px);
-    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.1);
-}
-
-.ticket-item.first-in-queue:hover {
-    background: linear-gradient(90deg, rgba(40, 167, 69, 0.08) 0%, rgba(40, 167, 69, 0.12) 100%);
-    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.15);
-}
-
-.ticket-item.blocked {
-    opacity: 0.6;
-    background: #f8f9fa;
-    cursor: not-allowed;
-}
-
-.ticket-item.blocked:hover {
-    background: #f8f9fa;
-    border-left: none;
-    padding-left: 1.5rem;
-}
-
-/* ===== ✅ NOUVEAU : Colonnes du tableau plus spacieuses ===== */
-.queue-col-code {
-    padding-right: 1rem;
-}
-
-.queue-col-client {
-    padding-right: 1rem;
-}
-
-.queue-col-phone {
-    padding-right: 1rem;
-}
-
-.queue-col-service {
-    padding-right: 1rem;
-}
-
-.queue-col-waiting {
-    padding-right: 1rem;
-}
-
-.queue-col-action {
-    padding-left: 0.5rem;
-}
-
-.ticket-number {
-    font-family: 'Courier New', monospace;
-    font-weight: 700;
-    color: #2d3748;
-    font-size: 0.75rem;
-    margin-bottom: 0.25rem;
-}
-
-.client-name {
-    font-weight: 600;
-    color: #2d3748;
-    font-size: 0.75rem;
-    margin-bottom: 0.25rem;
-}
-
-.client-phone {
-    color: #718096;
-    font-size: 0.75rem;
-}
-
-.ticket-service {
-    color: var(--info-color);
-    background: rgba(23, 162, 184, 0.1);
-    padding: 0.375rem 0.875rem;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    display: inline-block;
-}
-
-.ticket-waiting-time {
-    font-weight: 600;
-    font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
-    border-radius: 6px;
-    text-align: center;
-    min-width: 60px;
-    display: inline-block;
-}
-
-.ticket-waiting-time.urgent {
-    color: white;
-    background: var(--danger-color);
-}
-
-.ticket-waiting-time.warning {
-    color: #856404;
-    background: #fff3cd;
-}
-
-.ticket-waiting-time.normal {
-    color: #155724;
-    background: #d4edda;
-}
-
-.first-badge {
-    position: absolute;
-    top: 0.1rem;
-    right: 1rem;
-    background: linear-gradient(45deg, var(--success-color), #218838);
-    color: white;
-    padding: 0.375rem 0.875rem;
-    border-radius: 12px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
-.btn-call-ticket {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-    border-radius: 6px;
-    transition: var(--transition);
-}
-
-.btn-call-ticket:hover:not(.blocked) {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(40, 167, 69, 0.3);
-}
-
-.btn-call-ticket.blocked {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* ===== ✅ NOUVEAU : Modal Ticket En Cours ===== */
-.current-ticket-modal .modal-dialog {
-    max-width: 900px;
-    margin: 1.75rem auto;
-}
-
-.current-ticket-modal .modal-content {
-    border: none;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-    animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-50px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.current-ticket-modal .modal-header {
-    background: linear-gradient(135deg, var(--primary-color), #0056b3);
-    padding: 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.current-ticket-modal .modal-header .close {
-    padding: 0;
-    margin: 0;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    line-height: 1;
-    color: white;
-    opacity: 0.8;
-    transition: opacity 0.2s ease;
-}
-
-.current-ticket-modal .modal-header .close:hover {
+.stats-card.clickable-card:hover:before {
     opacity: 1;
-    color: white;
 }
 
+.bg-soft-warning {
+    background: rgba(255, 193, 7, 0.1) !important;
+}
+
+.bg-soft-info {
+    background: rgba(23, 162, 184, 0.1) !important;
+}
+
+.bg-soft-success {
+    background: rgba(40, 167, 69, 0.1) !important;
+}
+
+.bg-soft-primary {
+    background: rgba(0, 123, 255, 0.1) !important;
+}
+
+.bg-soft-light {
+    background: rgba(248, 249, 250, 0.8) !important;
+}
+
+.badge-soft-primary {
+    background: rgba(0, 123, 255, 0.1);
+    color: var(--primary-color);
+    border: 1px solid rgba(0, 123, 255, 0.2);
+}
+
+.badge-soft-light {
+    background: rgba(248, 249, 250, 0.8);
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+}
+
+.stats-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+/* ===== Modal ticket en cours - styles originaux ===== */
 .modal-timer .badge {
     font-size: 0.875rem;
     padding: 0.5rem 1rem;
@@ -963,57 +926,6 @@
     background: rgba(255, 255, 255, 0.2);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* ===== Centrage responsive amélioré ===== */
-@media (min-width: 576px) {
-    .current-ticket-modal .modal-dialog {
-        max-width: 540px;
-        margin: 1.75rem auto;
-    }
-}
-
-@media (min-width: 768px) {
-    .current-ticket-modal .modal-dialog {
-        max-width: 700px;
-        margin: 1.75rem auto;
-    }
-}
-
-@media (min-width: 992px) {
-    .current-ticket-modal .modal-dialog {
-        max-width: 850px;
-        margin: 1.75rem auto;
-    }
-}
-
-@media (min-width: 1200px) {
-    .current-ticket-modal .modal-dialog {
-        max-width: 900px;
-        margin: 1.75rem auto;
-    }
-}
-
-/* ===== Centrage vertical parfait ===== */
-.modal.fade .modal-dialog {
-    transition: transform 0.3s ease-out;
-    transform: translate(0, -50px);
-}
-
-.modal.show .modal-dialog {
-    transform: none;
-}
-
-.modal-dialog-centered {
-    display: flex;
-    align-items: center;
-    min-height: calc(100% - 1rem);
-}
-
-@media (min-width: 576px) {
-    .modal-dialog-centered {
-        min-height: calc(100% - 3.5rem);
-    }
 }
 
 .current-ticket-banner {
@@ -1039,23 +951,6 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     min-width: 120px;
     text-align: center;
-}
-
-.client-details {
-    flex: 1;
-}
-
-.client-name {
-    font-size: 1.rem;
-    font-weight: 700;
-    color: #2d3748;
-    margin-bottom: 0.5rem;
-}
-
-.client-phone {
-    font-size: 0.75rem;
-    color: #718096;
-    margin-bottom: 1rem;
 }
 
 .service-badge {
@@ -1096,17 +991,6 @@
     border-radius: 50%;
     position: relative;
     margin: 20px;
-}
-
-@keyframes pulse-ring {
-    0% {
-        transform: translate(-50%, -50%) scale(0.5);
-        opacity: 1;
-    }
-    100% {
-        transform: translate(-50%, -50%) scale(1.2);
-        opacity: 0;
-    }
 }
 
 .status-text {
@@ -1163,7 +1047,7 @@
     color: #495057;
 }
 
-/* ===== ✅ NOUVEAU : Modal de confirmation finale ===== */
+/* ===== Modal de confirmation finale - styles originaux ===== */
 .ticket-summary-card {
     background: #f8f9fa;
     border-radius: 8px;
@@ -1188,7 +1072,67 @@
     font-weight: 700;
 }
 
-/* ===== ✅ NOUVEAU : Styles pour les commentaires dans l'historique ===== */
+/* ===== Modal de transfert - styles originaux ===== */
+.transfer-ticket-card {
+    background: #fff3cd;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid #ffeaa7;
+    border-left: 4px solid var(--warning-color);
+}
+
+.transfer-form {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.transfer-form .form-control:focus {
+    border-color: var(--warning-color);
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
+.transfer-type-selector {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.transfer-type-selector .form-check-inline {
+    margin-right: 2rem;
+}
+
+.transfer-type-selector .form-check-label {
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    transition: var(--transition);
+    font-weight: 500;
+    background: white;
+    border: 1px solid #dee2e6;
+    margin-left: 0.5rem;
+}
+
+.transfer-type-selector .form-check-input:checked + .form-check-label {
+    background: var(--warning-color);
+    color: #212529;
+    border-color: var(--warning-color);
+    font-weight: 600;
+}
+
+.transfer-type-selector .form-check-label:hover {
+    background: #fff3cd;
+    border-color: var(--warning-color);
+}
+
+.alert-sm {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* ===== Commentaires dans l'historique ===== */
 .comment-tooltip {
     max-width: 300px;
     word-wrap: break-word;
@@ -1215,111 +1159,38 @@
     white-space: pre-wrap;
     word-wrap: break-word;
 }
-
-/* ===== Empty States ===== */
-.empty-queue-state {
-    padding: 3rem 1rem;
-    text-align: center;
-}
-
-.empty-state-icon i {
-    width: 64px;
-    height: 64px;
-    opacity: 0.4;
-}
-
-/* ===== Buttons ===== */
-.btn-call-next {
-    background: var(--success-color);
-    border: none;
-    color: white;
-    font-weight: 600;
-    transition: var(--transition);
-    box-shadow: var(--shadow-sm);
-    border-radius: var(--border-radius-sm);
-}
-
-.btn-call-next:hover {
-    background: #218838;
-    transform: translateY(-1px);
+.queue-card {
+    background: white;
     box-shadow: var(--shadow-md);
-    color: white;
-}
-
-.btn-action {
-    transition: var(--transition);
-    font-weight: 500;
     border-radius: var(--border-radius-sm);
 }
 
-.btn-action:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
+.queue-header {
+    background: #f8f9fa;
+    border-bottom: 2px solid #e9ecef;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
-/* ===== Responsive ===== */
-@media (max-width: 768px) {
-    .stats-card {
-        margin-bottom: 1rem;
-        padding: 1rem;
-    }
-    
-    .card-header {
-        padding: 1rem;
-    }
-    
-    .ticket-item {
-        padding: 1rem;
-        flex-direction: column;
-        align-items: flex-start !important;
-        gap: 0.75rem;
-    }
-    
-    .ticket-item .row {
-        width: 100%;
-        margin: 0;
-    }
-    
-    .ticket-item .col-2,
-    .ticket-item .col-3 {
-        flex: 0 0 100%;
-        max-width: 100%;
-        margin-bottom: 0.5rem;
-    }
-    
-    .first-badge {
-        right: 0.5rem;
-        top: 0.5rem;
-        padding: 0.25rem 0.75rem;
-        font-size: 0.65rem;
-    }
-    
-    .ticket-number-large {
-        font-size: 2rem;
-        min-width: 80px;
-        padding: 0.75rem;
-    }
-    
-    .client-name {
-        font-size: 1.25rem;
-    }
-    
-    .ticket-info-display {
-        flex-direction: column;
-        text-align: center;
-        gap: 1rem;
-    }
+/* ===== Pulse indicators ===== */
+.pulse-ring {
+    border-color: var(--success-color);
+    animation: pulse-ring 2s ease-out infinite;
 }
 
-@media (max-width: 576px) {
-    .queue-header .row {
-        display: none; /* Masquer les en-têtes sur mobile */
+.pulse-dot {
+    background: var(--success-color);
+}
+
+@keyframes pulse-ring {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 1;
     }
-    
-    .ticket-item {
-        border-radius: 8px;
-        margin: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    100% {
+        transform: translate(-50%, -50%) scale(1.3);
+        opacity: 0;
     }
 }
 
@@ -1342,55 +1213,495 @@
     background: #a8a8a8;
 }
 
-/* ===== Notifications ===== */
-.toast-notification {
+/* ===== Ticket Items avec priorité transfert ===== */
+.ticket-item {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #f1f3f4;
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+    background: white;
+    margin-bottom: 0;
+}
+
+.ticket-item:hover {
+    background: linear-gradient(90deg, rgba(0, 123, 255, 0.02) 0%, rgba(0, 123, 255, 0.04) 100%);
+    border-left: 3px solid var(--primary-color);
+    padding-left: calc(1.5rem - 3px);
+}
+
+.ticket-item.first-in-queue {
+    background: linear-gradient(90deg, rgba(40, 167, 69, 0.05) 0%, rgba(40, 167, 69, 0.08) 100%);
+    border-left: 4px solid var(--success-color);
+    padding-left: calc(1.5rem - 4px);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.1);
+}
+
+/* 🆕 NOUVEAU : Style pour les tickets transférés avec priorité (valeur "new") */
+.ticket-item.transferred-priority {
+    background: linear-gradient(90deg, rgba(40, 167, 69, 0.08) 0%, rgba(40, 167, 69, 0.12) 100%);
+    border-left: 4px solid var(--success-color);
+    padding-left: calc(1.5rem - 4px);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+    position: relative;
+}
+
+.ticket-item.transferred-priority:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--success-color), #20c997);
+    animation: priority-glow 2s ease-in-out infinite alternate;
+}
+
+/* 🆕 NOUVEAU : Style pour les tickets que j'ai transférés (valeur "transferé") */
+.ticket-item.transferred-away {
+    background: linear-gradient(90deg, rgba(108, 117, 125, 0.05) 0%, rgba(108, 117, 125, 0.08) 100%);
+    border-left: 3px solid #6c757d;
+    padding-left: calc(1.5rem - 3px);
+    opacity: 0.8;
+    position: relative;
+}
+
+.ticket-item.transferred-away:hover {
+    background: linear-gradient(90deg, rgba(108, 117, 125, 0.08) 0%, rgba(108, 117, 125, 0.12) 100%);
+    opacity: 0.9;
+    cursor: default;
+}
+
+.ticket-item.transferred-away .btn-call-ticket {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ticket-item.blocked {
+    opacity: 0.6;
+    background: #f8f9fa;
+    cursor: not-allowed;
+}
+
+.ticket-item.blocked:hover {
+    background: #f8f9fa;
+    border-left: none;
+    padding-left: 1.5rem;
+}
+
+/* 🆕 NOUVEAU : Badge transfert */
+.transfer-badge {
+    background: rgba(255, 193, 7, 0.15);
+    color: #856404;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    font-weight: 500;
+}
+
+.transfer-indicator {
+    background: var(--warning-color);
+    color: #212529;
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-align: center;
+    min-width: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.transfer-indicator i {
+    width: 10px !important;
+    height: 10px !important;
+}
+
+/* ===== Styles pour les nouveaux indicateurs de transfert ===== */
+.transfer-success {
+    background: rgba(40, 167, 69, 0.15);
+    color: #155724;
+    border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.transfer-info {
+    background: rgba(23, 162, 184, 0.15);
+    color: #0c5460;
+    border: 1px solid rgba(23, 162, 184, 0.3);
+}
+
+.transfer-muted {
+    background: transparent;
+    color: #6c757d;
+    border: none;
+}
+
+/* Badge priorité pour les tickets reçus */
+.priority-received {
+    background: linear-gradient(45deg, var(--success-color), #218838);
+    animation: gentle-pulse 2s infinite;
+    color: white;
+}
+
+/* Styles pour les indicateurs de transfert */
+.transfer-success {
+    background: rgba(40, 167, 69, 0.15);
+    color: #155724;
+    border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.transfer-info {
+    background: rgba(23, 162, 184, 0.15);
+    color: #0c5460;
+    border: 1px solid rgba(23, 162, 184, 0.3);
+}
+
+.transfer-muted {
+    background: transparent;
+    color: #6c757d;
+    border: none;
+}
+
+/* Badge priorité normal */
+.priority-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 1rem;
+    background: linear-gradient(45deg, var(--success-color), #218838);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+    animation: gentle-pulse 2s infinite;
+}
+
+@keyframes gentle-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+@keyframes subtle-pulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+}
+
+@keyframes subtle-pulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+}
+
+.priority-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 1rem;
+    background: linear-gradient(45deg, var(--success-color), #218838);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+    animation: gentle-pulse 2s infinite;
+}
+
+/* Badge priorité pour les tickets transférés */
+.ticket-item.transferred-priority .priority-badge {
+    background: linear-gradient(45deg, var(--warning-color), #e0a800);
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+@keyframes gentle-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* ===== Boutons ===== */
+.btn-primary {
+    background: var(--primary-color);
+    border: none;
+    color: white;
+    font-weight: 500;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--border-radius-sm);
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    color: white;
+}
+
+.btn-success {
+    background: var(--success-color);
+    border: none;
+    color: white;
+    font-weight: 500;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--border-radius-sm);
+}
+
+.btn-success:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    color: white;
+}
+
+.btn-outline-primary {
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    background: transparent;
+}
+
+.btn-outline-primary:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-1px);
+}
+
+/* Bouton d'appel spécifique */
+.btn-call-next {
+    background: var(--success-color);
+    border: none;
+    color: white;
+    font-weight: 600;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--border-radius-sm);
+}
+
+.btn-call-next:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    color: white;
+}
+
+/* ===== Modal styles originaux restaurés ===== */
+.modal-content {
+    border: none;
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+}
+
+.current-ticket-modal .modal-dialog {
+    max-width: 900px;
+    margin: 1.75rem auto;
+}
+
+.current-ticket-modal .modal-content {
+    border: none;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.current-ticket-modal .modal-header {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.current-ticket-modal .modal-header .close {
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: white;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.current-ticket-modal .modal-header .close:hover {
+    opacity: 1;
+    color: white;
+}
+/* ===== 🎨 NOTIFICATIONS SUBTILES BLEU CIEL AGRÉABLE ===== */
+.notification-toast {
     position: fixed;
     top: 90px;
     right: 20px;
     z-index: 9999;
     min-width: 320px;
+    max-width: 400px;
     border-radius: var(--border-radius-md);
-    box-shadow: var(--shadow-md);
-    border: none;
-    backdrop-filter: blur(10px);
+    box-shadow: var(--notification-shadow);
+    border: 1px solid var(--notification-blue-light);
+    backdrop-filter: blur(15px);
     transition: var(--transition);
-}
-
-.toast-notification.toast-success {
-    background: linear-gradient(135deg, rgba(40, 167, 69, 0.95), rgba(40, 167, 69, 0.9));
+    overflow: hidden;
+    background: var(--notification-bg);
     color: white;
 }
 
-.toast-notification.toast-error {
-    background: linear-gradient(135deg, rgba(220, 53, 69, 0.95), rgba(220, 53, 69, 0.9));
+/* Toutes les notifications utilisent la même couleur bleu ciel douce */
+.notification-toast.toast-success,
+.notification-toast.toast-info,
+.notification-toast.toast-warning,
+.notification-toast.toast-error {
+    background: var(--notification-bg);
+    color: white;
+    border-left: 4px solid var(--notification-blue-dark);
+}
+
+.notification-toast .toast-header {
+    background: rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 0.75rem 1rem;
     color: white;
 }
 
-.toast-notification.toast-warning {
-    background: linear-gradient(135deg, rgba(255, 193, 7, 0.95), rgba(255, 193, 7, 0.9));
-    color: #212529;
+.notification-toast .toast-body {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: white;
 }
 
-.toast-notification.toast-info {
-    background: linear-gradient(135deg, rgba(23, 162, 184, 0.95), rgba(23, 162, 184, 0.9));
+.notification-toast .close {
     color: white;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+    text-shadow: none;
+}
+
+.notification-toast .close:hover {
+    opacity: 1;
+    color: white;
+}
+
+/* Icônes dans les notifications toujours en blanc */
+.notification-toast i[data-feather] {
+    color: white !important;
+}
+
+/* Animation d'entrée douce pour les notifications */
+@keyframes notificationSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.notification-toast {
+    animation: notificationSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+    .stats-card {
+        margin-bottom: 1rem;
+        padding: 1rem;
+    }
+    
+    .notification-toast {
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+    }
+    
+    .ticket-item {
+        padding: 1rem;
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.75rem;
+    }
+}
+
+/* ===== Transitions douces (sauf navigation) ===== */
+* {
+    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Exclure les éléments de navigation des transitions pour éviter les "glissements" */
+.topbar *, 
+.navbar-custom *, 
+.dropdown-menu *,
+.topbar-nav *,
+.nav-link,
+.dropdown-toggle {
+    transition: none !important;
+}
+
+/* Restaurer seulement les transitions nécessaires pour la navigation */
+.nav-link:hover,
+.dropdown-item:hover {
+    transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+/* ===== Focus states ===== */
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.btn:focus {
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* ===== Loading states ===== */
+.btn-refresh-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.btn-refresh-loading .fa-spin {
+    animation: fa-spin 1s infinite linear;
+}
+
+@keyframes fa-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 </style>
 
-<!-- ✅ NOUVEAU JavaScript CORRIGÉ -->
+<!-- JAVASCRIPT AMÉLIORÉ avec gestion priorité transfert et notifications subtiles -->
 <script>
-// ===== Interface Conseiller FIFO avec Flow Simplifié CORRIGÉ =====
+// ===== Interface Conseiller FIFO Améliorée avec Transfert Priorité =====
 class AdvisorInterface {
     constructor() {
         this.currentTicket = null;
-        this.currentActionType = null; // 'traiter' ou 'refuser'
+        this.currentActionType = null;
         this.ticketsData = [];
         this.refreshInterval = null;
         this.isPaused = false;
         this.isInitialized = false;
         this.waitingTimeUpdateInterval = null;
         this.ticketTimer = null;
-        this.isProcessingResolution = false; // ✅ AJOUT : Éviter les doubles soumissions
+        this.isProcessingResolution = false;
+        this.isRefreshing = false;
+        
+        // Données pour transfert dynamique
+        this.availableServices = [];
+        this.availableAdvisors = [];
+        this.transferData = {
+            type: 'service',
+            selectedService: null,
+            selectedAdvisor: null
+        };
         
         this.config = {
             refreshInterval: 30000,
@@ -1398,8 +1709,12 @@ class AdvisorInterface {
                 tickets: '{{ route("conseiller.tickets") }}',
                 callTicket: '{{ route("conseiller.call-ticket") }}', 
                 completeTicket: '{{ route("conseiller.complete-ticket") }}',
+                transferTicket: '{{ route("conseiller.transfer-ticket") }}',
                 myStats: '{{ route("conseiller.my-stats") }}',
-                history: '{{ route("conseiller.history") }}'
+                history: '{{ route("conseiller.history") }}',
+                availableServices: '{{ route("api.conseiller.available-services") }}',
+                availableAdvisors: '{{ route("api.conseiller.available-advisors") }}',
+                advisorWorkload: '{{ route("api.conseiller.advisor-workload", ":id") }}'
             }
         };
         
@@ -1411,15 +1726,23 @@ class AdvisorInterface {
             this.setupAjax();
             this.bindEvents();
             await this.loadInitialData();
+            await this.loadTransferData();
             this.startWaitingTimeUpdater();
             this.isInitialized = true;
             
-            this.showNotification('success', 'Interface FIFO prête', 'Flow simplifié activé avec corrections');
-            console.log('✅ AdvisorInterface FIFO with simplified flow (FIXED) initialized successfully');
+            // 🎯 Notification subtile d'initialisation
+            this.showSubtleNotification('info', 'Interface prête', 'FIFO avec transfert priorité activé');
+            console.log('✅ AdvisorInterface FIFO with priority transfer initialized successfully');
+            
+            // 🔧 INFO DÉVELOPPEUR: Pour tester la colonne transfert
+            console.log('💡 COLONNE TRANSFERT:');
+            console.log('   - Colonne BDD "Transferer": "new" = reçu (priorité) | "transferé" = envoyé (bloqué)');
+            console.log('   - Pour test: décommentez les lignes dans isTransferredToMe() et didITransferThis()');
+            console.log('   - Adaptez selon votre structure de base de données');
             
         } catch (error) {
             console.error('❌ Failed to initialize AdvisorInterface:', error);
-            this.showNotification('error', 'Erreur d\'initialisation', error.message);
+            this.showSubtleNotification('error', 'Erreur d\'initialisation', error.message);
         }
     }
 
@@ -1453,31 +1776,776 @@ class AdvisorInterface {
             this.handlePasswordChange();
         });
 
-        // ✅ NOUVEAU : Événement pour la validation en temps réel du commentaire
         $(document).on('input', '#finalResolutionComment', () => {
             this.validateResolutionComment();
         });
+
+        $(document).on('change', 'input[name="transferType"]', (e) => {
+            this.handleTransferTypeChange(e.target.value);
+        });
+
+        $(document).on('change', '#transferService', () => {
+            this.validateTransferForm();
+        });
+
+        $(document).on('change', '#transferAdvisor', (e) => {
+            this.handleAdvisorSelection(e.target.value);
+            this.validateTransferForm();
+        });
+
+        $(document).on('input', '#transferReason', () => {
+            this.validateTransferForm();
+        });
     }
 
-    // ✅ NOUVELLE MÉTHODE : Validation en temps réel du commentaire
-    validateResolutionComment() {
-        if (!this.currentActionType) return;
+    // ===============================================
+    // 🆕 NOUVEAU : GESTION PRIORITÉ TRANSFERT
+    // ===============================================
 
-        const commentaire = document.getElementById('finalResolutionComment').value.trim();
-        const errorDiv = document.getElementById('finalCommentError');
-        const confirmBtn = document.getElementById('finalConfirmButton');
+    /**
+     * 🎯 Tri des tickets avec nouvelle logique transfert
+     */
+    sortTicketsWithTransferPriority(tickets) {
+        return tickets.sort((a, b) => {
+            const transferA = this.getTransferDisplayText(a);
+            const transferB = this.getTransferDisplayText(b);
+            
+            // 1. Les tickets "new" (reçus) sont TOUJOURS prioritaires
+            if (transferA.text === 'new' && transferB.text !== 'new') {
+                return -1; // a avant b
+            }
+            if (transferB.text === 'new' && transferA.text !== 'new') {
+                return 1; // b avant a
+            }
+            
+            // 2. Entre plusieurs tickets "new", tri par temps d'attente (plus ancien d'abord)
+            if (transferA.text === 'new' && transferB.text === 'new') {
+                const timeA = this.calculateRealWaitingTime(a.heure_d_enregistrement || a.created_at);
+                const timeB = this.calculateRealWaitingTime(b.heure_d_enregistrement || b.created_at);
+                return timeB - timeA; // Plus ancien en premier
+            }
+            
+            // 3. Les tickets "transferé" passent après les normaux (perdent priorité)
+            if (transferA.text === 'transferé' && transferB.text === '-') {
+                return 1; // a après b
+            }
+            if (transferB.text === 'transferé' && transferA.text === '-') {
+                return -1; // b après a
+            }
+            
+            // 4. Pour le reste, tri FIFO classique par heure d'enregistrement
+            const timeA = new Date(a.heure_d_enregistrement || a.created_at);
+            const timeB = new Date(b.heure_d_enregistrement || b.created_at);
+            return timeA - timeB; // FIFO normal
+        });
+    }
+
+    /**
+     * 🎯 Vérifier si un ticket est transféré vers le conseiller actuel (valeur "new")
+     */
+    isTransferredToMe(ticket) {
+        // Vérifie si la colonne "Transferer" de la BDD a la valeur "new"
         
-        if (this.currentActionType === 'refuser' && !commentaire) {
-            errorDiv.textContent = 'Le commentaire est obligatoire pour refuser un ticket';
-            errorDiv.style.display = 'block';
-            confirmBtn.disabled = true;
-            confirmBtn.classList.add('disabled');
+        // POUR TEST: Simuler des tickets "new" (à supprimer en production)
+        // Décommentez la ligne suivante pour tester l'affichage de tickets reçus
+        // return Math.random() < 0.2; // 20% des tickets apparaîtront comme "new" (priorité)
+        
+        return ticket.Transferer === 'new' || ticket.transferer === 'new';
+    }
+
+    /**
+     * 🎯 Vérifier si le conseiller actuel a transféré ce ticket (valeur "transferé")
+     */
+    didITransferThis(ticket) {
+        // Vérifie si la colonne "Transferer" de la BDD a la valeur "transferé"
+        
+        // POUR TEST: Simuler des tickets "transferé" (à supprimer en production)
+        // Décommentez la ligne suivante pour tester l'affichage de tickets envoyés
+        // return Math.random() < 0.15; // 15% des tickets apparaîtront comme "transferé" (bloqués)
+        
+        return ticket.Transferer === 'transferé' || ticket.transferer === 'transferé';
+    }
+
+    /**
+     * 🎯 Obtenir le texte d'affichage pour la colonne transfert
+     */
+    getTransferDisplayText(ticket) {
+        if (this.isTransferredToMe(ticket)) {
+            // Ticket reçu par transfert = priorité maximale
+            return {
+                text: 'new',
+                class: 'transfer-received',
+                icon: 'arrow-down-left',
+                color: 'success',
+                isPriority: true
+            };
+        } else if (this.didITransferThis(ticket)) {
+            // Ticket que j'ai transféré = perd le statut premier
+            return {
+                text: 'transferé',
+                class: 'transfer-sent', 
+                icon: 'share',
+                color: 'info',
+                isPriority: false
+            };
         } else {
-            errorDiv.style.display = 'none';
-            confirmBtn.disabled = false;
-            confirmBtn.classList.remove('disabled');
+            // Ticket normal
+            return {
+                text: '-',
+                class: 'transfer-none',
+                icon: null,
+                color: 'muted',
+                isPriority: null
+            };
         }
     }
+
+    /**
+     * 🎯 Obtenir l'ID du conseiller actuel (à adapter selon votre logique)
+     */
+    getCurrentAdvisorId() {
+        // À adapter selon votre système d'authentification
+        return window.currentAdvisorId || document.body.dataset.advisorId || null;
+    }
+
+    // ===============================================
+    // MÉTHODES DE TRANSFERT AMÉLIORÉES
+    // ===============================================
+
+    async loadTransferData() {
+        try {
+            console.log('🔄 Chargement des données de transfert...');
+            
+            const [servicesResponse, advisorsResponse] = await Promise.all([
+                this.apiCall('GET', this.config.apiRoutes.availableServices),
+                this.apiCall('GET', this.config.apiRoutes.availableAdvisors)
+            ]);
+
+            if (servicesResponse.success) {
+                this.availableServices = servicesResponse.services || [];
+                console.log(`✅ ${this.availableServices.length} services chargés`);
+            }
+
+            if (advisorsResponse.success) {
+                this.availableAdvisors = advisorsResponse.advisors || [];
+                console.log(`✅ ${this.availableAdvisors.length} conseillers chargés`);
+            }
+
+        } catch (error) {
+            console.error('❌ Erreur chargement données transfert:', error);
+            // Notification subtile au lieu d'une alerte bruyante
+            this.showSubtleNotification('warning', 'Transfert limité', 'Certaines fonctionnalités peuvent être indisponibles');
+        }
+    }
+
+    showTransferModal() {
+        try {
+            if (!this.currentTicket) {
+                this.showSubtleNotification('error', 'Erreur', 'Aucun ticket en cours à transférer');
+                return;
+            }
+
+            // Remplir les informations du ticket
+            document.getElementById('transferTicketNumber').textContent = this.currentTicket.numero_ticket;
+            document.getElementById('transferClientName').textContent = this.currentTicket.prenom || this.currentTicket.client_name;
+            document.getElementById('transferCurrentService').textContent = this.currentTicket.service;
+            document.getElementById('transferClientPhone').textContent = this.currentTicket.telephone;
+            document.getElementById('transferCallTime').textContent = this.currentTicket.heure_prise_en_charge || '--:--';
+            
+            const currentDuration = this.calculateCurrentDuration();
+            document.getElementById('transferDuration').textContent = currentDuration + ' min';
+            
+            const waitingTime = this.calculateRealWaitingTime(this.currentTicket.heure_d_enregistrement || this.currentTicket.created_at);
+            document.getElementById('transferWaitTime').textContent = waitingTime + ' min';
+
+            this.resetTransferForm();
+            this.populateTransferSelects();
+            $('#transferModal').modal('show');
+            
+            if (typeof feather !== 'undefined') feather.replace();
+
+        } catch (error) {
+            console.error('❌ Error showing transfer modal:', error);
+            this.showSubtleNotification('error', 'Erreur', 'Impossible d\'afficher le modal de transfert');
+        }
+    }
+
+    resetTransferForm() {
+        document.querySelector('input[name="transferType"][value="service"]').checked = true;
+        document.getElementById('transferService').value = '';
+        document.getElementById('transferAdvisor').value = '';
+        document.getElementById('transferReason').value = '';
+        document.getElementById('transferNotes').value = '';
+        document.getElementById('transferError').style.display = 'none';
+        
+        this.handleTransferTypeChange('service');
+        document.getElementById('confirmTransferButton').disabled = true;
+        document.getElementById('advisorWorkloadInfo').style.display = 'none';
+    }
+
+    populateTransferSelects() {
+        // Peupler le select des services
+        const serviceSelect = document.getElementById('transferService');
+        serviceSelect.innerHTML = '<option value="">-- Sélectionnez un service --</option>';
+        
+        this.availableServices.forEach(service => {
+            const option = document.createElement('option');
+            option.value = service.id;
+            option.textContent = service.display_name;
+            serviceSelect.appendChild(option);
+        });
+
+        // Peupler le select des conseillers
+        const advisorSelect = document.getElementById('transferAdvisor');
+        advisorSelect.innerHTML = '<option value="">-- Sélectionnez un conseiller --</option>';
+
+        this.availableAdvisors.forEach(advisor => {
+            const option = document.createElement('option');
+            option.value = advisor.id;
+            option.textContent = `${advisor.username} (${advisor.has_current_ticket ? 'Occupé' : 'Disponible'})`;
+            option.style.color = advisor.has_current_ticket ? '#dc3545' : '#28a745';
+            advisorSelect.appendChild(option);
+        });
+    }
+
+    handleTransferTypeChange(transferType) {
+        const serviceGroup = document.getElementById('serviceSelectionGroup');
+        const advisorGroup = document.getElementById('advisorSelectionGroup');
+        
+        this.transferData.type = transferType;
+        
+        switch (transferType) {
+            case 'service':
+                serviceGroup.style.display = 'block';
+                advisorGroup.style.display = 'none';
+                document.getElementById('transferService').required = true;
+                document.getElementById('transferAdvisor').required = false;
+                break;
+                
+            case 'advisor':
+                serviceGroup.style.display = 'none';
+                advisorGroup.style.display = 'block';
+                document.getElementById('transferService').required = false;
+                document.getElementById('transferAdvisor').required = true;
+                break;
+                
+            case 'both':
+                serviceGroup.style.display = 'block';
+                advisorGroup.style.display = 'block';
+                document.getElementById('transferService').required = true;
+                document.getElementById('transferAdvisor').required = true;
+                break;
+        }
+        
+        this.validateTransferForm();
+    }
+
+    async handleAdvisorSelection(advisorId) {
+        const workloadInfo = document.getElementById('advisorWorkloadInfo');
+        const workloadText = document.getElementById('advisorWorkloadText');
+        
+        if (!advisorId) {
+            workloadInfo.style.display = 'none';
+            return;
+        }
+
+        try {
+            workloadText.textContent = 'Chargement...';
+            workloadInfo.style.display = 'block';
+            
+            const workloadUrl = this.config.apiRoutes.advisorWorkload.replace(':id', advisorId);
+            const response = await this.apiCall('GET', workloadUrl);
+            
+            if (response.success) {
+                const workload = response.workload;
+                const recommendation = response.recommendation;
+                
+                const statusClass = workload.today_stats.current_ticket ? 'alert-warning' : 'alert-success';
+                const statusIcon = workload.today_stats.current_ticket ? 'clock' : 'check-circle';
+                
+                workloadInfo.className = `mt-2 alert ${statusClass} alert-sm`;
+                workloadText.innerHTML = `
+                    <i data-feather="${statusIcon}" class="mr-1" style="width: 14px; height: 14px;"></i>
+                    <strong>${workload.advisor_info.username}</strong> - 
+                    ${workload.today_stats.tickets_completed} tickets traités aujourd'hui - 
+                    ${recommendation}
+                `;
+                
+                if (typeof feather !== 'undefined') feather.replace();
+                
+            } else {
+                workloadText.textContent = 'Impossible de charger la charge de travail';
+                workloadInfo.className = 'mt-2 alert alert-danger alert-sm';
+            }
+            
+        } catch (error) {
+            console.error('❌ Erreur charge de travail:', error);
+            workloadText.textContent = 'Erreur lors du chargement';
+            workloadInfo.className = 'mt-2 alert alert-danger alert-sm';
+        }
+    }
+
+    validateTransferForm() {
+        const transferType = document.querySelector('input[name="transferType"]:checked').value;
+        const service = document.getElementById('transferService').value.trim();
+        const advisor = document.getElementById('transferAdvisor').value.trim();
+        const reason = document.getElementById('transferReason').value.trim();
+        const confirmButton = document.getElementById('confirmTransferButton');
+        const errorDiv = document.getElementById('transferError');
+        
+        let isValid = false;
+        let errorMessage = '';
+        
+        switch (transferType) {
+            case 'service':
+                isValid = service && reason;
+                if (!service) errorMessage = 'Veuillez sélectionner un service.';
+                else if (!reason) errorMessage = 'Le motif est obligatoire.';
+                break;
+                
+            case 'advisor':
+                isValid = advisor && reason;
+                if (!advisor) errorMessage = 'Veuillez sélectionner un conseiller.';
+                else if (!reason) errorMessage = 'Le motif est obligatoire.';
+                break;
+                
+            case 'both':
+                isValid = service && advisor && reason;
+                if (!service) errorMessage = 'Veuillez sélectionner un service.';
+                else if (!advisor) errorMessage = 'Veuillez sélectionner un conseiller.';
+                else if (!reason) errorMessage = 'Le motif est obligatoire.';
+                break;
+        }
+        
+        if (isValid) {
+            confirmButton.disabled = false;
+            errorDiv.style.display = 'none';
+        } else {
+            confirmButton.disabled = true;
+            if (errorMessage) {
+                document.getElementById('transferErrorText').textContent = errorMessage;
+                errorDiv.style.display = 'block';
+            }
+        }
+    }
+
+    async confirmTransfer() {
+        try {
+            if (!this.currentTicket) {
+                this.showSubtleNotification('error', 'Erreur', 'Aucun ticket à transférer');
+                return;
+            }
+
+            const transferType = document.querySelector('input[name="transferType"]:checked').value;
+            const serviceId = document.getElementById('transferService').value.trim();
+            const advisorId = document.getElementById('transferAdvisor').value.trim();
+            const reason = document.getElementById('transferReason').value.trim();
+            const notes = document.getElementById('transferNotes').value.trim();
+
+            // Validation finale
+            let isValid = false;
+            switch (transferType) {
+                case 'service': isValid = serviceId && reason; break;
+                case 'advisor': isValid = advisorId && reason; break;
+                case 'both': isValid = serviceId && advisorId && reason; break;
+            }
+
+            if (!isValid) {
+                this.validateTransferForm();
+                return;
+            }
+
+            const confirmBtn = document.getElementById('confirmTransferButton');
+            const originalHTML = confirmBtn.innerHTML;
+            
+            confirmBtn.innerHTML = `
+                <span class="spinner-border spinner-border-sm mr-2"></span>
+                Transfert...
+            `;
+            confirmBtn.disabled = true;
+
+            const transferData = {
+                ticket_id: this.currentTicket.id,
+                transfer_reason: reason,
+                transfer_notes: notes
+            };
+
+            if (transferType === 'service' || transferType === 'both') {
+                transferData.to_service = parseInt(serviceId);
+            }
+
+            if (transferType === 'advisor' || transferType === 'both') {
+                transferData.to_advisor = parseInt(advisorId);
+            }
+
+            const response = await this.apiCall('POST', this.config.apiRoutes.transferTicket, transferData);
+
+            if (response.success) {
+                $('#transferModal').modal('hide');
+                $('#currentTicketModal').modal('hide');
+                this.stopModalTimer();
+                
+                const ticketNumber = this.currentTicket.numero_ticket;
+                this.currentTicket = null;
+                
+                await Promise.all([
+                    this.refreshTickets(),
+                    this.loadMyStats(),
+                    this.loadTransferData()
+                ]);
+
+                // 🎯 Notification subtile de succès
+                this.showSubtleNotification('success', 'Transfert réussi', `Ticket ${ticketNumber} transféré avec priorité conservée`);
+                
+            } else {
+                throw new Error(response.message || 'Erreur lors du transfert');
+            }
+
+        } catch (error) {
+            console.error('❌ Error confirming transfer:', error);
+            this.showSubtleNotification('error', 'Erreur de transfert', error.message);
+        } finally {
+            const confirmBtn = document.getElementById('confirmTransferButton');
+            if (confirmBtn) {
+                confirmBtn.innerHTML = '<i data-feather="share" class="mr-1"></i>Confirmer le transfert';
+                this.validateTransferForm();
+                if (typeof feather !== 'undefined') feather.replace();
+            }
+        }
+    }
+
+    // ===============================================
+    // MÉTHODES UI AMÉLIORÉES
+    // ===============================================
+
+    async refreshTickets() {
+        if (this.isRefreshing) return;
+
+        try {
+            this.isRefreshing = true;
+            this.setRefreshButtonLoading(true);
+            
+            const response = await this.apiCall('GET', this.config.apiRoutes.tickets);
+            
+            if (response.success) {
+                this.ticketsData = response.tickets || [];
+                this.updateUI(response);
+                // 🎯 Notification très subtile seulement si nécessaire
+                if (this.ticketsData.length > 0) {
+                    this.showSubtleNotification('info', 'Actualisation', `${this.ticketsData.length} tickets chargés`, 2000);
+                }
+            } else {
+                throw new Error(response.message || 'Erreur lors du chargement');
+            }
+        } catch (error) {
+            console.error('❌ Error refreshing tickets:', error);
+            this.showSubtleNotification('error', 'Erreur', 'Impossible de charger les tickets');
+        } finally {
+            this.isRefreshing = false;
+            this.setRefreshButtonLoading(false);
+        }
+    }
+
+    updateTicketsList(tickets) {
+        const container = document.getElementById('ticketsContainer');
+        
+        if (!tickets || tickets.length === 0) {
+            container.innerHTML = `
+                <div class="empty-queue-state">
+                    <div class="text-center py-5">
+                        <div class="empty-state-icon mb-3">
+                            <i data-feather="inbox" class="text-muted"></i>
+                        </div>
+                        <h6 class="text-muted mb-2">File d'attente vide</h6>
+                        <p class="text-muted small">Aucun ticket en attente</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            // 🎯 Appliquer le tri avec priorité transfert
+            const sortedTickets = this.sortTicketsWithTransferPriority(tickets);
+            
+            let html = '';
+            sortedTickets.forEach((ticket, index) => {
+                const validatedTicket = this.validateTicketData(ticket);
+                const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
+                const transferDisplay = this.getTransferDisplayText(ticket);
+                
+                let statusClass = 'normal';
+                if (waitingTime > 30) {
+                    statusClass = 'urgent';
+                } else if (waitingTime > 15) {
+                    statusClass = 'warning';
+                }
+                
+                // 🎯 NOUVELLE LOGIQUE : Déterminer le statut du ticket
+                const isFirst = index === 0;
+                const isNewTransfer = transferDisplay.text === 'new'; // Reçu par transfert = priorité
+                const isTransferredAway = transferDisplay.text === 'transferé'; // Transféré par moi = perd priorité
+                
+                let itemClass = 'ticket-item';
+                let canBeCalled = false;
+                
+                if (isNewTransfer) {
+                    // Ticket reçu = priorité maximale
+                    itemClass += ' transferred-priority';
+                    canBeCalled = isFirst; // Peut être appelé seulement s'il est premier
+                } else if (isTransferredAway) {
+                    // Ticket transféré = perd le statut
+                    itemClass += ' transferred-away';
+                    canBeCalled = false; // Ne peut plus être appelé
+                } else if (isFirst) {
+                    // Premier ticket normal
+                    itemClass += ' first-in-queue';
+                    canBeCalled = true;
+                } else {
+                    // Ticket normal bloqué
+                    itemClass += ' blocked';
+                    canBeCalled = false;
+                }
+                
+                // 🆕 NOUVEAU : Indicateur de transfert selon nouvelle logique
+                let transferIndicator = '';
+                if (transferDisplay.icon) {
+                    transferIndicator = `
+                        <span class="transfer-indicator transfer-${transferDisplay.color}">
+                            <i data-feather="${transferDisplay.icon}" style="width: 10px; height: 10px;"></i>
+                            ${transferDisplay.text}
+                        </span>
+                    `;
+                } else {
+                    transferIndicator = `<span class="text-muted">${transferDisplay.text}</span>`;
+                }
+                
+                // 🆕 Badge de priorité selon nouvelle logique
+                let priorityBadge = '';
+                if (isNewTransfer) {
+                    priorityBadge = '<div class="priority-badge priority-new">NOUVEAU (PRIORITÉ)</div>';
+                } else if (isTransferredAway) {
+                    priorityBadge = '<div class="priority-badge priority-transferred">TRANSFÉRÉ</div>';
+                } else if (isFirst) {
+                    priorityBadge = '<div class="priority-badge">PREMIER</div>';
+                }
+                
+                html += `
+                    <div class="${itemClass}" 
+                         onclick="advisorInterface.showTicketDetails(${validatedTicket.id})" 
+                         style="animation-delay: ${index * 0.05}s">
+                        
+                        ${priorityBadge}
+                        
+                        <div class="d-flex align-items-center">
+                            <div class="col-2 queue-col-code">
+                                <div class="ticket-number">${validatedTicket.numero_ticket}</div>
+                                <small class="text-muted">${validatedTicket.date}</small>
+                            </div>
+                            
+                            <div class="col-2 queue-col-client">
+                                <div class="client-name">${validatedTicket.prenom}</div>
+                            </div>
+                            
+                            <div class="col-2 queue-col-phone">
+                                <div class="client-phone">${validatedTicket.telephone}</div>
+                            </div>
+                            
+                            <div class="col-2 queue-col-service">
+                                <span class="ticket-service">${validatedTicket.service}</span>
+                            </div>
+                            
+                            <div class="col-1 queue-col-transfer text-center">
+                                ${transferIndicator}
+                            </div>
+                            
+                            <div class="col-2 queue-col-waiting text-center">
+                                <div class="ticket-waiting-time ${statusClass}">${waitingTime}min</div>
+                            </div>
+                            
+                            <div class="col-1 queue-col-action text-center">
+                                <button class="btn btn-success btn-sm btn-call-ticket ${!canBeCalled ? 'blocked' : ''}" 
+                                        onclick="event.stopPropagation(); advisorInterface.callTicket(${validatedTicket.id})"
+                                        ${!canBeCalled ? 'disabled' : ''}
+                                        title="${!canBeCalled ? (isTransferredAway ? 'Ticket transféré - ne peut plus être appelé' : 'Seul le premier ticket peut être appelé') : 'Appeler ce ticket'}">
+                                    <i data-feather="phone-call" style="width: 16px; height: 16px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        const queueCount = tickets ? tickets.length : 0;
+        document.getElementById('queueCountBadge').textContent = queueCount + (queueCount === 1 ? ' ticket' : ' tickets');
+        
+        if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    showCurrentTicketModal(ticket) {
+        const validatedTicket = this.validateTicketData(ticket);
+        
+        document.getElementById('modalTicketTitle').textContent = `Client ${validatedTicket.numero_ticket} en cours`;
+        document.getElementById('modalTicketNumber').textContent = validatedTicket.numero_ticket;
+        document.getElementById('modalClientName').textContent = validatedTicket.prenom;
+        document.getElementById('modalClientPhone').textContent = validatedTicket.telephone;
+        document.getElementById('modalServiceBadge').textContent = validatedTicket.service;
+        document.getElementById('modalCallTime').textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        document.getElementById('modalRequestDate').textContent = validatedTicket.date;
+        
+        const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
+        document.getElementById('modalWaitTime').textContent = `${waitingTime} min`;
+        
+        // 🆕 NOUVEAU : Afficher les informations de transfert si applicable
+        const transferBadge = document.getElementById('modalTransferBadge');
+        const transferInfo = document.getElementById('modalTransferInfo');
+        const transferDisplay = this.getTransferDisplayText(ticket);
+        
+        if (transferDisplay.text === 'new') {
+            // Ticket reçu par transfert = priorité
+            transferBadge.style.display = 'block';
+            transferBadge.innerHTML = `
+                <span class="badge badge-success transfer-badge">
+                    <i data-feather="arrow-down-left" class="mr-1" style="width: 12px; height: 12px;"></i>
+                    Ticket reçu (Priorité)
+                </span>
+            `;
+            
+            if (ticket.transfer_info) {
+                transferInfo.style.display = 'block';
+                document.getElementById('modalTransferredBy').textContent = ticket.transfer_info.transferred_by || '--';
+                document.getElementById('modalTransferReason').textContent = ticket.transfer_info.transfer_reason || '--';
+                
+                const notesItem = document.getElementById('modalTransferNotesItem');
+                if (ticket.transfer_info.transfer_notes) {
+                    document.getElementById('modalTransferNotes').textContent = ticket.transfer_info.transfer_notes;
+                    notesItem.style.display = 'block';
+                } else {
+                    notesItem.style.display = 'none';
+                }
+            }
+        } else if (transferDisplay.text === 'transferé') {
+            // Ticket que j'ai transféré = bloqué
+            transferBadge.style.display = 'block';
+            transferBadge.innerHTML = `
+                <span class="badge badge-secondary transfer-badge">
+                    <i data-feather="share" class="mr-1" style="width: 12px; height: 12px;"></i>
+                    Transféré par moi
+                </span>
+            `;
+            transferInfo.style.display = 'none';
+        } else {
+            transferBadge.style.display = 'none';
+            transferInfo.style.display = 'none';
+        }
+        
+        const commentSection = document.getElementById('modalCommentSection');
+        if (validatedTicket.commentaire && validatedTicket.commentaire.trim() !== '') {
+            document.getElementById('modalComment').textContent = validatedTicket.commentaire;
+            commentSection.style.display = 'block';
+        } else {
+            commentSection.style.display = 'none';
+        }
+        
+        this.startModalTimer();
+        $('#currentTicketModal').modal('show');
+        
+        if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    // ===============================================
+    // 🎯 SYSTÈME DE NOTIFICATIONS SUBTILES
+    // ===============================================
+
+    /**
+     * 🎨 Afficher une notification subtile et agréable
+     */
+    showSubtleNotification(type, title, message, duration = 3000) {
+        // Ne pas afficher trop de notifications pour les actions courantes
+        if (this.shouldSkipNotification(type, title)) {
+            return;
+        }
+
+        const toastId = 'toast_' + Date.now();
+        const toast = document.createElement('div');
+        
+        toast.id = toastId;
+        toast.className = `notification-toast toast-${type}`;
+        toast.setAttribute('role', 'alert');
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%) scale(0.95)';
+        toast.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        
+        const icons = {
+            'success': 'check-circle',
+            'error': 'alert-circle',
+            'warning': 'alert-triangle',
+            'info': 'info'
+        };
+        
+        toast.innerHTML = `
+            <div class="toast-header">
+                <i data-feather="${icons[type]}" class="mr-2" style="width: 18px; height: 18px;"></i>
+                <strong class="mr-auto">${title}</strong>
+                <button type="button" class="close" onclick="advisorInterface.removeNotification('${toastId}')">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Animation d'entrée douce
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(0) scale(1)';
+            }, 50);
+        });
+        
+        if (typeof feather !== 'undefined') feather.replace();
+        
+        // Auto-suppression avec animation
+        setTimeout(() => {
+            this.removeNotification(toastId);
+        }, duration);
+    }
+
+    /**
+     * 🎯 Supprimer une notification avec animation
+     */
+    removeNotification(toastId) {
+        const toast = document.getElementById(toastId);
+        if (toast) {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%) scale(0.95)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 400);
+        }
+    }
+
+    /**
+     * 🎯 Décider si on doit ignorer certaines notifications répétitives
+     */
+    shouldSkipNotification(type, title) {
+        // Ignorer les notifications trop fréquentes
+        const skipPatterns = [
+            'Actualisation', // Trop fréquent lors des refresh
+            'Modal fermé',   // Pas essentiel
+            'File d\'attente' // Redondant avec l'interface
+        ];
+        
+        return skipPatterns.some(pattern => title.includes(pattern));
+    }
+
+    // ===============================================
+    // MÉTHODES CONSERVÉES ET OPTIMISÉES
+    // ===============================================
 
     async loadInitialData() {
         await Promise.all([
@@ -1515,42 +2583,47 @@ class AdvisorInterface {
         });
     }
 
-    // ===== API Methods =====
-    async refreshTickets() {
-        try {
-            const response = await this.apiCall('GET', this.config.apiRoutes.tickets);
-            
-            if (response.success) {
-                this.ticketsData = response.tickets || [];
-                this.updateUI(response);
-                console.log('🔄 Tickets refreshed:', this.ticketsData.length);
-            } else {
-                throw new Error(response.message || 'Erreur lors du chargement');
-            }
-        } catch (error) {
-            console.error('❌ Error refreshing tickets:', error);
-            this.showNotification('error', 'Erreur', 'Impossible de charger les tickets');
-        }
-    }
+    // ===============================================
+    // MÉTHODES D'ACTIONS PRINCIPALES
+    // ===============================================
 
     async callNextTicket() {
         if (this.isPaused) {
-            this.showNotification('warning', 'En pause', 'Reprenez votre service d\'abord');
+            this.showSubtleNotification('warning', 'Service en pause', 'Reprenez votre service d\'abord');
             return;
         }
 
         if (this.ticketsData.length === 0) {
-            this.showNotification('info', 'File vide', 'Aucun ticket en attente');
+            this.showSubtleNotification('info', 'File vide', 'Aucun ticket en attente');
             return;
         }
 
+        // 🎯 Avec le nouveau système de priorité, le premier ticket peut être transféré
         const firstTicket = this.ticketsData[0];
         await this.callTicket(firstTicket.id);
     }
 
     async callTicket(ticketId) {
-        if (this.ticketsData.length > 0 && this.ticketsData[0].id !== ticketId) {
-            this.showNotification('warning', 'Restriction FIFO', 'Vous ne pouvez appeler que le premier ticket de la file');
+        // 🎯 Nouvelle logique : Vérifier que le ticket peut être appelé
+        const sortedTickets = this.sortTicketsWithTransferPriority(this.ticketsData);
+        const targetTicket = sortedTickets.find(t => t.id === ticketId);
+        
+        if (!targetTicket) {
+            this.showSubtleNotification('error', 'Erreur', 'Ticket non trouvé');
+            return;
+        }
+        
+        const transferDisplay = this.getTransferDisplayText(targetTicket);
+        const isFirst = sortedTickets[0].id === ticketId;
+        
+        // Vérifications selon la nouvelle logique
+        if (transferDisplay.text === 'transferé') {
+            this.showSubtleNotification('warning', 'Ticket transféré', 'Ce ticket a été transféré et ne peut plus être appelé');
+            return;
+        }
+        
+        if (transferDisplay.text !== 'new' && !isFirst) {
+            this.showSubtleNotification('warning', 'Restriction FIFO', 'Vous ne pouvez appeler que le premier ticket de la file');
             return;
         }
 
@@ -1563,30 +2636,34 @@ class AdvisorInterface {
             
             if (response.success) {
                 this.currentTicket = response.ticket;
-                // ✅ NOUVEAU : Afficher le modal au lieu du panel
                 this.showCurrentTicketModal(response.ticket);
                 await this.refreshTickets();
-                this.showNotification('success', 'Premier client appelé', `Ticket ${response.ticket.numero_ticket}`);
+                
+                // 🎯 Notification différente selon le type
+                let message = `Ticket ${response.ticket.numero_ticket}`;
+                if (transferDisplay.text === 'new') {
+                    message += ' (nouveau - priorité)';
+                }
+                    
+                this.showSubtleNotification('success', 'Client appelé', message);
                 this.playNotificationSound();
             } else {
                 throw new Error(response.message || 'Erreur lors de l\'appel');
             }
         } catch (error) {
             console.error('❌ Error calling ticket:', error);
-            this.showNotification('error', 'Erreur', error.message);
+            this.showSubtleNotification('error', 'Erreur d\'appel', error.message);
         } finally {
             this.setButtonLoading('.btn-call-next', false);
         }
     }
 
-    // ===== ✅ NOUVELLE MÉTHODE : Fermer le modal ticket en cours =====
     closeCurrentTicketModal() {
-        // Confirmation avant fermeture si un ticket est en cours
         if (this.currentTicket) {
-            if (confirm('⚠️ Un ticket est en cours. Voulez-vous vraiment fermer cette fenêtre ?\n\nLe ticket restera actif mais vous devrez le traiter depuis les actions rapides.')) {
+            if (confirm('⚠️ Un ticket est en cours. Voulez-vous vraiment fermer cette fenêtre ?\n\nLe ticket restera actif.')) {
                 $('#currentTicketModal').modal('hide');
                 this.stopModalTimer();
-                this.showNotification('info', 'Modal fermé', 'Le ticket reste actif. Traitez-le via les actions rapides.');
+                // Pas de notification ici pour éviter le bruit
             }
         } else {
             $('#currentTicketModal').modal('hide');
@@ -1594,42 +2671,6 @@ class AdvisorInterface {
         }
     }
 
-    // ===== ✅ NOUVELLE MÉTHODE : Afficher le modal du ticket en cours =====
-    showCurrentTicketModal(ticket) {
-        const validatedTicket = this.validateTicketData(ticket);
-        
-        // Remplir les informations du modal
-        document.getElementById('modalTicketTitle').textContent = `Client ${validatedTicket.numero_ticket} en cours`;
-        document.getElementById('modalTicketNumber').textContent = validatedTicket.numero_ticket;
-        document.getElementById('modalClientName').textContent = validatedTicket.prenom;
-        document.getElementById('modalClientPhone').textContent = validatedTicket.telephone;
-        document.getElementById('modalServiceBadge').textContent = validatedTicket.service;
-        document.getElementById('modalCallTime').textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-        document.getElementById('modalRequestDate').textContent = validatedTicket.date;
-        
-        // Temps d'attente initial
-        const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
-        document.getElementById('modalWaitTime').textContent = `${waitingTime} min`;
-        
-        // Commentaire (si présent)
-        const commentSection = document.getElementById('modalCommentSection');
-        if (validatedTicket.commentaire && validatedTicket.commentaire.trim() !== '') {
-            document.getElementById('modalComment').textContent = validatedTicket.commentaire;
-            commentSection.style.display = 'block';
-        } else {
-            commentSection.style.display = 'none';
-        }
-        
-        // Démarrer le timer
-        this.startModalTimer();
-        
-        // Afficher le modal
-        $('#currentTicketModal').modal('show');
-        
-        if (typeof feather !== 'undefined') feather.replace();
-    }
-
-    // ===== ✅ NOUVELLE MÉTHODE : Timer du modal =====
     startModalTimer() {
         const start = new Date();
         this.ticketTimer = setInterval(() => {
@@ -1651,18 +2692,16 @@ class AdvisorInterface {
         }
     }
 
-    // ===== ✅ MÉTHODE CORRIGÉE : Afficher directement le modal de confirmation finale =====
     showFinalConfirmationModal(actionType) {
         try {
             if (!this.currentTicket) {
-                this.showNotification('error', 'Erreur', 'Aucun ticket en cours');
+                this.showSubtleNotification('error', 'Erreur', 'Aucun ticket en cours');
                 return;
             }
 
             this.currentActionType = actionType;
-            this.isProcessingResolution = false; // ✅ Réinitialiser
+            this.isProcessingResolution = false;
             
-            // Configurer le modal selon l'action
             const isTraiter = actionType === 'traiter';
             const modal = document.getElementById('finalConfirmationModal');
             const header = document.getElementById('finalConfirmationModalHeader');
@@ -1675,7 +2714,6 @@ class AdvisorInterface {
             const confirmButton = document.getElementById('finalConfirmButton');
             const commentTextarea = document.getElementById('finalResolutionComment');
 
-            // ✅ Modifier l'apparence selon l'action
             if (isTraiter) {
                 header.className = 'modal-header bg-success text-white';
                 title.innerHTML = '<i data-feather="check-circle" class="mr-2"></i>Confirmation de traitement';
@@ -1686,7 +2724,7 @@ class AdvisorInterface {
                 commentHelp.textContent = 'Ce commentaire est optionnel pour un traitement réussi.';
                 confirmButton.className = 'btn btn-success';
                 confirmButton.innerHTML = '<i data-feather="check" class="mr-1"></i>Confirmer le traitement';
-                confirmButton.disabled = false; // ✅ Toujours actif pour traiter
+                confirmButton.disabled = false;
                 commentTextarea.placeholder = 'Commentaire optionnel sur le traitement...';
                 commentTextarea.required = false;
             } else {
@@ -1699,27 +2737,24 @@ class AdvisorInterface {
                 commentHelp.textContent = 'Ce commentaire est obligatoire pour justifier le refus.';
                 confirmButton.className = 'btn btn-danger';
                 confirmButton.innerHTML = '<i data-feather="x" class="mr-1"></i>Confirmer le refus';
-                confirmButton.disabled = true; // ✅ Désactivé par défaut pour refus
+                confirmButton.disabled = true;
                 commentTextarea.placeholder = 'Expliquez pourquoi le ticket est refusé (obligatoire)...';
                 commentTextarea.required = true;
             }
 
-            // ✅ Remplir les informations du ticket
+            // Remplir les informations du ticket
             document.getElementById('finalTicketNumber').textContent = this.currentTicket.numero_ticket;
             document.getElementById('finalClientName').textContent = this.currentTicket.prenom || this.currentTicket.client_name;
             document.getElementById('finalServiceName').textContent = this.currentTicket.service;
             document.getElementById('finalClientPhone').textContent = this.currentTicket.telephone;
             document.getElementById('finalCallTime').textContent = this.currentTicket.heure_prise_en_charge || '--:--';
             
-            // Calculer la durée actuelle
             const currentDuration = this.calculateCurrentDuration();
             document.getElementById('finalDuration').textContent = currentDuration + ' min';
             
-            // Temps d'attente initial
             const waitingTime = this.calculateRealWaitingTime(this.currentTicket.heure_d_enregistrement || this.currentTicket.created_at);
             document.getElementById('finalWaitTime').textContent = waitingTime + ' min';
             
-            // Commentaire initial du client
             const commentSection = document.getElementById('finalCommentSection');
             if (this.currentTicket.commentaire && this.currentTicket.commentaire.trim() !== '') {
                 document.getElementById('finalComment').textContent = this.currentTicket.commentaire;
@@ -1728,17 +2763,12 @@ class AdvisorInterface {
                 commentSection.style.display = 'none';
             }
 
-            // ✅ Effacer le commentaire précédent et masquer les erreurs
             commentTextarea.value = '';
             document.getElementById('finalCommentError').style.display = 'none';
 
-            // ✅ Valider immédiatement l'état du bouton
             this.validateResolutionComment();
-
-            // ✅ Afficher directement le modal de confirmation finale
             $('#finalConfirmationModal').modal('show');
             
-            // ✅ Focus sur le textarea si c'est un refus
             if (!isTraiter) {
                 setTimeout(() => {
                     commentTextarea.focus();
@@ -1747,37 +2777,27 @@ class AdvisorInterface {
             
             if (typeof feather !== 'undefined') feather.replace();
 
-            console.log('✅ Modal de confirmation finale affiché', {
-                action: actionType,
-                ticket: this.currentTicket.numero_ticket,
-                commentaire_obligatoire: !isTraiter,
-                button_enabled: !confirmButton.disabled
-            });
-
         } catch (error) {
             console.error('❌ Error showing final confirmation modal:', error);
-            this.showNotification('error', 'Erreur', 'Impossible d\'afficher le modal de confirmation');
+            this.showSubtleNotification('error', 'Erreur', 'Impossible d\'afficher le modal de confirmation');
         }
     }
 
-    // ===== ✅ MÉTHODE CORRIGÉE : Confirmer la résolution finale =====
     async confirmFinalResolution() {
         try {
-            // ✅ Éviter les doubles soumissions
             if (this.isProcessingResolution) {
                 console.log('⚠️ Résolution déjà en cours, ignorée');
                 return;
             }
 
             if (!this.currentTicket || !this.currentActionType) {
-                this.showNotification('error', 'Erreur', 'Informations de résolution manquantes');
+                this.showSubtleNotification('error', 'Erreur', 'Informations de résolution manquantes');
                 return;
             }
 
             const commentaire = document.getElementById('finalResolutionComment').value.trim();
             const errorDiv = document.getElementById('finalCommentError');
             
-            // ✅ Validation stricte pour refus
             if (this.currentActionType === 'refuser' && !commentaire) {
                 errorDiv.textContent = 'Le commentaire est obligatoire pour refuser un ticket';
                 errorDiv.style.display = 'block';
@@ -1785,11 +2805,9 @@ class AdvisorInterface {
                 return;
             }
 
-            // ✅ Masquer les erreurs et marquer comme en cours
             errorDiv.style.display = 'none';
             this.isProcessingResolution = true;
 
-            // ✅ Désactiver le bouton avec état visuel clair
             const confirmBtn = document.getElementById('finalConfirmButton');
             const originalHTML = confirmBtn.innerHTML;
             const originalClasses = confirmBtn.className;
@@ -1799,34 +2817,24 @@ class AdvisorInterface {
                 ${this.currentActionType === 'traiter' ? 'Traitement...' : 'Refus...'}
             `;
             confirmBtn.disabled = true;
-            confirmBtn.className = 'btn btn-secondary'; // Couleur neutre pendant traitement
+            confirmBtn.className = 'btn btn-secondary';
 
-            console.log('🔄 Envoi de la résolution:', {
-                action: this.currentActionType,
-                ticket: this.currentTicket.numero_ticket,
-                has_comment: commentaire.length > 0,
-                comment_length: commentaire.length
-            });
-
-            // ✅ Envoyer la résolution avec timeout
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 secondes
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
 
             const response = await this.apiCall('POST', this.config.apiRoutes.completeTicket, {
                 action: this.currentActionType,
                 commentaire_resolution: commentaire,
-                ticket_id: this.currentTicket.id // ✅ S'assurer d'envoyer l'ID
+                ticket_id: this.currentTicket.id
             }, controller.signal);
 
             clearTimeout(timeoutId);
 
             if (response.success) {
-                // ✅ Fermer tous les modals
                 $('#finalConfirmationModal').modal('hide');
                 $('#currentTicketModal').modal('hide');
                 this.stopModalTimer();
                 
-                // ✅ Réinitialiser les variables
                 const actionText = this.currentActionType === 'traiter' ? 'traité' : 'refusé';
                 const ticketNumber = this.currentTicket.numero_ticket;
                 
@@ -1834,20 +2842,13 @@ class AdvisorInterface {
                 this.currentActionType = null;
                 this.isProcessingResolution = false;
                 
-                // ✅ Rafraîchir les données
                 await Promise.all([
                     this.refreshTickets(),
                     this.loadMyStats()
                 ]);
 
-                this.showNotification('success', 'Résolution confirmée', `Ticket ${ticketNumber} ${actionText} avec succès`);
-                
-                console.log('✅ Ticket resolved successfully:', {
-                    ticket: ticketNumber,
-                    action: actionText,
-                    has_comment: commentaire.length > 0,
-                    response: response
-                });
+                // 🎯 Notification subtile de succès
+                this.showSubtleNotification('success', 'Ticket ' + actionText, `${ticketNumber} traité avec succès`);
                 
             } else {
                 throw new Error(response.message || 'Erreur lors de la résolution');
@@ -1857,14 +2858,12 @@ class AdvisorInterface {
             console.error('❌ Error confirming final resolution:', error);
             this.isProcessingResolution = false;
             
-            // ✅ Afficher l'erreur spécifique
             if (error.name === 'AbortError') {
-                this.showNotification('error', 'Timeout', 'La requête a pris trop de temps');
+                this.showSubtleNotification('error', 'Timeout', 'La requête a pris trop de temps');
             } else {
-                this.showNotification('error', 'Erreur', error.message);
+                this.showSubtleNotification('error', 'Erreur', error.message);
             }
         } finally {
-            // ✅ Réactiver le bouton dans tous les cas
             const confirmBtn = document.getElementById('finalConfirmButton');
             if (confirmBtn && this.currentActionType) {
                 const isTraiter = this.currentActionType === 'traiter';
@@ -1873,15 +2872,29 @@ class AdvisorInterface {
                     '<i data-feather="x" class="mr-1"></i>Confirmer le refus';
                 confirmBtn.className = isTraiter ? 'btn btn-success' : 'btn btn-danger';
                 
-                // ✅ Révalider l'état du bouton
                 this.validateResolutionComment();
-                
                 if (typeof feather !== 'undefined') feather.replace();
             }
         }
     }
 
-    // ===== ✅ MÉTHODE : Calculer la durée actuelle =====
+    validateResolutionComment() {
+        if (!this.currentActionType) return;
+
+        const commentaire = document.getElementById('finalResolutionComment').value.trim();
+        const errorDiv = document.getElementById('finalCommentError');
+        const confirmBtn = document.getElementById('finalConfirmButton');
+        
+        if (this.currentActionType === 'refuser' && !commentaire) {
+            errorDiv.textContent = 'Le commentaire est obligatoire pour refuser un ticket';
+            errorDiv.style.display = 'block';
+            confirmBtn.disabled = true;
+        } else {
+            errorDiv.style.display = 'none';
+            confirmBtn.disabled = false;
+        }
+    }
+
     calculateCurrentDuration() {
         if (!this.currentTicket || !this.currentTicket.heure_prise_en_charge) {
             return 0;
@@ -1895,16 +2908,50 @@ class AdvisorInterface {
         return Math.floor((now - callTime) / (1000 * 60));
     }
 
+    // ===============================================
+    // MÉTHODES UI ET HELPERS
+    // ===============================================
+
+    showWaitingTickets() {
+        const queueCard = document.querySelector('.queue-card');
+        if (queueCard) {
+            queueCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            queueCard.style.border = '2px solid var(--primary-color)';
+            setTimeout(() => {
+                queueCard.style.border = '1px solid rgba(109, 180, 254, 0.15)';
+            }, 2000);
+        }
+        // Notification subtile seulement si des tickets
+        if (this.ticketsData.length > 0) {
+            this.showSubtleNotification('info', 'File d\'attente', `${this.ticketsData.length} tickets visibles`);
+        }
+    }
+
+    showCurrentTicket() {
+        if (this.currentTicket) {
+            this.showCurrentTicketModal(this.currentTicket);
+        } else {
+            this.showSubtleNotification('info', 'Aucun ticket', 'Appelez le premier ticket de la file');
+        }
+    }
+
+    showCompletedTickets() {
+        this.showHistory();
+    }
+
     async loadMyStats() {
         try {
             const response = await this.apiCall('GET', this.config.apiRoutes.myStats);
-            
             if (response.success) {
                 this.updateMyStats(response.stats);
             }
         } catch (error) {
             console.error('❌ Error loading stats:', error);
         }
+    }
+
+    updateMyStats(stats) {
+        // Implémenter si nécessaire selon vos besoins
     }
 
     async showHistory() {
@@ -1930,90 +2977,103 @@ class AdvisorInterface {
         }
     }
 
-    // ===== UI Update Methods =====
     updateUI(response) {
         this.updateTicketsList(response.tickets);
         this.updateStats(response.stats);
         this.updateNotifications(response.tickets);
     }
 
-    // ===== ✅ NOUVEAU : Mise à jour liste tickets pleine largeur =====
-    updateTicketsList(tickets) {
-        const container = document.getElementById('ticketsContainer');
+    updateStats(stats) {
+        if (!stats) return;
+        
+        const elements = {
+            'waitingTicketsCount': stats.total_en_attente || 0,
+            'processingTicketsCount': stats.total_en_cours || 0,
+            'completedTicketsCount': stats.total_termines || 0,
+            'ticketsWaitingCount': stats.total_en_attente || 0,
+            'ticketsWaitingCount2': stats.total_en_attente || 0
+        };
+        
+        Object.entries(elements).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element) {
+                const oldValue = element.textContent;
+                element.textContent = value;
+                
+                // Animation subtile seulement si changement significatif
+                if (oldValue !== value.toString() && Math.abs(parseInt(oldValue) - value) > 0) {
+                    element.style.transform = 'scale(1.05)';
+                    element.style.transition = 'transform 0.3s ease';
+                    setTimeout(() => {
+                        element.style.transform = 'scale(1)';
+                    }, 300);
+                }
+            }
+        });
+    }
+
+    updateNotifications(tickets) {
+        const container = document.getElementById('notificationTickets');
         
         if (!tickets || tickets.length === 0) {
             container.innerHTML = `
-                <div class="empty-queue-state">
-                    <div class="text-center py-5">
-                        <div class="empty-state-icon mb-3">
-                            <i data-feather="inbox" class="text-muted"></i>
-                        </div>
-                        <h6 class="text-muted mb-2">File d'attente vide</h6>
-                        <p class="text-muted small">Aucun ticket en attente (FIFO)</p>
-                    </div>
+                <div class="text-center py-3">
+                    <i data-feather="check-circle" class="text-primary mb-2"></i>
+                    <p class="text-muted mb-0 small">File d'attente vide</p>
                 </div>
             `;
         } else {
             let html = '';
-            tickets.forEach((ticket, index) => {
+            const displayTickets = this.sortTicketsWithTransferPriority(tickets).slice(0, 5);
+            
+            displayTickets.forEach((ticket, index) => {
                 const validatedTicket = this.validateTicketData(ticket);
                 const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
+                const transferDisplay = this.getTransferDisplayText(ticket);
                 
-                let statusClass = 'normal';
-                if (waitingTime > 30) {
-                    statusClass = 'urgent';
-                } else if (waitingTime > 15) {
-                    statusClass = 'warning';
+                let avatarBg, iconName, badgeClass, badgeText;
+                
+                if (transferDisplay.text === 'new') {
+                    avatarBg = 'bg-success';
+                    iconName = 'arrow-down-left';
+                    badgeClass = 'badge-success';
+                    badgeText = 'New';
+                } else if (transferDisplay.text === 'transferé') {
+                    avatarBg = 'bg-secondary';
+                    iconName = 'share';
+                    badgeClass = 'badge-secondary';
+                    badgeText = 'T';
+                } else {
+                    avatarBg = 'bg-primary';
+                    iconName = 'user';
+                    badgeClass = 'badge-light';
+                    badgeText = '';
                 }
                 
-                const isFirst = index === 0;
-                const itemClass = isFirst ? 'ticket-item first-in-queue' : 'ticket-item blocked';
-                
                 html += `
-                    <div class="${itemClass}" 
-                         onclick="advisorInterface.showTicketDetails(${validatedTicket.id})" 
-                         style="animation-delay: ${index * 0.1}s">
-                        
-                        ${isFirst ? '<div class="first-badge">PREMIER</div>' : ''}
-                        
+                    <a href="#" class="dropdown-item py-3" onclick="advisorInterface.callTicket(${validatedTicket.id})">
                         <div class="d-flex align-items-center">
-                            <div class="col-2 queue-col-code">
-                                <div class="ticket-number">${validatedTicket.numero_ticket}</div>
-                                <small class="text-muted">${validatedTicket.date}</small>
+                            <div class="flex-shrink-0">
+                                <div class="avatar-sm ${avatarBg} rounded-circle d-flex align-items-center justify-content-center">
+                                    <i data-feather="${iconName}" class="text-white" style="width: 16px; height: 16px;"></i>
+                                </div>
                             </div>
-                            
-                            <div class="col-3 queue-col-client">
-                                <div class="client-name">${validatedTicket.prenom}</div>
+                            <div class="flex-grow-1 ml-3">
+                                <h6 class="mb-0 font-weight-normal">
+                                    ${validatedTicket.numero_ticket}
+                                    ${badgeText ? `<span class="badge ${badgeClass} ml-1">${badgeText}</span>` : ''}
+                                </h6>
+                                <small class="text-muted">${validatedTicket.prenom} - ${waitingTime}min</small>
                             </div>
-                            
-                            <div class="col-2 queue-col-phone">
-                                <div class="client-phone">${validatedTicket.telephone}</div>
-                            </div>
-                            
-                            <div class="col-2 queue-col-service">
-                                <span class="ticket-service">${validatedTicket.service}</span>
-                            </div>
-                            
-                            <div class="col-2 queue-col-waiting text-center">
-                                <div class="ticket-waiting-time ${statusClass}">${waitingTime}min</div>
-                            </div>
-                            
-                            <div class="col-1 queue-col-action text-center">
-                                <button class="btn btn-success btn-sm btn-call-ticket ${!isFirst ? 'blocked' : ''}" 
-                                        onclick="event.stopPropagation(); advisorInterface.callTicket(${validatedTicket.id})"
-                                        ${!isFirst ? 'disabled title="Seul le premier ticket peut être appelé"' : ''}>
-                                    <i data-feather="phone-call" style="width: 16px; height: 16px;"></i>
-                                </button>
+                            <div class="flex-shrink-0">
+                                <span class="badge ${transferDisplay.text === 'new' ? 'badge-success' : 'badge-light'}">#${index + 1}</span>
                             </div>
                         </div>
-                    </div>
+                    </a>
                 `;
             });
             container.innerHTML = html;
         }
-
-        const queueCount = tickets ? tickets.length : 0;
-        document.getElementById('queueCountBadge').textContent = queueCount + (queueCount === 1 ? ' ticket' : ' tickets');
         
         if (typeof feather !== 'undefined') feather.replace();
     }
@@ -2027,13 +3087,8 @@ class AdvisorInterface {
         for (const field of nameFields) {
             if (ticket[field] && ticket[field].toString().trim() !== '') {
                 clientName = ticket[field].toString().trim();
-                console.log(`✅ Nom trouvé dans le champ: ${field} = "${clientName}"`);
                 break;
             }
-        }
-        
-        if (clientName === 'Nom non renseigné') {
-            console.warn('⚠️ ATTENTION: Aucun nom trouvé dans les champs:', nameFields);
         }
 
         return {
@@ -2075,102 +3130,35 @@ class AdvisorInterface {
         return 0;
     }
 
-    updateStats(stats) {
-        if (!stats) return;
-        
-        const elements = {
-            'waitingTicketsCount': stats.total_en_attente || 0,
-            'processingTicketsCount': stats.total_en_cours || 0,
-            'completedTicketsCount': stats.total_termines || 0,
-            'ticketsWaitingCount': stats.total_en_attente || 0,
-            'ticketsWaitingCount2': stats.total_en_attente || 0
-        };
-        
-        Object.entries(elements).forEach(([id, value]) => {
-            const element = document.getElementById(id);
-            if (element) {
-                const oldValue = element.textContent;
-                element.textContent = value;
-                
-                if (oldValue !== value.toString()) {
-                    element.style.transform = 'scale(1.1)';
-                    element.style.transition = 'transform 0.2s ease';
-                    setTimeout(() => {
-                        element.style.transform = 'scale(1)';
-                    }, 200);
-                }
-            }
-        });
-    }
-
-    updateNotifications(tickets) {
-        const container = document.getElementById('notificationTickets');
-        
-        if (!tickets || tickets.length === 0) {
-            container.innerHTML = `
-                <div class="text-center py-3">
-                    <i data-feather="check-circle" class="text-success mb-2"></i>
-                    <p class="text-muted mb-0 small">File d'attente vide (FIFO)</p>
-                </div>
-            `;
-        } else {
-            let html = '';
-            tickets.slice(0, 5).forEach((ticket, index) => {
-                const validatedTicket = this.validateTicketData(ticket);
-                const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
-                
-                html += `
-                    <a href="#" class="dropdown-item py-3" onclick="advisorInterface.callTicket(${validatedTicket.id})">
-                        <div class="d-flex align-items-center">
-                            <div class="flex-shrink-0">
-                                <div class="avatar-sm bg-soft-primary rounded-circle d-flex align-items-center justify-content-center">
-                                    <i data-feather="user" style="width: 16px; height: 16px;"></i>
-                                </div>
-                            </div>
-                            <div class="flex-grow-1 ml-3">
-                                <h6 class="mb-0 font-weight-normal">${validatedTicket.numero_ticket}</h6>
-                                <small class="text-muted">${validatedTicket.prenom} - ${waitingTime}min</small>
-                            </div>
-                            <div class="flex-shrink-0">
-                                <span class="badge badge-light">#${index + 1}</span>
-                            </div>
-                        </div>
-                    </a>
-                `;
-            });
-            container.innerHTML = html;
-        }
-        
-        if (typeof feather !== 'undefined') feather.replace();
-    }
-
-    updateMyStats(stats) {
-        // Implémenter si nécessaire
-    }
-
-    // ===== Modal Methods =====
     showTicketDetails(ticketId) {
         const ticket = this.ticketsData.find(t => t.id === ticketId) || this.currentTicket;
         if (!ticket) {
-            this.showNotification('error', 'Erreur', 'Ticket non trouvé');
+            this.showSubtleNotification('error', 'Erreur', 'Ticket non trouvé');
             return;
         }
 
         const validatedTicket = this.validateTicketData(ticket);
         const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
+        const transferDisplay = this.getTransferDisplayText(ticket);
         
         let statusBadge = '';
         let statusText = '';
         
-        if (waitingTime > 30) {
+        if (transferDisplay.text === 'new') {
+            statusBadge = '<span class="badge badge-success">Nouveau (Priorité)</span>';
+            statusText = 'Ticket reçu par transfert - priorité maximale';
+        } else if (transferDisplay.text === 'transferé') {
+            statusBadge = '<span class="badge badge-secondary">Transféré par moi</span>';
+            statusText = 'Ticket que j\'ai transféré - ne peut plus être appelé';
+        } else if (waitingTime > 30) {
             statusBadge = '<span class="badge badge-danger">Urgent</span>';
             statusText = 'Temps d\'attente élevé';
         } else if (waitingTime > 15) {
             statusBadge = '<span class="badge badge-warning">Moyen</span>';
             statusText = 'Temps d\'attente modéré';
         } else {
-            statusBadge = '<span class="badge badge-success">Nouveau</span>';
-            statusText = 'Client récent';
+            statusBadge = '<span class="badge badge-primary">Normal</span>';
+            statusText = 'Ticket normal FIFO';
         }
         
         const content = document.getElementById('ticketDetailsContent');
@@ -2205,6 +3193,25 @@ class AdvisorInterface {
                             ${validatedTicket.commentaire}
                         </div>
                     ` : ''}
+                    
+                    ${transferDisplay.text === 'new' && ticket.transfer_info ? `
+                        <h6 class="font-weight-semibold mb-2 text-success">Ticket reçu par transfert (Priorité)</h6>
+                        <div class="alert alert-success">
+                            <small><strong>Transféré par:</strong> ${ticket.transfer_info.transferred_by || '--'}</small><br>
+                            <small><strong>Motif:</strong> ${ticket.transfer_info.transfer_reason || '--'}</small>
+                            ${ticket.transfer_info.transfer_notes ? `<br><small><strong>Notes:</strong> ${ticket.transfer_info.transfer_notes}</small>` : ''}
+                        </div>
+                    ` : ''}
+                    
+                    ${transferDisplay.text === 'transferé' && ticket.transfer_info ? `
+                        <h6 class="font-weight-semibold mb-2 text-secondary">Ticket que j'ai transféré</h6>
+                        <div class="alert alert-secondary">
+                            <small><strong>Transféré vers:</strong> ${ticket.transfer_info.transferred_to || '--'}</small><br>
+                            <small><strong>Motif:</strong> ${ticket.transfer_info.transfer_reason || '--'}</small>
+                            ${ticket.transfer_info.transfer_notes ? `<br><small><strong>Notes:</strong> ${ticket.transfer_info.transfer_notes}</small>` : ''}
+                            <br><small class="text-warning"><strong>⚠️ Ce ticket ne peut plus être appelé</strong></small>
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -2213,7 +3220,6 @@ class AdvisorInterface {
         if (typeof feather !== 'undefined') feather.replace();
     }
 
-    // ===== ✅ MÉTHODE CORRIGÉE : Rendu de l'historique avec commentaires =====
     renderHistoryModal(tickets, summary) {
         const content = document.getElementById('historyContent');
         
@@ -2261,6 +3267,7 @@ class AdvisorInterface {
                                 <th>Ticket</th>
                                 <th>Client</th>
                                 <th>Service</th>
+                                <th>Transféré</th>
                                 <th>Début</th>
                                 <th>Fin</th>
                                 <th>Durée</th>
@@ -2271,14 +3278,12 @@ class AdvisorInterface {
                         <tbody>
             `;
             
-            tickets.forEach((ticket, index) => {
+            tickets.forEach((ticket) => {
                 const validatedTicket = this.validateTicketData(ticket);
                 const resolutionDetails = ticket.resolution_details || {};
+                const transferDisplay = this.getTransferDisplayText(ticket);
                 
-                // ✅ CORRECTION : Gestion appropriée des commentaires
                 let commentCell = '<span class="text-muted">-</span>';
-                
-                // Chercher le commentaire dans plusieurs endroits possibles
                 const commentSource = 
                     ticket.commentaire_resolution || 
                     resolutionDetails.commentaire_resolution || 
@@ -2296,14 +3301,13 @@ class AdvisorInterface {
                         <span class="comment-preview" 
                               title="${this.escapeHtml(commentText)}"
                               onclick="advisorInterface.showCommentModal('${this.escapeHtml(commentText)}', '${validatedTicket.numero_ticket}')"
-                              style="cursor: pointer; color: #007bff;">
+                              style="cursor: pointer; color: var(--primary-color);">
                             <i data-feather="message-circle" class="mr-1" style="width: 14px; height: 14px;"></i>
                             ${this.escapeHtml(shortComment)}
                         </span>
                     `;
                 }
                 
-                // ✅ Déterminer le statut de résolution
                 let resolutionBadge = '<span class="badge badge-secondary">Inconnu</span>';
                 if (resolutionDetails.resolu !== undefined) {
                     if (resolutionDetails.resolu === 1 || resolutionDetails.resolu === '1' || resolutionDetails.resolu === true) {
@@ -2317,14 +3321,31 @@ class AdvisorInterface {
                     resolutionBadge = `<span class="badge badge-${isResolved ? 'success' : 'danger'}">${resolutionDetails.resolu_libelle}</span>`;
                 }
                 
+                // 🆕 NOUVEAU : Badge transfert pour l'historique
+                let transferBadge = '<span class="text-muted">-</span>';
+                if (transferDisplay.text === 'new') {
+                    transferBadge = `
+                        <span class="badge badge-success" title="Ticket reçu par transfert avec priorité">
+                            <i data-feather="arrow-down-left" style="width: 12px; height: 12px;"></i> new
+                        </span>
+                    `;
+                } else if (transferDisplay.text === 'transferé') {
+                    transferBadge = `
+                        <span class="badge badge-secondary" title="Ticket que j'ai transféré">
+                            <i data-feather="share" style="width: 12px; height: 12px;"></i> transferé
+                        </span>
+                    `;
+                }
+                
                 html += `
                     <tr>
                         <td><strong>${validatedTicket.numero_ticket}</strong></td>
                         <td>${validatedTicket.prenom}</td>
-                        <td><span class="badge badge-info">${validatedTicket.service}</span></td>
+                        <td><span class="badge badge-soft-info">${validatedTicket.service}</span></td>
+                        <td>${transferBadge}</td>
                         <td>${ticket.debut_traitement || ticket.heure_prise_en_charge || '--:--'}</td>
                         <td>${ticket.fin_traitement || ticket.heure_fin_traitement || '--:--'}</td>
-                        <td><span class="badge badge-light">${ticket.duree_traitement || 0}min</span></td>
+                        <td><span class="badge badge-soft-light">${ticket.duree_traitement || 0}min</span></td>
                         <td>${resolutionBadge}</td>
                         <td>${commentCell}</td>
                     </tr>
@@ -2342,9 +3363,7 @@ class AdvisorInterface {
         if (typeof feather !== 'undefined') feather.replace();
     }
 
-    // ===== ✅ NOUVELLE MÉTHODE : Afficher le modal des commentaires =====
     showCommentModal(commentText, ticketNumber) {
-        // Créer un modal dynamique pour afficher le commentaire complet
         const modalId = 'commentModal_' + Date.now();
         const modalHTML = `
             <div class="modal fade" id="${modalId}" tabindex="-1" role="dialog" aria-hidden="true">
@@ -2372,13 +3391,8 @@ class AdvisorInterface {
             </div>
         `;
         
-        // Ajouter le modal au DOM
         document.body.insertAdjacentHTML('beforeend', modalHTML);
-        
-        // Afficher le modal
         $(`#${modalId}`).modal('show');
-        
-        // Nettoyer le modal après fermeture
         $(`#${modalId}`).on('hidden.bs.modal', function () {
             $(this).remove();
         });
@@ -2386,7 +3400,6 @@ class AdvisorInterface {
         if (typeof feather !== 'undefined') feather.replace();
     }
 
-    // ===== ✅ MÉTHODE UTILITAIRE : Échapper HTML =====
     escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -2394,7 +3407,10 @@ class AdvisorInterface {
         return div.innerHTML;
     }
 
-    // ===== Action Methods =====
+    // ===============================================
+    // ACTIONS RAPIDES
+    // ===============================================
+
     togglePause() {
         this.isPaused = !this.isPaused;
         
@@ -2409,14 +3425,14 @@ class AdvisorInterface {
             pauseButton.textContent = 'Reprendre';
             pauseMenu.textContent = 'Reprendre service';
             statusText.textContent = 'En pause';
-            this.showNotification('warning', 'Pause activée', 'Vous ne recevrez plus de tickets');
+            this.showSubtleNotification('warning', 'Pause activée', 'Vous ne recevrez plus de tickets');
         } else {
             statusBadge.textContent = 'En ligne';
             statusBadge.className = 'badge badge-success ml-2';
             pauseButton.textContent = 'Pause';
             pauseMenu.textContent = 'Pause file';
             statusText.textContent = 'En ligne';
-            this.showNotification('success', 'Service repris', 'Vous êtes de nouveau disponible');
+            this.showSubtleNotification('success', 'Service repris', 'Vous êtes de nouveau disponible');
         }
     }
 
@@ -2441,26 +3457,29 @@ class AdvisorInterface {
             if (result.success) {
                 $('#passwordModal').modal('hide');
                 document.getElementById('passwordForm').reset();
-                this.showNotification('success', 'Mot de passe modifié', 'Changement effectué avec succès');
+                this.showSubtleNotification('success', 'Mot de passe modifié', 'Changement effectué avec succès');
             } else {
                 throw new Error(result.message || 'Erreur lors du changement');
             }
         } catch (error) {
             console.error('❌ Error changing password:', error);
-            this.showNotification('error', 'Erreur', error.message);
+            this.showSubtleNotification('error', 'Erreur', error.message);
         }
     }
 
     exportData() {
-        this.showNotification('info', 'Export', 'Génération du fichier en cours...');
+        this.showSubtleNotification('info', 'Export en cours', 'Génération du fichier...', 2000);
         
         setTimeout(() => {
             window.open('{{ route("conseiller.export") }}', '_blank');
-            this.showNotification('success', 'Export terminé', 'Fichier téléchargé avec succès');
+            this.showSubtleNotification('success', 'Export terminé', 'Fichier téléchargé');
         }, 1500);
     }
 
-    // ===== Utility Methods =====
+    // ===============================================
+    // MÉTHODES UTILITAIRES
+    // ===============================================
+
     async apiCall(method, url, data = null, signal = null) {
         const options = {
             method,
@@ -2470,7 +3489,6 @@ class AdvisorInterface {
             }
         };
 
-        // ✅ Ajouter le signal d'abort si fourni
         if (signal) {
             options.signal = signal;
         }
@@ -2513,66 +3531,37 @@ class AdvisorInterface {
         }
     }
 
-    playNotificationSound() {
-        try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBT2Y2/LDjCUIQ4PY7tjwO');
-            audio.play().catch(() => {});
-        } catch (error) {
-            console.log('Notification sound not available');
-        }
+    setRefreshButtonLoading(isLoading) {
+        const refreshButtons = document.querySelectorAll('#refreshButton, .btn-outline-primary');
+        
+        refreshButtons.forEach(button => {
+            const icon = button.querySelector('i[data-feather="refresh-cw"]');
+            
+            if (isLoading) {
+                button.disabled = true;
+                button.classList.add('btn-refresh-loading');
+                if (icon) {
+                    icon.style.animation = 'gentle-spin 2s linear infinite';
+                }
+            } else {
+                button.disabled = false;
+                button.classList.remove('btn-refresh-loading');
+                if (icon) {
+                    icon.style.animation = '';
+                }
+            }
+        });
     }
 
-    showNotification(type, title, message, duration = 4000) {
-        const toastId = 'toast_' + Date.now();
-        const toast = document.createElement('div');
-        
-        toast.id = toastId;
-        toast.className = `toast-notification toast-${type}`;
-        toast.setAttribute('role', 'alert');
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        toast.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-        
-        const icons = {
-            'success': 'check-circle',
-            'error': 'alert-circle',
-            'warning': 'alert-triangle',
-            'info': 'info'
-        };
-        
-        toast.innerHTML = `
-            <div class="toast-header bg-transparent border-0">
-                <i data-feather="${icons[type]}" class="mr-2"></i>
-                <strong class="mr-auto">${title}</strong>
-                <button type="button" class="ml-2 mb-1 close" onclick="document.getElementById('${toastId}').remove()">
-                    <span>&times;</span>
-                </button>
-            </div>
-            <div class="toast-body">
-                ${message}
-            </div>
-        `;
-        
-        document.body.appendChild(toast);
-        
-        setTimeout(() => {
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateX(0)';
-        }, 100);
-        
-        if (typeof feather !== 'undefined') feather.replace();
-        
-        setTimeout(() => {
-            if (document.getElementById(toastId)) {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateX(100%)';
-                setTimeout(() => {
-                    if (document.getElementById(toastId)) {
-                        toast.remove();
-                    }          
-                }, 300);  
-            }   
-        }, duration);
+    playNotificationSound() {
+        try {
+            // Son très doux pour ne pas être intrusif
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBT2Y2/LDjCUIQ4PY7tjwO');
+            audio.volume = 0.3; // Volume réduit pour être subtil
+            audio.play().catch(() => {});
+        } catch (error) {
+            // Son optionnel, ne pas bloquer si erreur
+        }
     }
 
     destroy() {
@@ -2582,26 +3571,25 @@ class AdvisorInterface {
         if (this.ticketTimer) {
             clearInterval(this.ticketTimer);
         }
-        console.log('AdvisorInterface FIFO with simplified flow destroyed');
+        console.log('AdvisorInterface FIFO with priority transfer destroyed');
     }
 }
 
-// ===== Initialisation =====
+// ===============================================
+// INITIALISATION
+// ===============================================
 let advisorInterface;
 
 document.addEventListener('DOMContentLoaded', function() {
     advisorInterface = new AdvisorInterface();
     
-    // ✅ NOUVEAU : Gérer la fermeture du modal lors de la résolution
     $('#currentTicketModal').on('hidden.bs.modal', function () {
         if (advisorInterface && advisorInterface.ticketTimer) {
             advisorInterface.stopModalTimer();
         }
     });
     
-    // ✅ NOUVEAU : Gérer les raccourcis clavier
     $(document).on('keydown', function(e) {
-        // Échap pour fermer le modal du ticket en cours
         if (e.key === 'Escape' && $('#currentTicketModal').hasClass('show')) {
             advisorInterface.closeCurrentTicketModal();
         }
@@ -2611,7 +3599,8 @@ document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
     }
     
-    console.log('🎯 Interface conseiller FIFO avec flow simplifié ready - Version CORRIGÉE avec commentaires');
+    console.log('🎯 Interface conseiller FIFO - Logique transfert: "new"=priorité | "transferé"=bloqué');
+    console.log('💡 COLONNE BDD "Transferer": "new" (reçu/priorité) | "transferé" (envoyé/bloqué) | null (normal)');
 });
 
 window.addEventListener('beforeunload', function() {

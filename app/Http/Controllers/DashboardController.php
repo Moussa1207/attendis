@@ -1327,16 +1327,8 @@ class DashboardController extends Controller
         }
     }
 
-    /**
-     * 🔄 TRANSFER TICKET
-     */
-    public function transferTicket(Request $request): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
-            'message' => 'Fonctionnalité en développement'
-        ], 501);
-    }
+    
+    
 
     /**
      * 🔄 RAFRAÎCHIR LA FILE D'ATTENTE EN TEMPS RÉEL
@@ -2875,6 +2867,507 @@ class DashboardController extends Controller
         return $password;
     }
 
+    // ===============================================
+    // 🆕 NOUVELLES MÉTHODES : TRANSFERT DYNAMIQUE
+    // ===============================================
+
+    /**
+     * 🔄 RÉCUPÉRER LES SERVICES DISPONIBLES POUR TRANSFERT
+     */
+    public function getTransferServices(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🎯 RÉCUPÉRER SEULEMENT LES SERVICES ACTIFS CRÉÉS PAR L'ADMIN
+            $services = $creator->createdServices()
+                              ->where('statut', 'actif')
+                              ->orderBy('nom', 'asc')
+                              ->get(['id', 'nom', 'letter_of_service'])
+                              ->map(function($service) {
+                                  return [
+                                      'id' => $service->id,
+                                      'nom' => $service->nom,
+                                      'letter_of_service' => $service->letter_of_service,
+                                      'display_name' => $service->letter_of_service . ' - ' . $service->nom
+                                  ];
+                              });
+
+            Log::info('Services de transfert chargés pour conseiller', [
+                'conseiller_id' => $user->id,
+                'admin_creator_id' => $creator->id,
+                'services_count' => $services->count()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'services' => $services,
+                'total_services' => $services->count(),
+                'admin_info' => [
+                    'username' => $creator->username,
+                    'company' => $creator->company
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération services transfert', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des services'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔄 RÉCUPÉRER LES CONSEILLERS DISPONIBLES POUR TRANSFERT
+     */
+    public function getAvailableAdvisors(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🎯 RÉCUPÉRER LES CONSEILLERS DE LA MÊME ÉQUIPE (CRÉÉS PAR LE MÊME ADMIN)
+            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
+                                         ->pluck('user_id')
+                                         ->toArray();
+
+            $advisors = User::whereIn('id', $myUserIds)
+                           ->where('user_type_id', 4) // Type conseiller
+                           ->where('status_id', 2) // Actifs seulement
+                           ->where('id', '!=', $user->id) // Exclure le conseiller actuel
+                           ->orderBy('username', 'asc')
+                           ->get(['id', 'username', 'email'])
+                           ->map(function($advisor) {
+                               // 🔍 VÉRIFIER SI LE CONSEILLER A UN TICKET EN COURS
+                               $hasCurrentTicket = Queue::where('conseiller_client_id', $advisor->id)
+                                                      ->whereDate('date', today())
+                                                      ->where('statut_global', 'en_cours')
+                                                      ->exists();
+
+                               // 📊 STATISTIQUES DU JOUR
+                               $ticketsToday = Queue::where('conseiller_client_id', $advisor->id)
+                                                   ->whereDate('date', today())
+                                                   ->where('statut_global', 'termine')
+                                                   ->count();
+
+                               return [
+                                   'id' => $advisor->id,
+                                   'username' => $advisor->username,
+                                   'email' => $advisor->email,
+                                   'display_name' => $advisor->username . ' (' . $advisor->email . ')',
+                                   'has_current_ticket' => $hasCurrentTicket,
+                                   'status_class' => $hasCurrentTicket ? 'busy' : 'available',
+                                   'tickets_today' => $ticketsToday,
+                                   'availability_status' => $hasCurrentTicket ? 'Occupé' : 'Disponible'
+                               ];
+                           });
+
+            Log::info('Conseillers de transfert chargés', [
+                'conseiller_id' => $user->id,
+                'admin_creator_id' => $creator->id,
+                'advisors_count' => $advisors->count(),
+                'available_advisors' => $advisors->where('has_current_ticket', false)->count()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'advisors' => $advisors,
+                'total_advisors' => $advisors->count(),
+                'available_advisors' => $advisors->where('has_current_ticket', false)->count(),
+                'busy_advisors' => $advisors->where('has_current_ticket', true)->count(),
+                'team_info' => [
+                    'admin_username' => $creator->username,
+                    'team_size' => $advisors->count() + 1 // +1 pour inclure l'utilisateur actuel
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération conseillers transfert', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des conseillers'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔄 RÉCUPÉRER LA CHARGE DE TRAVAIL D'UN CONSEILLER
+     */
+    public function getAdvisorWorkload(Request $request, $advisorId): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🔍 VÉRIFIER QUE LE CONSEILLER FAIT PARTIE DE L'ÉQUIPE
+            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
+                                         ->pluck('user_id')
+                                         ->toArray();
+
+            if (!in_array($advisorId, $myUserIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conseiller non autorisé'
+                ], 403);
+            }
+
+            $advisor = User::find($advisorId);
+            if (!$advisor || !$advisor->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conseiller non trouvé'
+                ], 404);
+            }
+
+            // 📊 STATISTIQUES DÉTAILLÉES DU CONSEILLER
+            $today = today();
+            
+            $workloadStats = [
+                'advisor_info' => [
+                    'id' => $advisor->id,
+                    'username' => $advisor->username,
+                    'email' => $advisor->email
+                ],
+                'today_stats' => [
+                    'tickets_completed' => Queue::where('conseiller_client_id', $advisorId)
+                                               ->whereDate('date', $today)
+                                               ->where('statut_global', 'termine')
+                                               ->count(),
+                    
+                    'tickets_resolved' => Queue::where('conseiller_client_id', $advisorId)
+                                             ->whereDate('date', $today)
+                                             ->where('statut_global', 'termine')
+                                             ->where('resolu', 1)
+                                             ->count(),
+                    
+                    'current_ticket' => Queue::where('conseiller_client_id', $advisorId)
+                                            ->whereDate('date', $today)
+                                            ->where('statut_global', 'en_cours')
+                                            ->first(),
+                    
+                    'average_processing_time' => Queue::where('conseiller_client_id', $advisorId)
+                                                     ->whereDate('date', $today)
+                                                     ->where('statut_global', 'termine')
+                                                     ->whereNotNull('heure_de_fin')
+                                                     ->whereNotNull('heure_prise_en_charge')
+                                                     ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
+                                                     ->value('avg_minutes') ?? 0
+                ],
+                'week_stats' => [
+                    'tickets_completed' => Queue::where('conseiller_client_id', $advisorId)
+                                               ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                               ->where('statut_global', 'termine')
+                                               ->count()
+                ]
+            ];
+
+            // 🎯 GÉNÉRER UNE RECOMMANDATION
+            $recommendation = 'Conseiller disponible';
+            
+            if ($workloadStats['today_stats']['current_ticket']) {
+                $recommendation = 'Conseiller occupé avec un client';
+            } elseif ($workloadStats['today_stats']['tickets_completed'] > 10) {
+                $recommendation = 'Conseiller très actif aujourd\'hui';
+            } elseif ($workloadStats['today_stats']['tickets_completed'] > 5) {
+                $recommendation = 'Conseiller modérément actif';
+            } else {
+                $recommendation = 'Conseiller peu sollicité aujourd\'hui';
+            }
+
+            // 🔄 CALCULER UN SCORE DE DISPONIBILITÉ
+            $availabilityScore = 100;
+            if ($workloadStats['today_stats']['current_ticket']) {
+                $availabilityScore = 0; // Occupé
+            } else {
+                // Réduire le score selon la charge de travail
+                $todayLoad = $workloadStats['today_stats']['tickets_completed'];
+                $availabilityScore = max(20, 100 - ($todayLoad * 5));
+            }
+
+            Log::info('Charge de travail conseiller récupérée', [
+                'target_advisor_id' => $advisorId,
+                'requesting_advisor_id' => $user->id,
+                'today_completed' => $workloadStats['today_stats']['tickets_completed'],
+                'has_current_ticket' => (bool) $workloadStats['today_stats']['current_ticket'],
+                'availability_score' => $availabilityScore
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'workload' => $workloadStats,
+                'recommendation' => $recommendation,
+                'availability_score' => $availabilityScore,
+                'transfer_suitability' => $availabilityScore > 50 ? 'recommended' : 'not_recommended'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération charge de travail', [
+                'advisor_id' => $advisorId,
+                'requesting_user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de la charge de travail'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔄 EFFECTUER LE TRANSFERT D'UN TICKET
+     */
+    public function transferTicket(Request $request): JsonResponse
+    {
+        
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            // 🔍 VALIDATION DES DONNÉES DE TRANSFERT
+            $validator = Validator::make($request->all(), [
+                'ticket_id' => 'required|integer|exists:queues,id',
+                'transfer_reason' => 'required|string|max:300',
+                'transfer_notes' => 'nullable|string|max:200',
+                'to_service' => 'nullable|integer|exists:services,id',
+                'to_advisor' => 'nullable|integer|exists:users,id'
+            ], [
+                'ticket_id.required' => 'ID du ticket obligatoire',
+                'ticket_id.exists' => 'Ticket non trouvé',
+                'transfer_reason.required' => 'Le motif du transfert est obligatoire',
+                'transfer_reason.max' => 'Le motif ne peut pas dépasser 300 caractères',
+                'to_service.exists' => 'Service de destination non trouvé',
+                'to_advisor.exists' => 'Conseiller de destination non trouvé'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // 🔍 VÉRIFICATIONS DE SÉCURITÉ
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // Vérifier que le ticket appartient bien au conseiller
+            $ticket = Queue::where('id', $request->ticket_id)
+                          ->where('conseiller_client_id', $user->id)
+                          ->where('statut_global', 'en_cours')
+                          ->first();
+
+            if (!$ticket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket non trouvé ou non autorisé'
+                ], 404);
+            }
+
+            // Valider au moins une destination
+            if (!$request->to_service && !$request->to_advisor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Au moins un service ou un conseiller de destination doit être spécifié'
+                ], 422);
+            }
+
+            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
+                                         ->pluck('user_id')
+                                         ->toArray();
+
+            // 🔍 VALIDER LE SERVICE DE DESTINATION
+            $targetService = null;
+            if ($request->to_service) {
+                $targetService = Service::where('id', $request->to_service)
+                                       ->where('created_by', $creator->id)
+                                       ->where('statut', 'actif')
+                                       ->first();
+
+                if (!$targetService) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Service de destination non autorisé ou inactif'
+                    ], 403);
+                }
+            }
+
+            // 🔍 VALIDER LE CONSEILLER DE DESTINATION
+            $targetAdvisor = null;
+            if ($request->to_advisor) {
+                $targetAdvisor = User::where('id', $request->to_advisor)
+                                   ->whereIn('id', $myUserIds)
+                                   ->where('user_type_id', 4)
+                                   ->where('status_id', 2)
+                                   ->where('id', '!=', $user->id)
+                                   ->first();
+
+                if (!$targetAdvisor) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Conseiller de destination non autorisé ou inactif'
+                    ], 403);
+                }
+
+                // Vérifier que le conseiller cible n'a pas déjà un ticket en cours
+                $advisorHasTicket = Queue::where('conseiller_client_id', $targetAdvisor->id)
+                                        ->whereDate('date', today())
+                                        ->where('statut_global', 'en_cours')
+                                        ->exists();
+
+                if ($advisorHasTicket) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Le conseiller sélectionné a déjà un ticket en cours'
+                    ], 400);
+                }
+            }
+
+            // 🔄 EFFECTUER LE TRANSFERT
+            DB::beginTransaction();
+
+            try {
+                $transferSuccess = $ticket->transferTo(
+                    $targetService ? $targetService->id : null,
+                    $targetAdvisor ? $targetAdvisor->id : null,
+                    $request->transfer_reason,
+                    $request->transfer_notes,
+                    $user->id
+                );
+
+                if (!$transferSuccess) {
+                    throw new \Exception('Échec du transfert du ticket');
+                }
+
+                DB::commit();
+
+                // 🎯 DÉTERMINER LE TYPE DE TRANSFERT EFFECTUÉ
+                $transferType = 'unknown';
+                if ($targetService && $targetAdvisor) {
+                    $transferType = 'service_and_advisor';
+                } elseif ($targetService) {
+                    $transferType = 'service_only';
+                } elseif ($targetAdvisor) {
+                    $transferType = 'advisor_only';
+                }
+
+                Log::info('Ticket transféré avec succès', [
+                    'ticket_id' => $ticket->id,
+                    'numero_ticket' => $ticket->numero_ticket,
+                    'from_advisor_id' => $user->id,
+                    'from_advisor_username' => $user->username,
+                    'to_service_id' => $targetService ? $targetService->id : null,
+                    'to_service_name' => $targetService ? $targetService->nom : null,
+                    'to_advisor_id' => $targetAdvisor ? $targetAdvisor->id : null,
+                    'to_advisor_username' => $targetAdvisor ? $targetAdvisor->username : null,
+                    'transfer_type' => $transferType,
+                    'transfer_reason' => $request->transfer_reason
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Ticket {$ticket->numero_ticket} transféré avec succès",
+                    'ticket' => $ticket->fresh()->toTicketArray(),
+                    'transfer_info' => [
+                        'transfer_type' => $transferType,
+                        'to_service' => $targetService ? [
+                            'id' => $targetService->id,
+                            'nom' => $targetService->nom,
+                            'letter' => $targetService->letter_of_service
+                        ] : null,
+                        'to_advisor' => $targetAdvisor ? [
+                            'id' => $targetAdvisor->id,
+                            'username' => $targetAdvisor->username,
+                            'email' => $targetAdvisor->email
+                        ] : null,
+                        'reason' => $request->transfer_reason,
+                        'notes' => $request->transfer_notes
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Erreur transfert ticket', [
+                'ticket_id' => $request->ticket_id ?? null,
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'request_data' => $request->except(['_token'])
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du transfert : ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Formater l'âge du compte
      */

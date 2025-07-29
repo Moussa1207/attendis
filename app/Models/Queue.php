@@ -661,4 +661,220 @@ class Queue extends Model
             ]);
         });
     }
+
+    /**
+     * 🔄 TRANSFÉRER LE TICKET VERS UN AUTRE SERVICE ET/OU CONSEILLER
+     */
+    public function transferTo($newServiceId = null, $newAdvisorId = null, $reason = null, $notes = null, $fromAdvisorId = null): bool
+    {
+        try {
+            $currentTime = now()->format('H:i:s');
+            $transferDate = now()->toISOString();
+            
+            // 🔍 VALIDATION DES PARAMÈTRES
+            if (!$newServiceId && !$newAdvisorId) {
+                throw new \Exception('Au moins un service ou un conseiller de destination doit être spécifié');
+            }
+
+            if (!$reason || trim($reason) === '') {
+                throw new \Exception('Le motif du transfert est obligatoire');
+            }
+
+            // 🔍 VÉRIFIER QUE LE TICKET EST EN COURS
+            if ($this->statut_global !== 'en_cours') {
+                throw new \Exception('Seuls les tickets en cours peuvent être transférés');
+            }
+
+            // 🔍 VALIDATION DU SERVICE DE DESTINATION
+            $newService = null;
+            if ($newServiceId) {
+                $newService = \App\Models\Service::where('id', $newServiceId)
+                                                ->where('statut', 'actif')
+                                                ->first();
+                
+                if (!$newService) {
+                    throw new \Exception('Service de destination non trouvé ou inactif');
+                }
+            }
+
+            // 🔍 VALIDATION DU CONSEILLER DE DESTINATION
+            $newAdvisor = null;
+            if ($newAdvisorId) {
+                $newAdvisor = \App\Models\User::where('id', $newAdvisorId)
+                                             ->where('user_type_id', 4) // Type conseiller
+                                             ->where('status_id', 2) // Actif
+                                             ->first();
+                
+                if (!$newAdvisor) {
+                    throw new \Exception('Conseiller de destination non trouvé ou inactif');
+                }
+
+                // Vérifier que le conseiller n'a pas déjà un ticket en cours
+                $advisorBusy = self::where('conseiller_client_id', $newAdvisorId)
+                                  ->whereDate('date', today())
+                                  ->where('statut_global', 'en_cours')
+                                  ->exists();
+
+                if ($advisorBusy) {
+                    throw new \Exception('Le conseiller de destination a déjà un ticket en cours');
+                }
+            }
+
+            // 🔄 SAUVEGARDER L'ANCIEN CONSEILLER POUR HISTORIQUE
+            $oldAdvisorId = $this->conseiller_client_id;
+            $oldServiceId = $this->service_id;
+
+            // 🔄 PRÉPARER LES NOUVELLES DONNÉES
+            $updateData = [
+                'heure_transfert' => $currentTime,
+                'transferer' => 'Yes',
+                'statut_global' => 'en_attente', // ✅ RETOUR EN FILE D'ATTENTE
+                'resolu' => 1, // ✅ RESET à résolu par défaut pour nouveau traitement
+                'commentaire_resolution' => null, // ✅ RESET commentaire résolution
+                'heure_de_fin' => null, // ✅ RESET heure de fin
+                'updated_at' => now()
+            ];
+
+            // 🎯 MISE À JOUR DU SERVICE SI SPÉCIFIÉ
+            if ($newServiceId) {
+                $updateData['service_id'] = $newServiceId;
+                $updateData['letter_of_service'] = $newService->letter_of_service;
+                
+                // 🆕 GÉNÉRER UN NOUVEAU NUMÉRO DE TICKET SI CHANGEMENT DE SERVICE
+                if ($oldServiceId !== $newServiceId) {
+                    $newTicketNumber = self::generateTicketNumber($newServiceId, $this->date);
+                    $updateData['numero_ticket'] = $newTicketNumber;
+                }
+            }
+
+            // 🎯 MISE À JOUR DU CONSEILLER SI SPÉCIFIÉ
+            if ($newAdvisorId) {
+                $updateData['conseiller_client_id'] = $newAdvisorId;
+                $updateData['conseiller_transfert'] = $oldAdvisorId; // Sauvegarder l'ancien conseiller
+                $updateData['heure_prise_en_charge'] = null; // ✅ RESET heure prise en charge
+            } else {
+                // Si pas de nouveau conseiller spécifié, libérer le ticket
+                $updateData['conseiller_client_id'] = null;
+                $updateData['conseiller_transfert'] = $oldAdvisorId;
+                $updateData['heure_prise_en_charge'] = null;
+            }
+
+            // 🔄 RECALCULER LA POSITION DANS LA FILE
+            $newPosition = self::where('date', $this->date)
+                              ->where('statut_global', 'en_attente')
+                              ->count() + 1;
+            
+            $updateData['position_file'] = $newPosition;
+
+            // 🆕 ENRICHIR L'HISTORIQUE AVEC DÉTAILS DU TRANSFERT
+            $currentHistory = $this->historique ?? [];
+            $transferHistoryEntry = [
+                'action' => 'transfer',
+                'timestamp' => $transferDate,
+                'from_advisor_id' => $oldAdvisorId,
+                'from_advisor' => $fromAdvisorId ? \App\Models\User::find($fromAdvisorId)->username : 'Inconnu',
+                'to_service_id' => $newServiceId,
+                'to_service' => $newService ? $newService->nom : null,
+                'to_advisor_id' => $newAdvisorId,
+                'to_advisor' => $newAdvisor ? $newAdvisor->username : null,
+                'old_ticket_number' => $this->numero_ticket,
+                'new_ticket_number' => $updateData['numero_ticket'] ?? $this->numero_ticket,
+                'reason' => trim($reason),
+                'notes' => $notes ? trim($notes) : null,
+                'transfer_type' => $this->determineTransferType($newServiceId, $newAdvisorId),
+                'new_position' => $newPosition,
+                'status_change' => 'en_cours → en_attente (transfert)'
+            ];
+
+            $updateData['historique'] = array_merge($currentHistory, [$transferHistoryEntry]);
+
+            // 🔄 EFFECTUER LA MISE À JOUR
+            $success = $this->update($updateData);
+
+            if (!$success) {
+                throw new \Exception('Échec de la mise à jour du ticket');
+            }
+
+            // 🎯 LOG DÉTAILLÉ DU TRANSFERT
+            Log::info('Ticket transféré avec succès - détails complets', [
+                'ticket_id' => $this->id,
+                'numero_ticket' => $this->numero_ticket,
+                'new_numero_ticket' => $updateData['numero_ticket'] ?? $this->numero_ticket,
+                'from_advisor_id' => $oldAdvisorId,
+                'to_advisor_id' => $newAdvisorId,
+                'from_service_id' => $oldServiceId,
+                'to_service_id' => $newServiceId,
+                'transfer_reason' => $reason,
+                'transfer_notes' => $notes,
+                'new_position' => $newPosition,
+                'transfer_time' => $currentTime,
+                'transfer_type' => $transferHistoryEntry['transfer_type']
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors du transfert de ticket', [
+                'ticket_id' => $this->id,
+                'numero_ticket' => $this->numero_ticket,
+                'new_service_id' => $newServiceId,
+                'new_advisor_id' => $newAdvisorId,
+                'from_advisor_id' => $fromAdvisorId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return false;
+        }
+    }
+
+    /**
+     * 🔍 DÉTERMINER LE TYPE DE TRANSFERT
+     */
+    private function determineTransferType($newServiceId = null, $newAdvisorId = null): string
+    {
+        if ($newServiceId && $newAdvisorId) {
+            return 'service_and_advisor';
+        } elseif ($newServiceId) {
+            return 'service_only';
+        } elseif ($newAdvisorId) {
+            return 'advisor_only';
+        } else {
+            return 'unknown';
+        }
+    }
+
+    /**
+     * 🔍 VÉRIFIER SI LE TICKET A ÉTÉ TRANSFÉRÉ
+     */
+    public function wasTransferred(): bool
+    {
+        return $this->transferer === 'Yes';
+    }
+
+    /**
+     * 🔍 OBTENIR L'HISTORIQUE DES TRANSFERTS
+     */
+    public function getTransferHistory(): array
+    {
+        if (!$this->historique) {
+            return [];
+        }
+
+        return array_filter($this->historique, function($entry) {
+            return isset($entry['action']) && $entry['action'] === 'transfer';
+        });
+    }
+
+    /**
+     * 🔍 OBTENIR LE CONSEILLER QUI A TRANSFÉRÉ LE TICKET
+     */
+    public function getTransferredFrom()
+    {
+        if (!$this->wasTransferred() || !$this->conseiller_transfert) {
+            return null;
+        }
+
+        return \App\Models\User::find($this->conseiller_transfert);
+    }
 }
