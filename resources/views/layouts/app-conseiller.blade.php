@@ -252,7 +252,7 @@
                                         <strong class="text-dark">Nom Client</strong>
                                     </div>
                                     <div class="col-2">
-                                        <strong class="text-dark">Téléphone</strong>
+                                       <strong class="text-dark">Trans. Par</strong>
                                     </div>
                                     <div class="col-2">
                                         <strong class="text-dark">Service</strong>
@@ -369,7 +369,6 @@
                                         <h4 class="client-name mb-1" id="modalClientName">Nom du client</h4>
                                         <p class="client-phone mb-2" id="modalClientPhone">+225 XX XX XX XX</p>
                                         <span class="service-badge" id="modalServiceBadge">Service</span>
-                                        <!-- 🆕 NOUVEAU : Badge de transfert dans le modal -->
                                         <div id="modalTransferBadge" class="mt-2" style="display: none;">
                                             <span class="badge badge-soft-warning transfer-badge">
                                                 <i data-feather="share" class="mr-1" style="width: 12px; height: 12px;"></i>
@@ -419,7 +418,6 @@
                                     <span id="modalComment">Commentaire du client...</span>
                                 </div>
                             </div>
-                            <!-- 🆕 NOUVEAU : Section informations transfert -->
                             <div id="modalTransferInfo" class="transfer-info-section" style="display: none;">
                                 <h6 class="font-weight-semibold text-warning mb-3">Informations de transfert</h6>
                                 <div class="transfer-display">
@@ -795,8 +793,6 @@
     --transition: all 0.3s ease;
     --border-radius-sm: 4px;
     --border-radius-md: 6px;
-    
-    /* 🎨 Variables pour notifications bleu ciel doux */
     --notification-blue: #87ceeb;
     --notification-blue-light: #b8dcf0;
     --notification-blue-dark: #5fa8d3;
@@ -918,7 +914,7 @@
     flex-shrink: 0;
 }
 
-/* ===== Modal ticket en cours - styles originaux ===== */
+/* ===== Modal ticket en cours ===== */
 .modal-timer .badge {
     font-size: 0.875rem;
     padding: 0.5rem 1rem;
@@ -1047,7 +1043,7 @@
     color: #495057;
 }
 
-/* ===== Modal de confirmation finale - styles originaux ===== */
+/* ===== Modal de confirmation finale ===== */
 .ticket-summary-card {
     background: #f8f9fa;
     border-radius: 8px;
@@ -1072,7 +1068,7 @@
     font-weight: 700;
 }
 
-/* ===== Modal de transfert - styles originaux ===== */
+/* ===== Modal de transfert ===== */
 .transfer-ticket-card {
     background: #fff3cd;
     border-radius: 8px;
@@ -1159,6 +1155,7 @@
     white-space: pre-wrap;
     word-wrap: break-word;
 }
+
 .queue-card {
     background: white;
     box-shadow: var(--shadow-md);
@@ -1237,7 +1234,6 @@
     box-shadow: 0 2px 4px rgba(40, 167, 69, 0.1);
 }
 
-/* 🆕 NOUVEAU : Style pour les tickets transférés avec priorité (valeur "new") */
 .ticket-item.transferred-priority {
     background: linear-gradient(90deg, rgba(40, 167, 69, 0.08) 0%, rgba(40, 167, 69, 0.12) 100%);
     border-left: 4px solid var(--success-color);
@@ -1257,7 +1253,6 @@
     animation: priority-glow 2s ease-in-out infinite alternate;
 }
 
-/* 🆕 NOUVEAU : Style pour les tickets que j'ai transférés (valeur "transferé") */
 .ticket-item.transferred-away {
     background: linear-gradient(90deg, rgba(108, 117, 125, 0.05) 0%, rgba(108, 117, 125, 0.08) 100%);
     border-left: 3px solid #6c757d;
@@ -1289,7 +1284,7 @@
     padding-left: 1.5rem;
 }
 
-/* 🆕 NOUVEAU : Badge transfert */
+/* ===== Badge transfert ===== */
 .transfer-badge {
     background: rgba(255, 193, 7, 0.15);
     color: #856404;
@@ -1348,58 +1343,7 @@
     color: white;
 }
 
-/* Styles pour les indicateurs de transfert */
-.transfer-success {
-    background: rgba(40, 167, 69, 0.15);
-    color: #155724;
-    border: 1px solid rgba(40, 167, 69, 0.3);
-}
-
-.transfer-info {
-    background: rgba(23, 162, 184, 0.15);
-    color: #0c5460;
-    border: 1px solid rgba(23, 162, 184, 0.3);
-}
-
-.transfer-muted {
-    background: transparent;
-    color: #6c757d;
-    border: none;
-}
-
 /* Badge priorité normal */
-.priority-badge {
-    position: absolute;
-    top: 0.5rem;
-    right: 1rem;
-    background: linear-gradient(45deg, var(--success-color), #218838);
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
-    animation: gentle-pulse 2s infinite;
-}
-
-@keyframes gentle-pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
-@keyframes subtle-pulse {
-    0%, 100% { opacity: 0.8; }
-    50% { opacity: 1; }
-}
-
-@keyframes subtle-pulse {
-    0%, 100% { opacity: 0.8; }
-    50% { opacity: 1; }
-}
-
 .priority-badge {
     position: absolute;
     top: 0.5rem;
@@ -1426,6 +1370,11 @@
     0% { transform: scale(1); }
     50% { transform: scale(1.05); }
     100% { transform: scale(1); }
+}
+
+@keyframes subtle-pulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
 }
 
 /* ===== Boutons ===== */
@@ -1493,7 +1442,7 @@
     color: white;
 }
 
-/* ===== Modal styles originaux restaurés ===== */
+/* ===== Modal styles ===== */
 .modal-content {
     border: none;
     border-radius: var(--border-radius-sm);
@@ -1535,7 +1484,8 @@
     opacity: 1;
     color: white;
 }
-/* ===== 🎨 NOTIFICATIONS SUBTILES BLEU CIEL AGRÉABLE ===== */
+
+/* ===== NOTIFICATIONS SUBTILES BLEU CIEL AGRÉABLE ===== */
 .notification-toast {
     position: fixed;
     top: 90px;
@@ -1553,7 +1503,6 @@
     color: white;
 }
 
-/* Toutes les notifications utilisent la même couleur bleu ciel douce */
 .notification-toast.toast-success,
 .notification-toast.toast-info,
 .notification-toast.toast-warning,
@@ -1589,12 +1538,10 @@
     color: white;
 }
 
-/* Icônes dans les notifications toujours en blanc */
 .notification-toast i[data-feather] {
     color: white !important;
 }
 
-/* Animation d'entrée douce pour les notifications */
 @keyframes notificationSlideIn {
     from {
         opacity: 0;
@@ -1631,12 +1578,58 @@
     }
 }
 
-/* ===== Transitions douces (sauf navigation) ===== */
+/* ===== Styles pour la nouvelle colonne Trans. Par ===== */
+.queue-col-transferred-by {
+    padding: 0.5rem;
+}
+
+.transferred-by {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.transferred-by .text-dark {
+    color: #495057 !important;
+}
+
+.transferred-by .text-muted {
+    color: #6c757d !important;
+    font-style: italic;
+}
+
+[title]:hover {
+    position: relative;
+}
+
+/* Style pour les badges dans l'historique */
+.badge-success {
+    background-color: #28a745;
+}
+
+.badge-info {
+    background-color: #17a2b8;
+}
+
+.badge-muted {
+    background-color: #6c757d;
+}
+
+/* Responsive pour la nouvelle colonne */
+@media (max-width: 768px) {
+    .queue-col-transferred-by {
+        padding: 0.25rem;
+    }
+    
+    .transferred-by {
+        font-size: 0.8rem;
+    }
+}
+
+/* ===== Transitions douces ===== */
 * {
     transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* Exclure les éléments de navigation des transitions pour éviter les "glissements" */
 .topbar *, 
 .navbar-custom *, 
 .dropdown-menu *,
@@ -1646,7 +1639,6 @@
     transition: none !important;
 }
 
-/* Restaurer seulement les transitions nécessaires pour la navigation */
 .nav-link:hover,
 .dropdown-item:hover {
     transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
@@ -1730,20 +1722,98 @@ class AdvisorInterface {
             this.startWaitingTimeUpdater();
             this.isInitialized = true;
             
-            // 🎯 Notification subtile d'initialisation
             this.showSubtleNotification('info', 'Interface prête', 'FIFO avec transfert priorité activé');
             console.log('✅ AdvisorInterface FIFO with priority transfer initialized successfully');
-            
-            // 🔧 INFO DÉVELOPPEUR: Pour tester la colonne transfert
-            console.log('💡 COLONNE TRANSFERT:');
-            console.log('   - Colonne BDD "Transferer": "new" = reçu (priorité) | "transferé" = envoyé (bloqué)');
-            console.log('   - Pour test: décommentez les lignes dans isTransferredToMe() et didITransferThis()');
-            console.log('   - Adaptez selon votre structure de base de données');
             
         } catch (error) {
             console.error('❌ Failed to initialize AdvisorInterface:', error);
             this.showSubtleNotification('error', 'Erreur d\'initialisation', error.message);
         }
+    }
+
+    /**
+     * Obtenir le nom du conseiller qui a transféré le ticket
+     */
+    getTransferredByName(ticket) {
+        // Priorité aux données enrichies du backend
+        if (ticket.transfer_info && ticket.transfer_info.transferred_by_name) {
+            return ticket.transfer_info.transferred_by_name;
+        }
+        
+        // Vérifier les différentes sources possibles
+        if (ticket.conseiller_transfert_name) {
+            return ticket.conseiller_transfert_name;
+        }
+        
+        if (ticket.transferred_by_name) {
+            return ticket.transferred_by_name;
+        }
+        
+        if (ticket.conseiller_transfert) {
+            return `Conseiller #${ticket.conseiller_transfert}`;
+        }
+        
+        // Si le ticket a été transféré mais qu'on n'a pas d'info
+        if (ticket.transferer && ticket.transferer !== 'No' && ticket.transferer !== 'no') {
+            return 'Conseiller inconnu';
+        }
+        
+        return '-';
+    }
+
+    /**
+     * Obtenir le statut de transfert du ticket
+     */
+    getTransferStatus(ticket) {
+        if (ticket.transferer) {
+            const status = ticket.transferer.toString().toLowerCase();
+            
+            switch (status) {
+                case 'new':
+                    return 'new';
+                case 'transferé':
+                case 'transfere':
+                case 'yes':
+                    return 'transferé';
+                case 'no':
+                case 'non':
+                default:
+                    return '-';
+            }
+        }
+        
+        return '-';
+    }
+
+    /**
+     * Obtenir la classe CSS pour le statut de transfert
+     */
+    getTransferStatusClass(ticket) {
+        const status = this.getTransferStatus(ticket);
+        
+        switch (status) {
+            case 'new':
+                return 'transfer-success';
+            case 'transferé':
+                return 'transfer-info';
+            default:
+                return 'transfer-muted';
+        }
+    }
+
+    /**
+     * Vérifier si un ticket est transféré vers le conseiller actuel
+     */
+    isTransferredToMe(ticket) {
+        return this.getTransferStatus(ticket) === 'new';
+    }
+
+    /**
+     * Vérifier si le conseiller actuel a transféré ce ticket
+     */
+    didITransferThis(ticket) {
+        const status = this.getTransferStatus(ticket);
+        return status === 'transferé';
     }
 
     setupAjax() {
@@ -1798,119 +1868,43 @@ class AdvisorInterface {
         });
     }
 
-    // ===============================================
-    // 🆕 NOUVEAU : GESTION PRIORITÉ TRANSFERT
-    // ===============================================
-
     /**
-     * 🎯 Tri des tickets avec nouvelle logique transfert
+     * Tri des tickets avec nouvelle logique transfert
      */
     sortTicketsWithTransferPriority(tickets) {
         return tickets.sort((a, b) => {
-            const transferA = this.getTransferDisplayText(a);
-            const transferB = this.getTransferDisplayText(b);
+            const statusA = this.getTransferStatus(a);
+            const statusB = this.getTransferStatus(b);
             
             // 1. Les tickets "new" (reçus) sont TOUJOURS prioritaires
-            if (transferA.text === 'new' && transferB.text !== 'new') {
-                return -1; // a avant b
+            if (statusA === 'new' && statusB !== 'new') {
+                return -1;
             }
-            if (transferB.text === 'new' && transferA.text !== 'new') {
-                return 1; // b avant a
+            if (statusB === 'new' && statusA !== 'new') {
+                return 1;
             }
             
-            // 2. Entre plusieurs tickets "new", tri par temps d'attente (plus ancien d'abord)
-            if (transferA.text === 'new' && transferB.text === 'new') {
+            // 2. Entre plusieurs tickets "new", tri par temps d'attente
+            if (statusA === 'new' && statusB === 'new') {
                 const timeA = this.calculateRealWaitingTime(a.heure_d_enregistrement || a.created_at);
                 const timeB = this.calculateRealWaitingTime(b.heure_d_enregistrement || b.created_at);
-                return timeB - timeA; // Plus ancien en premier
+                return timeB - timeA;
             }
             
-            // 3. Les tickets "transferé" passent après les normaux (perdent priorité)
-            if (transferA.text === 'transferé' && transferB.text === '-') {
-                return 1; // a après b
+            // 3. Les tickets "transferé" passent après les normaux
+            if (statusA === 'transferé' && statusB === '-') {
+                return 1;
             }
-            if (transferB.text === 'transferé' && transferA.text === '-') {
-                return -1; // b après a
+            if (statusB === 'transferé' && statusA === '-') {
+                return -1;
             }
             
-            // 4. Pour le reste, tri FIFO classique par heure d'enregistrement
+            // 4. Pour le reste, tri FIFO classique
             const timeA = new Date(a.heure_d_enregistrement || a.created_at);
             const timeB = new Date(b.heure_d_enregistrement || b.created_at);
-            return timeA - timeB; // FIFO normal
+            return timeA - timeB;
         });
     }
-
-    /**
-     * 🎯 Vérifier si un ticket est transféré vers le conseiller actuel (valeur "new")
-     */
-    isTransferredToMe(ticket) {
-        // Vérifie si la colonne "Transferer" de la BDD a la valeur "new"
-        
-        // POUR TEST: Simuler des tickets "new" (à supprimer en production)
-        // Décommentez la ligne suivante pour tester l'affichage de tickets reçus
-        // return Math.random() < 0.2; // 20% des tickets apparaîtront comme "new" (priorité)
-        
-        return ticket.Transferer === 'new' || ticket.transferer === 'new';
-    }
-
-    /**
-     * 🎯 Vérifier si le conseiller actuel a transféré ce ticket (valeur "transferé")
-     */
-    didITransferThis(ticket) {
-        // Vérifie si la colonne "Transferer" de la BDD a la valeur "transferé"
-        
-        // POUR TEST: Simuler des tickets "transferé" (à supprimer en production)
-        // Décommentez la ligne suivante pour tester l'affichage de tickets envoyés
-        // return Math.random() < 0.15; // 15% des tickets apparaîtront comme "transferé" (bloqués)
-        
-        return ticket.Transferer === 'transferé' || ticket.transferer === 'transferé';
-    }
-
-    /**
-     * 🎯 Obtenir le texte d'affichage pour la colonne transfert
-     */
-    getTransferDisplayText(ticket) {
-        if (this.isTransferredToMe(ticket)) {
-            // Ticket reçu par transfert = priorité maximale
-            return {
-                text: 'new',
-                class: 'transfer-received',
-                icon: 'arrow-down-left',
-                color: 'success',
-                isPriority: true
-            };
-        } else if (this.didITransferThis(ticket)) {
-            // Ticket que j'ai transféré = perd le statut premier
-            return {
-                text: 'transferé',
-                class: 'transfer-sent', 
-                icon: 'share',
-                color: 'info',
-                isPriority: false
-            };
-        } else {
-            // Ticket normal
-            return {
-                text: '-',
-                class: 'transfer-none',
-                icon: null,
-                color: 'muted',
-                isPriority: null
-            };
-        }
-    }
-
-    /**
-     * 🎯 Obtenir l'ID du conseiller actuel (à adapter selon votre logique)
-     */
-    getCurrentAdvisorId() {
-        // À adapter selon votre système d'authentification
-        return window.currentAdvisorId || document.body.dataset.advisorId || null;
-    }
-
-    // ===============================================
-    // MÉTHODES DE TRANSFERT AMÉLIORÉES
-    // ===============================================
 
     async loadTransferData() {
         try {
@@ -1933,7 +1927,6 @@ class AdvisorInterface {
 
         } catch (error) {
             console.error('❌ Erreur chargement données transfert:', error);
-            // Notification subtile au lieu d'une alerte bruyante
             this.showSubtleNotification('warning', 'Transfert limité', 'Certaines fonctionnalités peuvent être indisponibles');
         }
     }
@@ -2194,7 +2187,6 @@ class AdvisorInterface {
                     this.loadTransferData()
                 ]);
 
-                // 🎯 Notification subtile de succès
                 this.showSubtleNotification('success', 'Transfert réussi', `Ticket ${ticketNumber} transféré avec priorité conservée`);
                 
             } else {
@@ -2214,10 +2206,6 @@ class AdvisorInterface {
         }
     }
 
-    // ===============================================
-    // MÉTHODES UI AMÉLIORÉES
-    // ===============================================
-
     async refreshTickets() {
         if (this.isRefreshing) return;
 
@@ -2230,7 +2218,6 @@ class AdvisorInterface {
             if (response.success) {
                 this.ticketsData = response.tickets || [];
                 this.updateUI(response);
-                // 🎯 Notification très subtile seulement si nécessaire
                 if (this.ticketsData.length > 0) {
                     this.showSubtleNotification('info', 'Actualisation', `${this.ticketsData.length} tickets chargés`, 2000);
                 }
@@ -2262,14 +2249,18 @@ class AdvisorInterface {
                 </div>
             `;
         } else {
-            // 🎯 Appliquer le tri avec priorité transfert
+            // Appliquer le tri avec priorité transfert
             const sortedTickets = this.sortTicketsWithTransferPriority(tickets);
             
             let html = '';
             sortedTickets.forEach((ticket, index) => {
                 const validatedTicket = this.validateTicketData(ticket);
                 const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
-                const transferDisplay = this.getTransferDisplayText(ticket);
+                
+                // Utiliser les nouvelles méthodes conformes
+                const transferredByName = this.getTransferredByName(ticket);
+                const transferStatus = this.getTransferStatus(ticket);
+                const transferStatusClass = this.getTransferStatusClass(ticket);
                 
                 let statusClass = 'normal';
                 if (waitingTime > 30) {
@@ -2278,46 +2269,49 @@ class AdvisorInterface {
                     statusClass = 'warning';
                 }
                 
-                // 🎯 NOUVELLE LOGIQUE : Déterminer le statut du ticket
+                // Déterminer le statut du ticket
                 const isFirst = index === 0;
-                const isNewTransfer = transferDisplay.text === 'new'; // Reçu par transfert = priorité
-                const isTransferredAway = transferDisplay.text === 'transferé'; // Transféré par moi = perd priorité
+                const isNewTransfer = transferStatus === 'new';
+                const isTransferredAway = transferStatus === 'transferé';
                 
                 let itemClass = 'ticket-item';
                 let canBeCalled = false;
                 
                 if (isNewTransfer) {
-                    // Ticket reçu = priorité maximale
                     itemClass += ' transferred-priority';
-                    canBeCalled = isFirst; // Peut être appelé seulement s'il est premier
+                    canBeCalled = isFirst;
                 } else if (isTransferredAway) {
-                    // Ticket transféré = perd le statut
                     itemClass += ' transferred-away';
-                    canBeCalled = false; // Ne peut plus être appelé
+                    canBeCalled = false;
                 } else if (isFirst) {
-                    // Premier ticket normal
                     itemClass += ' first-in-queue';
                     canBeCalled = true;
                 } else {
-                    // Ticket normal bloqué
                     itemClass += ' blocked';
                     canBeCalled = false;
                 }
                 
-                // 🆕 NOUVEAU : Indicateur de transfert selon nouvelle logique
+                // Indicateur de transfert
                 let transferIndicator = '';
-                if (transferDisplay.icon) {
+                if (transferStatus === 'new') {
                     transferIndicator = `
-                        <span class="transfer-indicator transfer-${transferDisplay.color}">
-                            <i data-feather="${transferDisplay.icon}" style="width: 10px; height: 10px;"></i>
-                            ${transferDisplay.text}
+                        <span class="transfer-indicator ${transferStatusClass}">
+                            <i data-feather="arrow-down-left" style="width: 10px; height: 10px;"></i>
+                            ${transferStatus}
+                        </span>
+                    `;
+                } else if (transferStatus === 'transferé') {
+                    transferIndicator = `
+                        <span class="transfer-indicator ${transferStatusClass}">
+                            <i data-feather="share" style="width: 10px; height: 10px;"></i>
+                            ${transferStatus}
                         </span>
                     `;
                 } else {
-                    transferIndicator = `<span class="text-muted">${transferDisplay.text}</span>`;
+                    transferIndicator = `<span class="text-muted">${transferStatus}</span>`;
                 }
                 
-                // 🆕 Badge de priorité selon nouvelle logique
+                // Badge de priorité
                 let priorityBadge = '';
                 if (isNewTransfer) {
                     priorityBadge = '<div class="priority-badge priority-new">NOUVEAU (PRIORITÉ)</div>';
@@ -2344,8 +2338,14 @@ class AdvisorInterface {
                                 <div class="client-name">${validatedTicket.prenom}</div>
                             </div>
                             
-                            <div class="col-2 queue-col-phone">
-                                <div class="client-phone">${validatedTicket.telephone}</div>
+                            <div class="col-2 queue-col-transferred-by">
+                                <div class="transferred-by">
+                                    <span class="text-${transferredByName === '-' ? 'muted' : 'dark'}" 
+                                          title="${transferredByName !== '-' ? 'Transféré par: ' + transferredByName : 'Ticket normal'}">
+                                        ${transferredByName}
+                                    </span>
+                                    
+                                </div>
                             </div>
                             
                             <div class="col-2 queue-col-service">
@@ -2395,13 +2395,12 @@ class AdvisorInterface {
         const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
         document.getElementById('modalWaitTime').textContent = `${waitingTime} min`;
         
-        // 🆕 NOUVEAU : Afficher les informations de transfert si applicable
+        // Afficher les informations de transfert si applicable
         const transferBadge = document.getElementById('modalTransferBadge');
         const transferInfo = document.getElementById('modalTransferInfo');
-        const transferDisplay = this.getTransferDisplayText(ticket);
+        const transferStatus = this.getTransferStatus(ticket);
         
-        if (transferDisplay.text === 'new') {
-            // Ticket reçu par transfert = priorité
+        if (transferStatus === 'new') {
             transferBadge.style.display = 'block';
             transferBadge.innerHTML = `
                 <span class="badge badge-success transfer-badge">
@@ -2412,7 +2411,7 @@ class AdvisorInterface {
             
             if (ticket.transfer_info) {
                 transferInfo.style.display = 'block';
-                document.getElementById('modalTransferredBy').textContent = ticket.transfer_info.transferred_by || '--';
+                document.getElementById('modalTransferredBy').textContent = ticket.transfer_info.transferred_by_name || '--';
                 document.getElementById('modalTransferReason').textContent = ticket.transfer_info.transfer_reason || '--';
                 
                 const notesItem = document.getElementById('modalTransferNotesItem');
@@ -2423,8 +2422,7 @@ class AdvisorInterface {
                     notesItem.style.display = 'none';
                 }
             }
-        } else if (transferDisplay.text === 'transferé') {
-            // Ticket que j'ai transféré = bloqué
+        } else if (transferStatus === 'transferé') {
             transferBadge.style.display = 'block';
             transferBadge.innerHTML = `
                 <span class="badge badge-secondary transfer-badge">
@@ -2452,15 +2450,7 @@ class AdvisorInterface {
         if (typeof feather !== 'undefined') feather.replace();
     }
 
-    // ===============================================
-    // 🎯 SYSTÈME DE NOTIFICATIONS SUBTILES
-    // ===============================================
-
-    /**
-     * 🎨 Afficher une notification subtile et agréable
-     */
     showSubtleNotification(type, title, message, duration = 3000) {
-        // Ne pas afficher trop de notifications pour les actions courantes
         if (this.shouldSkipNotification(type, title)) {
             return;
         }
@@ -2497,7 +2487,6 @@ class AdvisorInterface {
         
         document.body.appendChild(toast);
         
-        // Animation d'entrée douce
         requestAnimationFrame(() => {
             setTimeout(() => {
                 toast.style.opacity = '1';
@@ -2507,15 +2496,11 @@ class AdvisorInterface {
         
         if (typeof feather !== 'undefined') feather.replace();
         
-        // Auto-suppression avec animation
         setTimeout(() => {
             this.removeNotification(toastId);
         }, duration);
     }
 
-    /**
-     * 🎯 Supprimer une notification avec animation
-     */
     removeNotification(toastId) {
         const toast = document.getElementById(toastId);
         if (toast) {
@@ -2529,23 +2514,15 @@ class AdvisorInterface {
         }
     }
 
-    /**
-     * 🎯 Décider si on doit ignorer certaines notifications répétitives
-     */
     shouldSkipNotification(type, title) {
-        // Ignorer les notifications trop fréquentes
         const skipPatterns = [
-            'Actualisation', // Trop fréquent lors des refresh
-            'Modal fermé',   // Pas essentiel
-            'File d\'attente' // Redondant avec l'interface
+            'Actualisation',
+            'Modal fermé',
+            'File d\'attente'
         ];
         
         return skipPatterns.some(pattern => title.includes(pattern));
     }
-
-    // ===============================================
-    // MÉTHODES CONSERVÉES ET OPTIMISÉES
-    // ===============================================
 
     async loadInitialData() {
         await Promise.all([
@@ -2583,10 +2560,6 @@ class AdvisorInterface {
         });
     }
 
-    // ===============================================
-    // MÉTHODES D'ACTIONS PRINCIPALES
-    // ===============================================
-
     async callNextTicket() {
         if (this.isPaused) {
             this.showSubtleNotification('warning', 'Service en pause', 'Reprenez votre service d\'abord');
@@ -2598,13 +2571,11 @@ class AdvisorInterface {
             return;
         }
 
-        // 🎯 Avec le nouveau système de priorité, le premier ticket peut être transféré
         const firstTicket = this.ticketsData[0];
         await this.callTicket(firstTicket.id);
     }
 
     async callTicket(ticketId) {
-        // 🎯 Nouvelle logique : Vérifier que le ticket peut être appelé
         const sortedTickets = this.sortTicketsWithTransferPriority(this.ticketsData);
         const targetTicket = sortedTickets.find(t => t.id === ticketId);
         
@@ -2613,16 +2584,15 @@ class AdvisorInterface {
             return;
         }
         
-        const transferDisplay = this.getTransferDisplayText(targetTicket);
+        const transferStatus = this.getTransferStatus(targetTicket);
         const isFirst = sortedTickets[0].id === ticketId;
         
-        // Vérifications selon la nouvelle logique
-        if (transferDisplay.text === 'transferé') {
+        if (transferStatus === 'transferé') {
             this.showSubtleNotification('warning', 'Ticket transféré', 'Ce ticket a été transféré et ne peut plus être appelé');
             return;
         }
         
-        if (transferDisplay.text !== 'new' && !isFirst) {
+        if (transferStatus !== 'new' && !isFirst) {
             this.showSubtleNotification('warning', 'Restriction FIFO', 'Vous ne pouvez appeler que le premier ticket de la file');
             return;
         }
@@ -2639,9 +2609,8 @@ class AdvisorInterface {
                 this.showCurrentTicketModal(response.ticket);
                 await this.refreshTickets();
                 
-                // 🎯 Notification différente selon le type
                 let message = `Ticket ${response.ticket.numero_ticket}`;
-                if (transferDisplay.text === 'new') {
+                if (transferStatus === 'new') {
                     message += ' (nouveau - priorité)';
                 }
                     
@@ -2663,7 +2632,6 @@ class AdvisorInterface {
             if (confirm('⚠️ Un ticket est en cours. Voulez-vous vraiment fermer cette fenêtre ?\n\nLe ticket restera actif.')) {
                 $('#currentTicketModal').modal('hide');
                 this.stopModalTimer();
-                // Pas de notification ici pour éviter le bruit
             }
         } else {
             $('#currentTicketModal').modal('hide');
@@ -2847,7 +2815,6 @@ class AdvisorInterface {
                     this.loadMyStats()
                 ]);
 
-                // 🎯 Notification subtile de succès
                 this.showSubtleNotification('success', 'Ticket ' + actionText, `${ticketNumber} traité avec succès`);
                 
             } else {
@@ -2908,10 +2875,6 @@ class AdvisorInterface {
         return Math.floor((now - callTime) / (1000 * 60));
     }
 
-    // ===============================================
-    // MÉTHODES UI ET HELPERS
-    // ===============================================
-
     showWaitingTickets() {
         const queueCard = document.querySelector('.queue-card');
         if (queueCard) {
@@ -2921,7 +2884,6 @@ class AdvisorInterface {
                 queueCard.style.border = '1px solid rgba(109, 180, 254, 0.15)';
             }, 2000);
         }
-        // Notification subtile seulement si des tickets
         if (this.ticketsData.length > 0) {
             this.showSubtleNotification('info', 'File d\'attente', `${this.ticketsData.length} tickets visibles`);
         }
@@ -2977,6 +2939,119 @@ class AdvisorInterface {
         }
     }
 
+    renderHistoryModal(tickets, summary) {
+        let html = `
+            <div class="history-summary mb-4">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-success">${summary.total_traites || 0}</h4>
+                            <p class="text-muted mb-0">Tickets traités</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-danger">${summary.total_refuses || 0}</h4>
+                            <p class="text-muted mb-0">Tickets refusés</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-warning">${summary.total_transferes || 0}</h4>
+                            <p class="text-muted mb-0">Tickets transférés</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-info">${summary.temps_moyen_traitement || 0}min</h4>
+                            <p class="text-muted mb-0">Temps moyen</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Client</th>
+                            <th>Service</th>
+                            <th>Statut</th>
+                            <th>Date/Heure</th>
+                            <th>Durée</th>
+                            <th>Commentaire</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        if (tickets && tickets.length > 0) {
+            tickets.forEach(ticket => {
+                const statusBadge = this.getStatusBadge(ticket.statut_traiter);
+                const comment = ticket.commentaire_resolution || ticket.commentaire || '';
+                const hasComment = comment.trim() !== '';
+                
+                html += `
+                    <tr>
+                        <td><strong>${ticket.numero_ticket}</strong></td>
+                        <td>${ticket.prenom || ticket.client_name || 'N/A'}</td>
+                        <td>${ticket.service}</td>
+                        <td>${statusBadge}</td>
+                        <td>${ticket.date_traitement || ticket.updated_at || 'N/A'}</td>
+                        <td>${ticket.duree_traitement || 0}min</td>
+                        <td>
+                            ${hasComment ? `
+                                <span class="comment-preview" title="${this.escapeHtml(comment)}">
+                                    ${this.escapeHtml(comment.substring(0, 30))}${comment.length > 30 ? '...' : ''}
+                                </span>
+                                ${comment.length > 30 ? `
+                                    <a href="#" class="text-primary ml-1" onclick="advisorInterface.showCommentModal('${this.escapeHtml(comment)}', '${ticket.numero_ticket}'); return false;">
+                                        <i data-feather="eye" style="width: 14px; height: 14px;"></i>
+                                    </a>
+                                ` : ''}
+                            ` : '<span class="text-muted">-</span>'}
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            html += `
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        Aucun ticket dans l'historique
+                    </td>
+                </tr>
+            `;
+        }
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        document.getElementById('historyContent').innerHTML = html;
+        if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    getStatusBadge(status) {
+        switch(status) {
+            case 'Yes':
+            case 'yes':
+            case 'traité':
+                return '<span class="badge badge-success">Traité</span>';
+            case 'No':
+            case 'no':
+            case 'refusé':
+                return '<span class="badge badge-danger">Refusé</span>';
+            case 'transferé':
+                return '<span class="badge badge-warning">Transféré</span>';
+            default:
+                return '<span class="badge badge-secondary">En cours</span>';
+        }
+    }
+
     updateUI(response) {
         this.updateTicketsList(response.tickets);
         this.updateStats(response.stats);
@@ -3000,7 +3075,6 @@ class AdvisorInterface {
                 const oldValue = element.textContent;
                 element.textContent = value;
                 
-                // Animation subtile seulement si changement significatif
                 if (oldValue !== value.toString() && Math.abs(parseInt(oldValue) - value) > 0) {
                     element.style.transform = 'scale(1.05)';
                     element.style.transition = 'transform 0.3s ease';
@@ -3029,16 +3103,16 @@ class AdvisorInterface {
             displayTickets.forEach((ticket, index) => {
                 const validatedTicket = this.validateTicketData(ticket);
                 const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
-                const transferDisplay = this.getTransferDisplayText(ticket);
+                const transferStatus = this.getTransferStatus(ticket);
                 
                 let avatarBg, iconName, badgeClass, badgeText;
                 
-                if (transferDisplay.text === 'new') {
+                if (transferStatus === 'new') {
                     avatarBg = 'bg-success';
                     iconName = 'arrow-down-left';
                     badgeClass = 'badge-success';
                     badgeText = 'New';
-                } else if (transferDisplay.text === 'transferé') {
+                } else if (transferStatus === 'transferé') {
                     avatarBg = 'bg-secondary';
                     iconName = 'share';
                     badgeClass = 'badge-secondary';
@@ -3066,7 +3140,7 @@ class AdvisorInterface {
                                 <small class="text-muted">${validatedTicket.prenom} - ${waitingTime}min</small>
                             </div>
                             <div class="flex-shrink-0">
-                                <span class="badge ${transferDisplay.text === 'new' ? 'badge-success' : 'badge-light'}">#${index + 1}</span>
+                                <span class="badge ${transferStatus === 'new' ? 'badge-success' : 'badge-light'}">#${index + 1}</span>
                             </div>
                         </div>
                     </a>
@@ -3139,15 +3213,17 @@ class AdvisorInterface {
 
         const validatedTicket = this.validateTicketData(ticket);
         const waitingTime = this.calculateRealWaitingTime(validatedTicket.heure_d_enregistrement || validatedTicket.created_at);
-        const transferDisplay = this.getTransferDisplayText(ticket);
+        
+        const transferredByName = this.getTransferredByName(ticket);
+        const transferStatus = this.getTransferStatus(ticket);
         
         let statusBadge = '';
         let statusText = '';
         
-        if (transferDisplay.text === 'new') {
+        if (transferStatus === 'new') {
             statusBadge = '<span class="badge badge-success">Nouveau (Priorité)</span>';
             statusText = 'Ticket reçu par transfert - priorité maximale';
-        } else if (transferDisplay.text === 'transferé') {
+        } else if (transferStatus === 'transferé') {
             statusBadge = '<span class="badge badge-secondary">Transféré par moi</span>';
             statusText = 'Ticket que j\'ai transféré - ne peut plus être appelé';
         } else if (waitingTime > 30) {
@@ -3173,6 +3249,8 @@ class AdvisorInterface {
                             <tr><td class="font-weight-semibold">Statut:</td><td>${statusBadge}</td></tr>
                             <tr><td class="font-weight-semibold">Priorité:</td><td>${statusText}</td></tr>
                             <tr><td class="font-weight-semibold">Attente réelle:</td><td>${waitingTime}min</td></tr>
+                            <tr><td class="font-weight-semibold">Transféré par:</td><td>${transferredByName}</td></tr>
+                            <tr><td class="font-weight-semibold">Statut transfert:</td><td>${transferStatus}</td></tr>
                         </table>
                     </div>
                 </div>
@@ -3194,16 +3272,16 @@ class AdvisorInterface {
                         </div>
                     ` : ''}
                     
-                    ${transferDisplay.text === 'new' && ticket.transfer_info ? `
+                    ${transferStatus === 'new' && ticket.transfer_info ? `
                         <h6 class="font-weight-semibold mb-2 text-success">Ticket reçu par transfert (Priorité)</h6>
                         <div class="alert alert-success">
-                            <small><strong>Transféré par:</strong> ${ticket.transfer_info.transferred_by || '--'}</small><br>
+                            <small><strong>Transféré par:</strong> ${transferredByName}</small><br>
                             <small><strong>Motif:</strong> ${ticket.transfer_info.transfer_reason || '--'}</small>
                             ${ticket.transfer_info.transfer_notes ? `<br><small><strong>Notes:</strong> ${ticket.transfer_info.transfer_notes}</small>` : ''}
                         </div>
                     ` : ''}
                     
-                    ${transferDisplay.text === 'transferé' && ticket.transfer_info ? `
+                    ${transferStatus === 'transferé' && ticket.transfer_info ? `
                         <h6 class="font-weight-semibold mb-2 text-secondary">Ticket que j'ai transféré</h6>
                         <div class="alert alert-secondary">
                             <small><strong>Transféré vers:</strong> ${ticket.transfer_info.transferred_to || '--'}</small><br>
@@ -3217,149 +3295,6 @@ class AdvisorInterface {
         `;
         
         $('#ticketDetailsModal').modal('show');
-        if (typeof feather !== 'undefined') feather.replace();
-    }
-
-    renderHistoryModal(tickets, summary) {
-        const content = document.getElementById('historyContent');
-        
-        if (!tickets || tickets.length === 0) {
-            content.innerHTML = `
-                <div class="text-center py-5">
-                    <i data-feather="clock" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
-                    <h6 class="text-muted">Aucun historique</h6>
-                    <p class="text-muted small">Vous n'avez encore traité aucun ticket aujourd'hui</p>
-                </div>
-            `;
-        } else {
-            let html = `
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-primary">${summary.total_tickets_traites || 0}</h4>
-                            <small class="text-muted">Total traités</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-success">${summary.tickets_resolus || 0}</h4>
-                            <small class="text-muted">Résolus</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-danger">${summary.tickets_non_resolus || 0}</h4>
-                            <small class="text-muted">Non résolus</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-info">${summary.taux_resolution || 0}%</h4>
-                            <small class="text-muted">Taux résolution</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="thead-light">
-                            <tr>
-                                <th>Ticket</th>
-                                <th>Client</th>
-                                <th>Service</th>
-                                <th>Transféré</th>
-                                <th>Début</th>
-                                <th>Fin</th>
-                                <th>Durée</th>
-                                <th>Résolution</th>
-                                <th>Commentaire</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            
-            tickets.forEach((ticket) => {
-                const validatedTicket = this.validateTicketData(ticket);
-                const resolutionDetails = ticket.resolution_details || {};
-                const transferDisplay = this.getTransferDisplayText(ticket);
-                
-                let commentCell = '<span class="text-muted">-</span>';
-                const commentSource = 
-                    ticket.commentaire_resolution || 
-                    resolutionDetails.commentaire_resolution || 
-                    resolutionDetails.commentaire || 
-                    ticket.commentaire || 
-                    null;
-                
-                if (commentSource && commentSource.trim() !== '') {
-                    const commentText = commentSource.trim();
-                    const shortComment = commentText.length > 50 ? 
-                        commentText.substring(0, 50) + '...' : 
-                        commentText;
-                    
-                    commentCell = `
-                        <span class="comment-preview" 
-                              title="${this.escapeHtml(commentText)}"
-                              onclick="advisorInterface.showCommentModal('${this.escapeHtml(commentText)}', '${validatedTicket.numero_ticket}')"
-                              style="cursor: pointer; color: var(--primary-color);">
-                            <i data-feather="message-circle" class="mr-1" style="width: 14px; height: 14px;"></i>
-                            ${this.escapeHtml(shortComment)}
-                        </span>
-                    `;
-                }
-                
-                let resolutionBadge = '<span class="badge badge-secondary">Inconnu</span>';
-                if (resolutionDetails.resolu !== undefined) {
-                    if (resolutionDetails.resolu === 1 || resolutionDetails.resolu === '1' || resolutionDetails.resolu === true) {
-                        resolutionBadge = '<span class="badge badge-success">Résolu</span>';
-                    } else {
-                        resolutionBadge = '<span class="badge badge-danger">Non résolu</span>';
-                    }
-                } else if (resolutionDetails.resolu_libelle) {
-                    const isResolved = resolutionDetails.resolu_libelle.toLowerCase().includes('résolu') || 
-                                     resolutionDetails.resolu_libelle.toLowerCase().includes('traite');
-                    resolutionBadge = `<span class="badge badge-${isResolved ? 'success' : 'danger'}">${resolutionDetails.resolu_libelle}</span>`;
-                }
-                
-                // 🆕 NOUVEAU : Badge transfert pour l'historique
-                let transferBadge = '<span class="text-muted">-</span>';
-                if (transferDisplay.text === 'new') {
-                    transferBadge = `
-                        <span class="badge badge-success" title="Ticket reçu par transfert avec priorité">
-                            <i data-feather="arrow-down-left" style="width: 12px; height: 12px;"></i> new
-                        </span>
-                    `;
-                } else if (transferDisplay.text === 'transferé') {
-                    transferBadge = `
-                        <span class="badge badge-secondary" title="Ticket que j'ai transféré">
-                            <i data-feather="share" style="width: 12px; height: 12px;"></i> transferé
-                        </span>
-                    `;
-                }
-                
-                html += `
-                    <tr>
-                        <td><strong>${validatedTicket.numero_ticket}</strong></td>
-                        <td>${validatedTicket.prenom}</td>
-                        <td><span class="badge badge-soft-info">${validatedTicket.service}</span></td>
-                        <td>${transferBadge}</td>
-                        <td>${ticket.debut_traitement || ticket.heure_prise_en_charge || '--:--'}</td>
-                        <td>${ticket.fin_traitement || ticket.heure_fin_traitement || '--:--'}</td>
-                        <td><span class="badge badge-soft-light">${ticket.duree_traitement || 0}min</span></td>
-                        <td>${resolutionBadge}</td>
-                        <td>${commentCell}</td>
-                    </tr>
-                `;
-            });
-            
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-            content.innerHTML = html;
-        }
-        
         if (typeof feather !== 'undefined') feather.replace();
     }
 
@@ -3406,10 +3341,6 @@ class AdvisorInterface {
         div.textContent = text;
         return div.innerHTML;
     }
-
-    // ===============================================
-    // ACTIONS RAPIDES
-    // ===============================================
 
     togglePause() {
         this.isPaused = !this.isPaused;
@@ -3475,10 +3406,6 @@ class AdvisorInterface {
             this.showSubtleNotification('success', 'Export terminé', 'Fichier téléchargé');
         }, 1500);
     }
-
-    // ===============================================
-    // MÉTHODES UTILITAIRES
-    // ===============================================
 
     async apiCall(method, url, data = null, signal = null) {
         const options = {
@@ -3555,9 +3482,8 @@ class AdvisorInterface {
 
     playNotificationSound() {
         try {
-            // Son très doux pour ne pas être intrusif
             const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBT2Y2/LDjCUIQ4PY7tjwO');
-            audio.volume = 0.3; // Volume réduit pour être subtil
+            audio.volume = 0.3;
             audio.play().catch(() => {});
         } catch (error) {
             // Son optionnel, ne pas bloquer si erreur
@@ -3575,9 +3501,7 @@ class AdvisorInterface {
     }
 }
 
-// ===============================================
-// INITIALISATION
-// ===============================================
+// Initialisation
 let advisorInterface;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -3599,15 +3523,14 @@ document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
     }
     
-    console.log('🎯 Interface conseiller FIFO - Logique transfert: "new"=priorité | "transferé"=bloqué');
-    console.log('💡 COLONNE BDD "Transferer": "new" (reçu/priorité) | "transferé" (envoyé/bloqué) | null (normal)');
+    console.log('🎯 Interface conseiller FIFO avec transfert priorité initialisée');
 });
 
 window.addEventListener('beforeunload', function() {
     if (advisorInterface) {
         advisorInterface.destroy();
     }
-}); 
+});      
 </script>
 
 @endsection

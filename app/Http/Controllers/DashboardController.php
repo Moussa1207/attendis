@@ -409,12 +409,12 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // 🆕 SECTION CONSEILLER - INTERFACE DÉDIÉE AMÉLIORÉE
+    // 🆕 SECTION CONSEILLER - INTERFACE DÉDIÉE AMÉLIORÉE AVEC SYSTÈME COLLABORATIF
     // ===============================================
 
     /**
-     * 👨‍💼 DASHBOARD PRINCIPAL CONSEILLER - AMÉLIORÉ
-     * Interface dédiée avec file d'attente FIFO et temps admin
+     * 👨‍💼 DASHBOARD PRINCIPAL CONSEILLER - AMÉLIORÉ AVEC SYSTÈME TRANSFERT COLLABORATIF
+     * Interface dédiée avec file d'attente FIFO et système de transfert entre conseillers
      */
     public function conseillerDashboard()
     {
@@ -445,10 +445,10 @@ class DashboardController extends Controller
                 ]);
             }
 
-            // 🎫 STATISTIQUES DE LA FILE D'ATTENTE (services de son admin)
+            // 🎫 STATISTIQUES DE LA FILE D'ATTENTE COLLABORATIVE (services de son admin)
             $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
             
-            // ✅ COMPTEURS CORRIGÉS avec logique claire
+            // ✅ COMPTEURS CORRIGÉS avec logique claire pour système collaboratif
             $fileStats = [
                 'tickets_en_attente' => Queue::whereIn('service_id', $myServiceIds)
                                             ->whereDate('date', today())
@@ -466,9 +466,20 @@ class DashboardController extends Controller
                                           ->count(),
                                           
                 'temps_attente_moyen' => Setting::getDefaultWaitingTimeMinutes(), // ✅ Temps par défaut admin
+                
+                // 🆕 NOUVEAU : Statistiques de transfert collaboratif
+                'tickets_transferes_recus' => Queue::whereIn('service_id', $myServiceIds)
+                                                   ->whereDate('date', today())
+                                                   ->where('transferer', 'new') // Tickets reçus par transfert
+                                                   ->count(),
+                                                   
+                'tickets_transferes_envoyes' => Queue::whereIn('service_id', $myServiceIds)
+                                                     ->whereDate('date', today())
+                                                     ->where('transferer', 'transferé') // Tickets envoyés
+                                                     ->count(),
             ];
 
-            // 👨‍💼 STATISTIQUES PERSONNELLES DU CONSEILLER
+            // 👨‍💼 STATISTIQUES PERSONNELLES DU CONSEILLER AVEC TRANSFERTS
             $conseillerStats = [
                 'tickets_traites_aujourd_hui' => Queue::where('conseiller_client_id', $user->id)
                                                       ->whereDate('date', today())
@@ -493,17 +504,30 @@ class DashboardController extends Controller
                                                  ->orderBy('heure_prise_en_charge', 'asc')
                                                  ->first(),
                                                  
+                // 🆕 NOUVEAU : Statistiques de transfert personnelles
+                'tickets_recus_transfert' => Queue::where('conseiller_client_id', $user->id)
+                                                  ->whereDate('date', today())
+                                                  ->where('transferer', 'new')
+                                                  ->count(),
+                                                  
+                'tickets_envoyes_transfert' => Queue::where('conseiller_transfert', $user->id)
+                                                    ->whereDate('date', today())
+                                                    ->where('transferer', 'transferé')
+                                                    ->count(),
+                                                    
                 'is_en_pause' => false, // TODO: Implémenter la logique de pause
             ];
 
             // ✅ TEMPS CONFIGURÉ PAR L'ADMIN
             $defaultWaitTime = Setting::getDefaultWaitingTimeMinutes();
 
-            Log::info("Interface conseiller chargée", [
+            Log::info("Interface conseiller collaborative chargée", [
                 'conseiller_id' => $user->id,
                 'creator_id' => $creator->id,
                 'tickets_en_attente' => $fileStats['tickets_en_attente'],
+                'tickets_transferes_recus' => $fileStats['tickets_transferes_recus'],
                 'conseiller_tickets_traites' => $conseillerStats['tickets_traites_aujourd_hui'],
+                'system_type' => 'collaborative_fifo_with_transfers',
                 'default_wait_time' => $defaultWaitTime
             ]);
 
@@ -520,7 +544,7 @@ class DashboardController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur dashboard conseiller', [
+            Log::error('Erreur dashboard conseiller collaboratif', [
                 'conseiller_id' => $user->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -535,11 +559,12 @@ class DashboardController extends Controller
     }
 
     // ===============================================
-    // MÉTHODES API CONSEILLER
+    // MÉTHODES API CONSEILLER AMÉLIORÉES AVEC SYSTÈME COLLABORATIF
     // ===============================================
 
     /**
-     * 🎫 RÉCUPÉRER LES TICKETS EN ATTENTE (FIFO CHRONOLOGIQUE)
+     * 🎫 RÉCUPÉRER LES TICKETS EN ATTENTE (FIFO CHRONOLOGIQUE AVEC TRANSFERTS)
+     * ✅ AMÉLIORÉ : Inclut les informations de transfert et noms des conseillers
      */
     public function getConseillerTickets(Request $request): JsonResponse
     {
@@ -561,21 +586,40 @@ class DashboardController extends Controller
                 ], 500);
             }
 
-            // 🎯 RÉCUPÉRER LA FILE D'ATTENTE CHRONOLOGIQUE (FIFO)
+            // 🎯 RÉCUPÉRER LA FILE D'ATTENTE CHRONOLOGIQUE COLLABORATIVE (FIFO)
             $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
             
             $ticketsEnAttente = Queue::whereIn('service_id', $myServiceIds)
                                     ->whereDate('date', today())
                                     ->where('statut_global', 'en_attente')
                                     ->orderBy('created_at', 'asc') // 🎯 FIFO : Premier arrivé, premier servi
-                                    ->with(['service:id,nom,letter_of_service'])
+                                    ->with([
+                                        'service:id,nom,letter_of_service',
+                                        'conseillerTransfert:id,username,email' // ✅ NOUVEAU : Relation conseiller transfert
+                                    ])
                                     ->limit(20) // Limiter l'affichage
                                     ->get()
                                     ->map(function($ticket) {
-                                        return $ticket->toTicketArray();
+                                        $ticketArray = $ticket->toTicketArray();
+                                        
+                                        // ✅ NOUVEAU : Enrichir avec informations de transfert collaboratif
+                                        $ticketArray['conseiller_transfert_name'] = $ticket->conseillerTransfert 
+                                            ? $ticket->conseillerTransfert->username 
+                                            : null;
+                                            
+                                        $ticketArray['conseiller_transfert_email'] = $ticket->conseillerTransfert 
+                                            ? $ticket->conseillerTransfert->email 
+                                            : null;
+                                            
+                                        // ✅ NOUVEAU : Statut de transfert collaboratif
+                                        $ticketArray['is_transferred_to_me'] = ($ticket->transferer === 'new');
+                                        $ticketArray['is_transferred_by_me'] = ($ticket->transferer === 'transferé');
+                                        $ticketArray['transfer_priority'] = ($ticket->transferer === 'new') ? 'high' : 'normal';
+                                        
+                                        return $ticketArray;
                                     });
 
-            // 📊 STATISTIQUES GLOBALES CORRIGÉES
+            // 📊 STATISTIQUES GLOBALES CORRIGÉES AVEC TRANSFERTS
             $stats = [
                 'total_en_attente' => Queue::whereIn('service_id', $myServiceIds)
                                           ->whereDate('date', today())
@@ -591,6 +635,17 @@ class DashboardController extends Controller
                                         ->whereDate('date', today())
                                         ->where('statut_global', 'termine')
                                         ->count(),
+                                        
+                // 🆕 NOUVEAU : Statistiques de transfert collaboratif
+                'tickets_transferes_recus' => Queue::whereIn('service_id', $myServiceIds)
+                                                   ->whereDate('date', today())
+                                                   ->where('transferer', 'new')
+                                                   ->count(),
+                                                   
+                'tickets_transferes_envoyes' => Queue::whereIn('service_id', $myServiceIds)
+                                                     ->whereDate('date', today())
+                                                     ->where('transferer', 'transferé')
+                                                     ->count(),
             ];
 
             return response()->json([
@@ -598,17 +653,28 @@ class DashboardController extends Controller
                 'tickets' => $ticketsEnAttente,
                 'stats' => $stats,
                 'queue_info' => [
-                    'type' => 'fifo_chronological',
-                    'principle' => 'Premier arrivé, premier servi',
+                    'type' => 'collaborative_fifo_chronological',
+                    'principle' => 'Premier arrivé, premier servi avec transferts collaboratifs',
+                    'transfer_priority' => 'Les tickets "new" (reçus) ont priorité absolue',
+                    'collaborative_rules' => [
+                        'new' => 'Ticket reçu par transfert - priorité maximale',
+                        'transferé' => 'Ticket envoyé par transfert - perd priorité',
+                        'normal' => 'Ticket normal FIFO'
+                    ],
                     'next_position' => Queue::calculateQueuePosition(),
                     'total_waiting' => $stats['total_en_attente'],
                     'default_wait_time' => Setting::getDefaultWaitingTimeMinutes()
+                ],
+                'collaborative_stats' => [
+                    'received_transfers' => $stats['tickets_transferes_recus'],
+                    'sent_transfers' => $stats['tickets_transferes_envoyes'],
+                    'team_collaboration' => 'Active'
                 ],
                 'timestamp' => now()->format('H:i:s')
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur récupération tickets conseiller', [
+            Log::error('Erreur récupération tickets conseiller collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);
@@ -621,7 +687,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * 📞 APPELER LE PROCHAIN TICKET (FIFO)
+     * 📞 APPELER LE PROCHAIN TICKET (FIFO COLLABORATIF)
+     * ✅ AMÉLIORÉ : Gère la priorité des transferts collaboratifs
      */
     public function callNextTicket(Request $request): JsonResponse
     {
@@ -645,7 +712,7 @@ class DashboardController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Vous avez déjà un ticket en cours de traitement',
-                    'current_ticket' => $ticketEnCours->toTicketArray()
+                    'current_ticket' => $ticketEnCours->toTicketArrayWithTransfer()
                 ], 400);
             }
 
@@ -657,14 +724,30 @@ class DashboardController extends Controller
                 ], 500);
             }
 
-            // 🎯 RÉCUPÉRER LE PROCHAIN TICKET FIFO
+            // 🎯 RÉCUPÉRER LE PROCHAIN TICKET AVEC PRIORITÉ COLLABORATIVE
             $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
             
+            // ✅ PRIORITÉ 1 : Les tickets "new" (reçus par transfert) TOUJOURS en premier
             $nextTicket = Queue::whereIn('service_id', $myServiceIds)
                               ->whereDate('date', today())
                               ->where('statut_global', 'en_attente')
-                              ->orderBy('created_at', 'asc') // 🎯 FIFO : Le plus ancien
+                              ->where('transferer', 'new') // ✅ PRIORITÉ ABSOLUE
+                              ->orderBy('created_at', 'asc')
                               ->first();
+
+            // ✅ PRIORITÉ 2 : Si pas de tickets "new", prendre le premier FIFO normal
+            if (!$nextTicket) {
+                $nextTicket = Queue::whereIn('service_id', $myServiceIds)
+                                  ->whereDate('date', today())
+                                  ->where('statut_global', 'en_attente')
+                                  ->where(function($query) {
+                                      $query->whereNull('transferer')
+                                            ->orWhere('transferer', 'No')
+                                            ->orWhere('transferer', 'no');
+                                  })
+                                  ->orderBy('created_at', 'asc') // 🎯 FIFO : Le plus ancien
+                                  ->first();
+            }
 
             if (!$nextTicket) {
                 return response()->json([
@@ -688,27 +771,43 @@ class DashboardController extends Controller
 
             DB::commit();
 
-            Log::info('Ticket appelé par conseiller', [
+            // 🆕 NOUVEAU : Déterminer le type de ticket appelé
+            $ticketType = 'normal';
+            $priorityMessage = '';
+            
+            if ($nextTicket->transferer === 'new') {
+                $ticketType = 'transferred_priority';
+                $priorityMessage = ' (Priorité - Reçu par transfert)';
+            }
+
+            Log::info('Ticket appelé par conseiller avec système collaboratif', [
                 'ticket_id' => $nextTicket->id,
                 'numero_ticket' => $nextTicket->numero_ticket,
                 'conseiller_id' => $user->id,
                 'conseiller_nom' => $user->username,
-                'fifo_order' => 'Premier arrivé pris en charge'
+                'ticket_type' => $ticketType,
+                'transfer_status' => $nextTicket->transferer,
+                'transferred_by' => $nextTicket->conseiller_transfert,
+                'fifo_order' => 'Premier arrivé pris en charge avec priorité transfert',
+                'collaborative_system' => 'active'
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => "Ticket {$nextTicket->numero_ticket} pris en charge",
-                'ticket' => $nextTicket->fresh()->toTicketArray(),
+                'message' => "Ticket {$nextTicket->numero_ticket} pris en charge" . $priorityMessage,
+                'ticket' => $nextTicket->fresh()->toTicketArrayWithTransfer(),
+                'ticket_type' => $ticketType,
                 'queue_info' => [
-                    'principe' => 'FIFO - Premier arrivé, premier servi',
-                    'heure_prise_en_charge' => now()->format('H:i:s')
+                    'principe' => 'FIFO Collaboratif - Transferts prioritaires puis chronologique',
+                    'heure_prise_en_charge' => now()->format('H:i:s'),
+                    'transfer_priority' => ($ticketType === 'transferred_priority'),
+                    'collaborative_system' => 'Système collaboratif actif'
                 ]
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Erreur appel prochain ticket', [
+            Log::error('Erreur appel prochain ticket collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);
@@ -721,7 +820,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * ✅ TERMINER LE TICKET EN COURS
+     * ✅ TERMINER LE TICKET EN COURS - INCHANGÉ
+     * (Logique de terminaison identique, compatible avec le système collaboratif)
      */
     public function completeCurrentTicket(Request $request): JsonResponse
     {
@@ -796,8 +896,8 @@ class DashboardController extends Controller
 
             DB::commit();
 
-            // ✅ NOUVEAU LOG avec action détaillée
-            Log::info('Ticket terminé par conseiller avec nouvelle interface', [
+            // ✅ NOUVEAU LOG avec action détaillée et système collaboratif
+            Log::info('Ticket terminé par conseiller avec système collaboratif', [
                 'ticket_id' => $currentTicket->id,
                 'numero_ticket' => $currentTicket->numero_ticket,
                 'conseiller_id' => $user->id,
@@ -806,30 +906,40 @@ class DashboardController extends Controller
                 'resolu_libelle' => $resolu === 1 ? 'Résolu' : 'Non résolu',
                 'has_comment' => !empty($commentaire),
                 'comment_length' => strlen($commentaire ?? ''),
-                'duree_traitement' => $this->calculateProcessingTime($currentTicket)
+                'was_transferred' => $currentTicket->transferer === 'new',
+                'transferred_by' => $currentTicket->conseiller_transfert,
+                'duree_traitement' => $this->calculateProcessingTime($currentTicket),
+                'collaborative_system' => 'active'
             ]);
 
-            // ✅ RÉPONSE ENRICHIE avec nouvelles informations
+            // ✅ RÉPONSE ENRICHIE avec nouvelles informations collaboratives
+            $transferInfo = '';
+            if ($currentTicket->transferer === 'new') {
+                $transferInfo = ' (Ticket reçu par transfert traité)';
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => $action === 'traiter' 
-                    ? "Ticket {$currentTicket->numero_ticket} traité avec succès" 
-                    : "Ticket {$currentTicket->numero_ticket} refusé",
-                'ticket' => $currentTicket->fresh()->toTicketArray(),
+                    ? "Ticket {$currentTicket->numero_ticket} traité avec succès" . $transferInfo
+                    : "Ticket {$currentTicket->numero_ticket} refusé" . $transferInfo,
+                'ticket' => $currentTicket->fresh()->toTicketArrayWithTransfer(),
                 'action_performed' => $action,
                 'resolution_info' => [
                     'resolu' => $resolu,
                     'resolu_libelle' => $resolu === 1 ? 'Résolu' : 'Non résolu',
                     'commentaire_fourni' => !empty($commentaire),
-                    'commentaire_longueur' => strlen($commentaire ?? '')
+                    'commentaire_longueur' => strlen($commentaire ?? ''),
+                    'was_collaborative_ticket' => $currentTicket->transferer === 'new'
                 ],
                 'processing_time' => $this->calculateProcessingTime($currentTicket),
-                'next_action' => 'Vous pouvez maintenant appeler le prochain ticket'
+                'next_action' => 'Vous pouvez maintenant appeler le prochain ticket',
+                'collaborative_completed' => true
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Erreur finalisation ticket avec nouvelle interface', [
+            Log::error('Erreur finalisation ticket avec système collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'error' => $e->getMessage(),
                 'request_data' => $request->all()
@@ -843,7 +953,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 📊 STATISTIQUES PERSONNELLES CONSEILLER
+     * 📊 STATISTIQUES PERSONNELLES CONSEILLER - AMÉLIORÉES AVEC TRANSFERTS
      */
    public function getConseillerStats(Request $request): JsonResponse
     {
@@ -859,7 +969,7 @@ class DashboardController extends Controller
 
             $date = $request->get('date', today());
             
-            // ✅ NOUVELLES STATISTIQUES avec resolu tinyint
+            // ✅ NOUVELLES STATISTIQUES avec resolu tinyint ET transferts collaboratifs
             $stats = [
                 'aujourd_hui' => [
                     'tickets_traites' => Queue::where('conseiller_client_id', $user->id)
@@ -879,6 +989,18 @@ class DashboardController extends Controller
                                                   ->where('statut_global', 'termine')
                                                   ->where('resolu', 0)
                                                   ->count(),
+                    
+                    // 🆕 NOUVEAU : Statistiques de transfert
+                    'tickets_recus_transfert' => Queue::where('conseiller_client_id', $user->id)
+                                                      ->whereDate('date', $date)
+                                                      ->where('statut_global', 'termine')
+                                                      ->where('transferer', 'new')
+                                                      ->count(),
+                    
+                    'tickets_envoyes_transfert' => Queue::where('conseiller_transfert', $user->id)
+                                                        ->whereDate('date', $date)
+                                                        ->where('transferer', 'transferé')
+                                                        ->count(),
                                                   
                     'taux_resolution' => function() use ($user, $date) {
                         $total = Queue::where('conseiller_client_id', $user->id)
@@ -908,7 +1030,7 @@ class DashboardController extends Controller
                     'ticket_en_cours' => Queue::where('conseiller_client_id', $user->id)
                                              ->whereDate('date', $date)
                                              ->where('statut_global', 'en_cours')
-                                             ->first()?->toTicketArray(),
+                                             ->first()?->toTicketArrayWithTransfer(),
                                              
                     'premier_ticket' => Queue::where('conseiller_client_id', $user->id)
                                             ->whereDate('date', $date)
@@ -927,7 +1049,7 @@ class DashboardController extends Controller
                                             ->where('statut_global', 'termine')
                                             ->count(),
                     
-                    // ✅ NOUVELLES STATS hebdomadaires
+                    // ✅ NOUVELLES STATS hebdomadaires avec transferts
                     'tickets_resolus' => Queue::where('conseiller_client_id', $user->id)
                                              ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
                                              ->where('statut_global', 'termine')
@@ -939,6 +1061,11 @@ class DashboardController extends Controller
                                                   ->where('statut_global', 'termine')
                                                   ->where('resolu', 0)
                                                   ->count(),
+                    
+                    'tickets_recus_transfert' => Queue::where('conseiller_client_id', $user->id)
+                                                      ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                                      ->where('transferer', 'new')
+                                                      ->count(),
                                             
                     'temps_moyen' => Queue::where('conseiller_client_id', $user->id)
                                          ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
@@ -969,6 +1096,21 @@ class DashboardController extends Controller
                                            ->count();
                         
                         return round(($resolusMois / $totalMois) * 100, 2);
+                    },
+                    
+                    // 🆕 NOUVEAU : Scores collaboratifs
+                    'score_collaboration' => function() use ($user) {
+                        $ticketsRecus = Queue::where('conseiller_client_id', $user->id)
+                                            ->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])
+                                            ->where('transferer', 'new')
+                                            ->count();
+                        
+                        $ticketsEnvoyes = Queue::where('conseiller_transfert', $user->id)
+                                              ->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])
+                                              ->where('transferer', 'transferé')
+                                              ->count();
+                        
+                        return $ticketsRecus + $ticketsEnvoyes; // Score de collaboration
                     }
                 ]
             ];
@@ -976,6 +1118,7 @@ class DashboardController extends Controller
             // ✅ Exécuter les closures pour les taux
             $stats['aujourd_hui']['taux_resolution'] = $stats['aujourd_hui']['taux_resolution']();
             $stats['performance']['score_resolution'] = $stats['performance']['score_resolution']();
+            $stats['performance']['score_collaboration'] = $stats['performance']['score_collaboration']();
 
             return response()->json([
                 'success' => true,
@@ -985,14 +1128,16 @@ class DashboardController extends Controller
                     'email' => $user->email,
                     'actif_depuis' => $user->created_at->diffForHumans()
                 ],
-                'resolution_info' => [
-                    'format' => 'tinyint (0=non résolu, 1=résolu)',
-                    'principe' => 'Résolution binaire avec commentaire obligatoire pour refus'
+                'system_info' => [
+                    'type' => 'collaborative_fifo',
+                    'transfer_support' => true,
+                    'resolution_format' => 'tinyint (0=non résolu, 1=résolu)',
+                    'principe' => 'Résolution binaire avec système de transfert collaboratif'
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur statistiques conseiller avec resolu tinyint', [
+            Log::error('Erreur statistiques conseiller avec système collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);
@@ -1004,7 +1149,9 @@ class DashboardController extends Controller
         }
     }
 
-
+    /**
+     * 🆕 NOUVEAU : OBTENIR LES DÉTAILS DE RÉSOLUTION D'UN TICKET
+     */
     public function getTicketResolutionDetails(Request $request, $ticketId): JsonResponse
     {
         try {
@@ -1021,7 +1168,7 @@ class DashboardController extends Controller
             $ticket = Queue::where('id', $ticketId)
                           ->where('conseiller_client_id', $user->id)
                           ->where('statut_global', 'en_cours')
-                          ->with(['service:id,nom,letter_of_service'])
+                          ->with(['service:id,nom,letter_of_service', 'conseillerTransfert:id,username,email'])
                           ->first();
 
             if (!$ticket) {
@@ -1031,13 +1178,13 @@ class DashboardController extends Controller
                 ], 404);
             }
 
-            $ticketDetails = $ticket->toTicketArray();
+            $ticketDetails = $ticket->toTicketArrayWithTransfer();
             
             // Calculer le temps de traitement en cours
             $processingTime = $this->calculateProcessingTime($ticket);
             $waitingTime = $this->calculateTicketWaitingTime($ticket);
             
-            // Enrichir avec informations de résolution
+            // Enrichir avec informations de résolution et transfert
             $resolutionInfo = [
                 'ticket_id' => $ticket->id,
                 'numero_ticket' => $ticket->numero_ticket,
@@ -1048,6 +1195,15 @@ class DashboardController extends Controller
                 'heure_prise_en_charge' => $ticket->heure_prise_en_charge,
                 'temps_traitement_actuel' => $processingTime,
                 'temps_attente_initial' => $waitingTime,
+                
+                // 🆕 NOUVEAU : Informations de transfert collaboratif
+                'transfer_info' => [
+                    'is_transferred' => $ticket->transferer === 'new',
+                    'transferred_by' => $ticket->conseillerTransfert ? $ticket->conseillerTransfert->username : null,
+                    'transfer_priority' => $ticket->transferer === 'new',
+                    'collaborative_ticket' => $ticket->transferer === 'new'
+                ],
+                
                 'actions_disponibles' => [
                     'traiter' => [
                         'label' => 'Traiter avec succès',
@@ -1074,11 +1230,15 @@ class DashboardController extends Controller
                     'action_required' => true,
                     'comment_required_for_refusal' => true,
                     'comment_max_length' => 500
+                ],
+                'collaborative_system' => [
+                    'active' => true,
+                    'transfer_priority' => $ticket->transferer === 'new'
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur détails résolution ticket', [
+            Log::error('Erreur détails résolution ticket collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'ticket_id' => $ticketId,
                 'error' => $e->getMessage()
@@ -1090,8 +1250,9 @@ class DashboardController extends Controller
             ], 500);
         }
     }
+
     /**
-     * 📜 HISTORIQUE DES TICKETS TRAITÉS
+     * 📜 HISTORIQUE DES TICKETS TRAITÉS - AMÉLIORÉ AVEC TRANSFERTS
      */
     public function getConseillerHistory(Request $request): JsonResponse
     {
@@ -1112,14 +1273,14 @@ class DashboardController extends Controller
             $query = Queue::where('conseiller_client_id', $user->id)
                          ->whereDate('date', $date)
                          ->where('statut_global', 'termine')
-                         ->with(['service:id,nom,letter_of_service'])
+                         ->with(['service:id,nom,letter_of_service', 'conseillerTransfert:id,username,email'])
                          ->orderBy('heure_de_fin', 'desc');
 
             $tickets = $query->paginate($limit, ['*'], 'page', $page);
 
             $ticketsFormatted = $tickets->items();
             $ticketsArray = array_map(function($ticket) {
-                $ticketArray = $ticket->toTicketArray();
+                $ticketArray = $ticket->toTicketArrayWithTransfer();
                 $ticketArray['duree_traitement'] = $this->calculateProcessingTime($ticket);
                 $ticketArray['debut_traitement'] = $ticket->heure_prise_en_charge;
                 $ticketArray['fin_traitement'] = $ticket->heure_de_fin;
@@ -1128,14 +1289,16 @@ class DashboardController extends Controller
                 $resoluValue = (int) $ticket->resolu; // Force cast en integer
                 
                 // Debug pour identifier le problème
-                Log::info('Debug ticket resolution', [
+                Log::info('Debug ticket resolution avec transfert', [
                     'ticket_id' => $ticket->id,
                     'numero_ticket' => $ticket->numero_ticket,
                     'resolu_raw' => $ticket->resolu,
                     'resolu_cast' => $resoluValue,
                     'resolu_type' => gettype($ticket->resolu),
                     'commentaire_resolution' => $ticket->commentaire_resolution,
-                    'has_comment' => !empty($ticket->commentaire_resolution)
+                    'has_comment' => !empty($ticket->commentaire_resolution),
+                    'transfer_status' => $ticket->transferer,
+                    'transferred_by' => $ticket->conseillerTransfert ? $ticket->conseillerTransfert->username : null
                 ]);
                 
                 $ticketArray['resolution_details'] = [
@@ -1145,10 +1308,17 @@ class DashboardController extends Controller
                     'has_comment' => !empty($ticket->commentaire_resolution)
                 ];
                 
+                // 🆕 NOUVEAU : Informations de transfert pour l'historique
+                $ticketArray['transfer_details'] = [
+                    'was_transferred_to_me' => $ticket->transferer === 'new',
+                    'transferred_by_name' => $ticket->conseillerTransfert ? $ticket->conseillerTransfert->username : null,
+                    'transfer_priority' => $ticket->transferer === 'new'
+                ];
+                
                 return $ticketArray;
             }, $ticketsFormatted);
 
-            // ✅ NOUVEAU RÉSUMÉ avec stats de résolution CORRIGÉES
+            // ✅ NOUVEAU RÉSUMÉ avec stats de résolution ET transferts CORRIGÉES
             $summary = [
                 'total_tickets_traites' => Queue::where('conseiller_client_id', $user->id)
                                                ->whereDate('date', $date)
@@ -1166,6 +1336,13 @@ class DashboardController extends Controller
                                              ->where('statut_global', 'termine')
                                              ->where('resolu', 0) // ✅ CORRIGÉ : Comparaison avec integer
                                              ->count(),
+                
+                // 🆕 NOUVEAU : Statistiques de transfert dans l'historique
+                'tickets_recus_transfert' => Queue::where('conseiller_client_id', $user->id)
+                                                  ->whereDate('date', $date)
+                                                  ->where('statut_global', 'termine')
+                                                  ->where('transferer', 'new')
+                                                  ->count(),
                                              
                 'temps_moyen_traitement' => Queue::where('conseiller_client_id', $user->id)
                                                 ->whereDate('date', $date)
@@ -1180,6 +1357,11 @@ class DashboardController extends Controller
             $summary['taux_resolution'] = $summary['total_tickets_traites'] > 0 
                 ? round(($summary['tickets_resolus'] / $summary['total_tickets_traites']) * 100, 2) 
                 : 0;
+            
+            // 🆕 NOUVEAU : Taux de collaboration
+            $summary['taux_collaboration'] = $summary['total_tickets_traites'] > 0 
+                ? round(($summary['tickets_recus_transfert'] / $summary['total_tickets_traites']) * 100, 2) 
+                : 0;
 
             return response()->json([
                 'success' => true,
@@ -1192,15 +1374,20 @@ class DashboardController extends Controller
                 ],
                 'summary' => $summary,
                 'date' => Carbon::parse($date)->format('d/m/Y'),
-                'resolution_info' => [
+                'system_info' => [
+                    'type' => 'collaborative_fifo',
                     'format_resolu' => 'tinyint (0=non résolu, 1=résolu)',
+                    'transfer_support' => true,
                     'commentaire_obligatoire_refus' => true,
-                    'debug_enabled' => true // ✅ NOUVEAU : Debug activé
+                    'collaborative_features' => [
+                        'transfer_priority' => 'Tickets "new" prioritaires',
+                        'team_collaboration' => 'Système collaboratif actif'
+                    ]
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur historique conseiller avec resolu tinyint', [
+            Log::error('Erreur historique conseiller avec système collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -1250,7 +1437,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🔍 DÉTAILS D'UN TICKET SPÉCIFIQUE
+     * 🔍 DÉTAILS D'UN TICKET SPÉCIFIQUE - AMÉLIORÉ AVEC TRANSFERTS
      */
     public function getTicketDetails(Request $request, $ticketId): JsonResponse
     {
@@ -1276,7 +1463,7 @@ class DashboardController extends Controller
             
             $ticket = Queue::whereIn('service_id', $myServiceIds)
                           ->where('id', $ticketId)
-                          ->with(['service:id,nom,letter_of_service', 'conseillerClient:id,username'])
+                          ->with(['service:id,nom,letter_of_service', 'conseillerClient:id,username', 'conseillerTransfert:id,username,email'])
                           ->first();
 
             if (!$ticket) {
@@ -1286,7 +1473,7 @@ class DashboardController extends Controller
                 ], 404);
             }
 
-            $ticketDetails = $ticket->toTicketArray();
+            $ticketDetails = $ticket->toTicketArrayWithTransfer();
             $ticketDetails['duree_traitement'] = $this->calculateProcessingTime($ticket);
             $ticketDetails['historique'] = $ticket->historique ?? [];
             
@@ -1306,15 +1493,28 @@ class DashboardController extends Controller
                 $ticketDetails['priority_color'] = 'success';
             }
             
+            // 🆕 NOUVEAU : Priorité collaboratif override la priorité temps
+            if ($ticket->transferer === 'new') {
+                $ticketDetails['priority_status'] = 'transferred_priority';
+                $ticketDetails['priority_label'] = 'Priorité Transfert';
+                $ticketDetails['priority_color'] = 'success';
+                $ticketDetails['collaborative_priority'] = true;
+            }
+            
             $ticketDetails['waiting_time_calculated'] = $waitingTime;
 
             return response()->json([
                 'success' => true,
-                'ticket' => $ticketDetails
+                'ticket' => $ticketDetails,
+                'collaborative_info' => [
+                    'is_collaborative' => true,
+                    'transfer_priority' => $ticket->transferer === 'new',
+                    'system_type' => 'collaborative_fifo'
+                ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur détails ticket', [
+            Log::error('Erreur détails ticket collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'ticket_id' => $ticketId,
                 'error' => $e->getMessage()
@@ -1327,9 +1527,6 @@ class DashboardController extends Controller
         }
     }
 
-    
-    
-
     /**
      * 🔄 RAFRAÎCHIR LA FILE D'ATTENTE EN TEMPS RÉEL
      */
@@ -1339,7 +1536,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 👁️ APERÇU DU PROCHAIN TICKET SANS LE PRENDRE
+     * 👁️ APERÇU DU PROCHAIN TICKET SANS LE PRENDRE - AMÉLIORÉ AVEC PRIORITÉ
      */
     public function getNextTicketPreview(Request $request): JsonResponse
     {
@@ -1363,12 +1560,35 @@ class DashboardController extends Controller
 
             $myServiceIds = Service::where('created_by', $creator->id)->pluck('id');
             
+            // 🎯 PRIORITÉ 1 : Chercher d'abord les tickets "new"
             $nextTicket = Queue::whereIn('service_id', $myServiceIds)
                               ->whereDate('date', today())
                               ->where('statut_global', 'en_attente')
+                              ->where('transferer', 'new')
                               ->orderBy('created_at', 'asc')
-                              ->with(['service:id,nom,letter_of_service'])
+                              ->with(['service:id,nom,letter_of_service', 'conseillerTransfert:id,username'])
                               ->first();
+
+            $ticketType = 'transferred_priority';
+            $priorityMessage = 'Ticket reçu par transfert - priorité absolue';
+
+            // 🎯 PRIORITÉ 2 : Si pas de "new", prendre le premier normal
+            if (!$nextTicket) {
+                $nextTicket = Queue::whereIn('service_id', $myServiceIds)
+                                  ->whereDate('date', today())
+                                  ->where('statut_global', 'en_attente')
+                                  ->where(function($query) {
+                                      $query->whereNull('transferer')
+                                            ->orWhere('transferer', 'No')
+                                            ->orWhere('transferer', 'no');
+                                  })
+                                  ->orderBy('created_at', 'asc')
+                                  ->with(['service:id,nom,letter_of_service'])
+                                  ->first();
+                
+                $ticketType = 'normal_fifo';
+                $priorityMessage = 'Premier arrivé, premier servi (FIFO)';
+            }
 
             if (!$nextTicket) {
                 return response()->json([
@@ -1380,10 +1600,16 @@ class DashboardController extends Controller
 
             return response()->json([
                 'success' => true,
-                'next_ticket' => $nextTicket->toTicketArray(),
+                'next_ticket' => $nextTicket->toTicketArrayWithTransfer(),
+                'ticket_type' => $ticketType,
+                'priority_message' => $priorityMessage,
                 'queue_position' => 1,
                 'estimated_call_time' => 'Maintenant',
-                'fifo_info' => 'Premier arrivé, premier servi'
+                'collaborative_info' => [
+                    'is_priority' => $ticketType === 'transferred_priority',
+                    'transfer_support' => true,
+                    'principle' => $priorityMessage
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -1412,6 +1638,7 @@ class DashboardController extends Controller
             $currentTicket = Queue::where('conseiller_client_id', $user->id)
                                  ->whereDate('date', today())
                                  ->where('statut_global', 'en_cours')
+                                 ->with(['conseillerTransfert:id,username'])
                                  ->first();
 
             if (!$currentTicket) {
@@ -1425,9 +1652,13 @@ class DashboardController extends Controller
             return response()->json([
                 'success' => true,
                 'has_current_ticket' => true,
-                'current_ticket' => $currentTicket->toTicketArray(),
+                'current_ticket' => $currentTicket->toTicketArrayWithTransfer(),
                 'processing_time' => $this->calculateProcessingTime($currentTicket),
-                'started_at' => $currentTicket->heure_prise_en_charge
+                'started_at' => $currentTicket->heure_prise_en_charge,
+                'collaborative_info' => [
+                    'was_transferred' => $currentTicket->transferer === 'new',
+                    'transferred_by' => $currentTicket->conseillerTransfert ? $currentTicket->conseillerTransfert->username : null
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -1439,7 +1670,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 🔔 NOTIFICATIONS CONSEILLER
+     * 🔔 NOTIFICATIONS CONSEILLER - AMÉLIORÉES AVEC TRANSFERTS
      */
     public function getConseillerNotifications(Request $request): JsonResponse
     {
@@ -1465,17 +1696,42 @@ class DashboardController extends Controller
             
             $notifications = [];
             
+            // 🆕 PRIORITÉ 1 : Tickets transférés récents (plus importants)
+            $newTransfersCount = Queue::whereIn('service_id', $myServiceIds)
+                                     ->whereDate('date', today())
+                                     ->where('statut_global', 'en_attente')
+                                     ->where('transferer', 'new')
+                                     ->where('created_at', '>=', now()->subMinutes(5))
+                                     ->count();
+            
+            if ($newTransfersCount > 0) {
+                $notifications[] = [
+                    'type' => 'new_transfers',
+                    'message' => "{$newTransfersCount} ticket(s) reçu(s) par transfert (PRIORITÉ)",
+                    'count' => $newTransfersCount,
+                    'priority' => 'high',
+                    'timestamp' => now()->format('H:i:s')
+                ];
+            }
+            
+            // Tickets normaux nouveaux
             $newTicketsCount = Queue::whereIn('service_id', $myServiceIds)
                                    ->whereDate('date', today())
                                    ->where('statut_global', 'en_attente')
+                                   ->where(function($query) {
+                                       $query->whereNull('transferer')
+                                             ->orWhere('transferer', 'No')
+                                             ->orWhere('transferer', 'no');
+                                   })
                                    ->where('created_at', '>=', now()->subMinutes(5))
                                    ->count();
             
             if ($newTicketsCount > 0) {
                 $notifications[] = [
                     'type' => 'new_tickets',
-                    'message' => "{$newTicketsCount} nouveau(x) ticket(s) en attente",
+                    'message' => "{$newTicketsCount} nouveau(x) ticket(s) normal(aux)",
                     'count' => $newTicketsCount,
+                    'priority' => 'normal',
                     'timestamp' => now()->format('H:i:s')
                 ];
             }
@@ -1483,7 +1739,11 @@ class DashboardController extends Controller
             return response()->json([
                 'success' => true,
                 'notifications' => $notifications,
-                'count' => count($notifications)
+                'count' => count($notifications),
+                'collaborative_system' => [
+                    'transfer_priority' => true,
+                    'priority_order' => ['new_transfers', 'new_tickets']
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -1503,7 +1763,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * 📤 EXPORT DONNÉES CONSEILLER
+     * 📤 EXPORT DONNÉES CONSEILLER - AMÉLIORÉ AVEC TRANSFERTS
      */
     public function exportConseillerData(Request $request)
     {
@@ -1519,7 +1779,7 @@ class DashboardController extends Controller
             $tickets = Queue::where('conseiller_client_id', $user->id)
                            ->whereDate('date', $date)
                            ->where('statut_global', 'termine')
-                           ->with(['service:id,nom'])
+                           ->with(['service:id,nom', 'conseillerTransfert:id,username'])
                            ->orderBy('heure_prise_en_charge', 'asc')
                            ->get();
 
@@ -1539,6 +1799,8 @@ class DashboardController extends Controller
                     'Service',
                     'Client',
                     'Téléphone',
+                    'Transféré Par', // ✅ NOUVEAU
+                    'Statut Transfert', // ✅ NOUVEAU
                     'Prise en charge',
                     'Fin traitement',
                     'Durée (min)',
@@ -1554,10 +1816,12 @@ class DashboardController extends Controller
                         $ticket->service ? $ticket->service->nom : 'N/A',
                         $ticket->prenom,
                         $ticket->telephone,
+                        $ticket->conseillerTransfert ? $ticket->conseillerTransfert->username : '-', // ✅ NOUVEAU
+                        $ticket->transferer === 'new' ? 'Reçu' : ($ticket->transferer === 'transferé' ? 'Envoyé' : 'Normal'), // ✅ NOUVEAU
                         $ticket->heure_prise_en_charge,
                         $ticket->heure_de_fin,
                         $duree,
-                        $ticket->resolu,
+                        $ticket->resolu === 1 ? 'Résolu' : 'Non résolu',
                         $ticket->commentaire_resolution ?: ''
                     ], ';');
                 }
@@ -1568,7 +1832,7 @@ class DashboardController extends Controller
             return response()->stream($callback, 200, $headers);
 
         } catch (\Exception $e) {
-            Log::error('Erreur export conseiller', [
+            Log::error('Erreur export conseiller collaboratif', [
                 'conseiller_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);
@@ -1697,13 +1961,13 @@ class DashboardController extends Controller
                     'temps_attente_estime' => $estimatedWaitTime,
                     'statut_global' => 'en_attente',
                     'resolu' => 1, // ✅ CORRIGÉ : Valeur numérique au lieu de 'En cours'
-                    'transferer' => 'No',
+                    'transferer' => 'No', // ✅ Ticket normal par défaut
                     'debut' => 'No',
                     'created_by_ip' => $request->ip(),
                     'historique' => json_encode([[
                         'action' => 'creation',
                         'timestamp' => now()->toISOString(),
-                        'details' => 'Ticket créé avec numéro unique - Système anti-doublon - resolu tinyint'
+                        'details' => 'Ticket créé avec numéro unique - Système anti-doublon - resolu tinyint - compatible transfert collaboratif'
                     ]]),
                     'created_at' => now(),
                     'updated_at' => now()
@@ -1734,12 +1998,16 @@ class DashboardController extends Controller
                     'statut' => $ticket->statut_global,
                     'queue_stats' => $queueStats,
                     'queue_info' => [
-                        'type' => 'service_numbering_unique',
-                        'principle' => 'Numérotation par service avec système anti-doublon',
+                        'type' => 'collaborative_service_numbering_unique',
+                        'principle' => 'Numérotation par service avec système anti-doublon et transfert collaboratif',
                         'arrival_time' => $ticket->heure_d_enregistrement,
                         'global_position' => $ticket->position_file,
                         'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
-                        'resolu_format' => 'tinyint (1=résolu par défaut)'
+                        'resolu_format' => 'tinyint (1=résolu par défaut)',
+                        'collaborative_features' => [
+                            'transfer_priority' => 'Tickets "new" prioritaires',
+                            'team_collaboration' => 'Système collaboratif entre conseillers'
+                        ]
                     ]
                 ],
                 'queue_status' => [
@@ -1747,10 +2015,15 @@ class DashboardController extends Controller
                     'waiting' => $queueStats['en_attente'],
                     'in_progress' => $queueStats['en_cours'],
                     'completed' => $queueStats['termines']
+                ],
+                'collaborative_system' => [
+                    'active' => true,
+                    'transfer_support' => true,
+                    'priority_rules' => 'Les tickets transférés ("new") ont priorité absolue'
                 ]
             ];
 
-            Log::info('✅ Ticket généré avec succès - resolu tinyint corrigé', [
+            Log::info('✅ Ticket généré avec succès - système collaboratif', [
                 'ticket_id' => $ticket->id,
                 'numero_ticket' => $ticket->numero_ticket,
                 'service_name' => $service->nom,
@@ -1761,14 +2034,16 @@ class DashboardController extends Controller
                 'position_chronologique' => $ticket->position_file,
                 'heure_arrivee' => $ticket->heure_d_enregistrement,
                 'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
-                'resolu_value' => $ticket->resolu, // Log de la nouvelle valeur
-                'anti_duplicate_system' => 'active'
+                'resolu_value' => $ticket->resolu,
+                'transfer_status' => $ticket->transferer,
+                'anti_duplicate_system' => 'active',
+                'collaborative_system' => 'active'
             ]);
 
             return response()->json($response, 201);
 
         } catch (\Exception $e) {
-            Log::error('❌ Erreur génération ticket - resolu tinyint', [
+            Log::error('❌ Erreur génération ticket - système collaboratif', [
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
                 'request_data' => $request->all(),
@@ -1827,16 +2102,20 @@ class DashboardController extends Controller
                                               ->whereDate('date', today())
                                               ->count(),
                 'queue_info' => [
-                    'type' => 'service_numbering_unique',
-                    'principle' => 'Numérotation par service avec système anti-doublon',
+                    'type' => 'collaborative_service_numbering_unique',
+                    'principle' => 'Numérotation par service avec système anti-doublon et transfert collaboratif',
                     'next_global_position' => Queue::calculateQueuePosition(),
                     'configured_wait_time' => Setting::getDefaultWaitingTimeMinutes(),
-                    'anti_duplicate_system' => 'active'
+                    'anti_duplicate_system' => 'active',
+                    'collaborative_features' => [
+                        'transfer_priority' => 'active',
+                        'team_collaboration' => 'enabled'
+                    ]
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur refresh services Ecran', [
+            Log::error('Erreur refresh services Ecran collaboratif', [
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);
@@ -2383,6 +2662,552 @@ class DashboardController extends Controller
     }
 
     // ===============================================
+    // 🆕 NOUVEAU : MÉTHODES API POUR TRANSFERT COLLABORATIF
+    // ===============================================
+
+    /**
+     * 🔄 RÉCUPÉRER LES SERVICES DISPONIBLES POUR TRANSFERT
+     */
+    public function getTransferServices(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🎯 RÉCUPÉRER SEULEMENT LES SERVICES ACTIFS CRÉÉS PAR L'ADMIN
+            $services = $creator->createdServices()
+                              ->where('statut', 'actif')
+                              ->orderBy('nom', 'asc')
+                              ->get(['id', 'nom', 'letter_of_service'])
+                              ->map(function($service) {
+                                  return [
+                                      'id' => $service->id,
+                                      'nom' => $service->nom,
+                                      'letter_of_service' => $service->letter_of_service,
+                                      'display_name' => $service->letter_of_service . ' - ' . $service->nom
+                                  ];
+                              });
+
+            Log::info('Services de transfert chargés pour conseiller', [
+                'conseiller_id' => $user->id,
+                'admin_creator_id' => $creator->id,
+                'services_count' => $services->count()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'services' => $services,
+                'total_services' => $services->count(),
+                'admin_info' => [
+                    'username' => $creator->username,
+                    'company' => $creator->company
+                ],
+                'collaborative_system' => [
+                    'transfer_support' => true,
+                    'priority_rules' => 'Tickets transférés ("new") ont priorité absolue'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération services transfert collaboratif', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des services'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔄 RÉCUPÉRER LES CONSEILLERS DISPONIBLES POUR TRANSFERT
+     */
+    public function getAvailableAdvisors(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🎯 RÉCUPÉRER LES CONSEILLERS DE LA MÊME ÉQUIPE (CRÉÉS PAR LE MÊME ADMIN)
+            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
+                                         ->pluck('user_id')
+                                         ->toArray();
+
+            $advisors = User::whereIn('id', $myUserIds)
+                           ->where('user_type_id', 4) // Type conseiller
+                           ->where('status_id', 2) // Actifs seulement
+                           ->where('id', '!=', $user->id) // Exclure le conseiller actuel
+                           ->orderBy('username', 'asc')
+                           ->get(['id', 'username', 'email'])
+                           ->map(function($advisor) {
+                               // 🔍 VÉRIFIER SI LE CONSEILLER A UN TICKET EN COURS
+                               $hasCurrentTicket = Queue::where('conseiller_client_id', $advisor->id)
+                                                      ->whereDate('date', today())
+                                                      ->where('statut_global', 'en_cours')
+                                                      ->exists();
+
+                               // 📊 STATISTIQUES DU JOUR AVEC TRANSFERTS
+                               $ticketsToday = Queue::where('conseiller_client_id', $advisor->id)
+                                                   ->whereDate('date', today())
+                                                   ->where('statut_global', 'termine')
+                                                   ->count();
+                               
+                               $transfersReceived = Queue::where('conseiller_client_id', $advisor->id)
+                                                        ->whereDate('date', today())
+                                                        ->where('transferer', 'new')
+                                                        ->count();
+
+                               return [
+                                   'id' => $advisor->id,
+                                   'username' => $advisor->username,
+                                   'email' => $advisor->email,
+                                   'display_name' => $advisor->username . ' (' . $advisor->email . ')',
+                                   'has_current_ticket' => $hasCurrentTicket,
+                                   'status_class' => $hasCurrentTicket ? 'busy' : 'available',
+                                   'tickets_today' => $ticketsToday,
+                                   'transfers_received_today' => $transfersReceived,
+                                   'availability_status' => $hasCurrentTicket ? 'Occupé' : 'Disponible',
+                                   'collaborative_score' => $transfersReceived // Score de collaboration
+                               ];
+                           });
+
+            Log::info('Conseillers de transfert collaboratif chargés', [
+                'conseiller_id' => $user->id,
+                'admin_creator_id' => $creator->id,
+                'advisors_count' => $advisors->count(),
+                'available_advisors' => $advisors->where('has_current_ticket', false)->count(),
+                'collaborative_system' => 'active'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'advisors' => $advisors,
+                'total_advisors' => $advisors->count(),
+                'available_advisors' => $advisors->where('has_current_ticket', false)->count(),
+                'busy_advisors' => $advisors->where('has_current_ticket', true)->count(),
+                'team_info' => [
+                    'admin_username' => $creator->username,
+                    'team_size' => $advisors->count() + 1, // +1 pour inclure l'utilisateur actuel
+                    'collaborative_features' => [
+                        'transfer_priority' => 'active',
+                        'team_collaboration' => 'enabled'
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération conseillers transfert collaboratif', [
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des conseillers'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔄 RÉCUPÉRER LA CHARGE DE TRAVAIL D'UN CONSEILLER AVEC STATS TRANSFERT
+     */
+    public function getAdvisorWorkload(Request $request, $advisorId): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // 🔍 VÉRIFIER QUE LE CONSEILLER FAIT PARTIE DE L'ÉQUIPE
+            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
+                                         ->pluck('user_id')
+                                         ->toArray();
+
+            if (!in_array($advisorId, $myUserIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conseiller non autorisé'
+                ], 403);
+            }
+
+            $advisor = User::find($advisorId);
+            if (!$advisor || !$advisor->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conseiller non trouvé'
+                ], 404);
+            }
+
+            // 📊 STATISTIQUES DÉTAILLÉES DU CONSEILLER AVEC TRANSFERTS
+            $today = today();
+            
+            $workloadStats = [
+                'advisor_info' => [
+                    'id' => $advisor->id,
+                    'username' => $advisor->username,
+                    'email' => $advisor->email
+                ],
+                'today_stats' => [
+                    'tickets_completed' => Queue::where('conseiller_client_id', $advisorId)
+                                               ->whereDate('date', $today)
+                                               ->where('statut_global', 'termine')
+                                               ->count(),
+                    
+                    'tickets_resolved' => Queue::where('conseiller_client_id', $advisorId)
+                                             ->whereDate('date', $today)
+                                             ->where('statut_global', 'termine')
+                                             ->where('resolu', 1)
+                                             ->count(),
+                    
+                    // 🆕 NOUVEAU : Stats de transfert
+                    'transfers_received' => Queue::where('conseiller_client_id', $advisorId)
+                                                 ->whereDate('date', $today)
+                                                 ->where('transferer', 'new')
+                                                 ->count(),
+                    
+                    'transfers_sent' => Queue::where('conseiller_transfert', $advisorId)
+                                            ->whereDate('date', $today)
+                                            ->where('transferer', 'transferé')
+                                            ->count(),
+                    
+                    'current_ticket' => Queue::where('conseiller_client_id', $advisorId)
+                                            ->whereDate('date', $today)
+                                            ->where('statut_global', 'en_cours')
+                                            ->first(),
+                    
+                    'average_processing_time' => Queue::where('conseiller_client_id', $advisorId)
+                                                     ->whereDate('date', $today)
+                                                     ->where('statut_global', 'termine')
+                                                     ->whereNotNull('heure_de_fin')
+                                                     ->whereNotNull('heure_prise_en_charge')
+                                                     ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
+                                                     ->value('avg_minutes') ?? 0
+                ],
+                'week_stats' => [
+                    'tickets_completed' => Queue::where('conseiller_client_id', $advisorId)
+                                               ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                               ->where('statut_global', 'termine')
+                                               ->count(),
+                    
+                    'transfers_received' => Queue::where('conseiller_client_id', $advisorId)
+                                                 ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
+                                                 ->where('transferer', 'new')
+                                                 ->count()
+                ]
+            ];
+
+            // 🎯 GÉNÉRER UNE RECOMMANDATION AVEC PRISE EN COMPTE DES TRANSFERTS
+            $recommendation = 'Conseiller disponible';
+            
+            if ($workloadStats['today_stats']['current_ticket']) {
+                $recommendation = 'Conseiller occupé avec un client';
+            } elseif ($workloadStats['today_stats']['transfers_received'] > 3) {
+                $recommendation = 'Conseiller très sollicité en transferts aujourd\'hui';
+            } elseif ($workloadStats['today_stats']['tickets_completed'] > 10) {
+                $recommendation = 'Conseiller très actif aujourd\'hui';
+            } elseif ($workloadStats['today_stats']['tickets_completed'] > 5) {
+                $recommendation = 'Conseiller modérément actif';
+            } else {
+                $recommendation = 'Conseiller peu sollicité aujourd\'hui - idéal pour transfert';
+            }
+
+            // 🔄 CALCULER UN SCORE DE DISPONIBILITÉ COLLABORATIVE
+            $availabilityScore = 100;
+            if ($workloadStats['today_stats']['current_ticket']) {
+                $availabilityScore = 0; // Occupé
+            } else {
+                // Réduire le score selon la charge de travail ET les transferts
+                $todayLoad = $workloadStats['today_stats']['tickets_completed'];
+                $transfersLoad = $workloadStats['today_stats']['transfers_received'];
+                $availabilityScore = max(20, 100 - ($todayLoad * 3) - ($transfersLoad * 5));
+            }
+
+            Log::info('Charge de travail conseiller collaboratif récupérée', [
+                'target_advisor_id' => $advisorId,
+                'requesting_advisor_id' => $user->id,
+                'today_completed' => $workloadStats['today_stats']['tickets_completed'],
+                'transfers_received' => $workloadStats['today_stats']['transfers_received'],
+                'has_current_ticket' => (bool) $workloadStats['today_stats']['current_ticket'],
+                'availability_score' => $availabilityScore,
+                'collaborative_system' => 'active'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'workload' => $workloadStats,
+                'recommendation' => $recommendation,
+                'availability_score' => $availabilityScore,
+                'transfer_suitability' => $availabilityScore > 50 ? 'recommended' : 'not_recommended',
+                'collaborative_info' => [
+                    'transfer_score' => $workloadStats['today_stats']['transfers_received'],
+                    'collaboration_level' => $workloadStats['today_stats']['transfers_received'] > 2 ? 'high' : 'normal'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération charge de travail collaborative', [
+                'advisor_id' => $advisorId,
+                'requesting_user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de la charge de travail'
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔄 EFFECTUER LE TRANSFERT D'UN TICKET - VERSION COLLABORATIVE AMÉLIORÉE
+     */
+    public function transferTicket(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isConseillerUser()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            // 🔍 VALIDATION DES DONNÉES DE TRANSFERT
+            $validator = Validator::make($request->all(), [
+                'ticket_id' => 'required|integer|exists:queues,id',
+                'transfer_reason' => 'required|string|max:300',
+                'transfer_notes' => 'nullable|string|max:200',
+                'to_service' => 'nullable|integer|exists:services,id',
+                'to_advisor' => 'nullable|integer|exists:users,id'
+            ], [
+                'ticket_id.required' => 'ID du ticket obligatoire',
+                'ticket_id.exists' => 'Ticket non trouvé',
+                'transfer_reason.required' => 'Le motif du transfert est obligatoire',
+                'transfer_reason.max' => 'Le motif ne peut pas dépasser 300 caractères',
+                'to_service.exists' => 'Service de destination non trouvé',
+                'to_advisor.exists' => 'Conseiller de destination non trouvé'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // 🔍 VÉRIFICATIONS DE SÉCURITÉ
+            $creator = $user->getCreator();
+            if (!$creator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Configuration manquante'
+                ], 500);
+            }
+
+            // Vérifier que le ticket appartient bien au conseiller
+            $ticket = Queue::where('id', $request->ticket_id)
+                          ->where('conseiller_client_id', $user->id)
+                          ->where('statut_global', 'en_cours')
+                          ->first();
+
+            if (!$ticket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket non trouvé ou non autorisé'
+                ], 404);
+            }
+
+            // Valider au moins une destination
+            if (!$request->to_service && !$request->to_advisor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Au moins un service ou un conseiller de destination doit être spécifié'
+                ], 422);
+            }
+
+            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
+                                         ->pluck('user_id')
+                                         ->toArray();
+
+            // 🔍 VALIDER LE SERVICE DE DESTINATION
+            $targetService = null;
+            if ($request->to_service) {
+                $targetService = Service::where('id', $request->to_service)
+                                       ->where('created_by', $creator->id)
+                                       ->where('statut', 'actif')
+                                       ->first();
+
+                if (!$targetService) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Service de destination non autorisé ou inactif'
+                    ], 403);
+                }
+            }
+
+            // 🔍 VALIDER LE CONSEILLER DE DESTINATION
+            $targetAdvisor = null;
+            if ($request->to_advisor) {
+                $targetAdvisor = User::where('id', $request->to_advisor)
+                                   ->whereIn('id', $myUserIds)
+                                   ->where('user_type_id', 4)
+                                   ->where('status_id', 2)
+                                   ->where('id', '!=', $user->id)
+                                   ->first();
+
+                if (!$targetAdvisor) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Conseiller de destination non autorisé ou inactif'
+                    ], 403);
+                }
+
+                // Vérifier que le conseiller cible n'a pas déjà un ticket en cours
+                $advisorHasTicket = Queue::where('conseiller_client_id', $targetAdvisor->id)
+                                        ->whereDate('date', today())
+                                        ->where('statut_global', 'en_cours')
+                                        ->exists();
+
+                if ($advisorHasTicket) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Le conseiller sélectionné a déjà un ticket en cours'
+                    ], 400);
+                }
+            }
+
+            // 🔄 EFFECTUER LE TRANSFERT COLLABORATIF
+            DB::beginTransaction();
+
+            try {
+                $transferSuccess = $ticket->transferToCollaborative(
+                    $targetService ? $targetService->id : null,
+                    $targetAdvisor ? $targetAdvisor->id : null,
+                    $request->transfer_reason,
+                    $request->transfer_notes,
+                    $user->id
+                );
+
+                if (!$transferSuccess) {
+                    throw new \Exception('Échec du transfert du ticket');
+                }
+
+                DB::commit();
+
+                // 🎯 DÉTERMINER LE TYPE DE TRANSFERT EFFECTUÉ
+                $transferType = 'unknown';
+                if ($targetService && $targetAdvisor) {
+                    $transferType = 'service_and_advisor';
+                } elseif ($targetService) {
+                    $transferType = 'service_only';
+                } elseif ($targetAdvisor) {
+                    $transferType = 'advisor_only';
+                }
+
+                Log::info('Ticket transféré avec système collaboratif', [
+                    'ticket_id' => $ticket->id,
+                    'numero_ticket' => $ticket->numero_ticket,
+                    'from_advisor_id' => $user->id,
+                    'from_advisor_username' => $user->username,
+                    'to_service_id' => $targetService ? $targetService->id : null,
+                    'to_service_name' => $targetService ? $targetService->nom : null,
+                    'to_advisor_id' => $targetAdvisor ? $targetAdvisor->id : null,
+                    'to_advisor_username' => $targetAdvisor ? $targetAdvisor->username : null,
+                    'transfer_type' => $transferType,
+                    'transfer_reason' => $request->transfer_reason,
+                    'collaborative_system' => 'active',
+                    'priority_status' => 'Le ticket aura priorité "new" chez le destinataire'
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Ticket {$ticket->numero_ticket} transféré avec succès - Le destinataire le recevra en priorité",
+                    'ticket' => $ticket->fresh()->toTicketArrayWithTransfer(),
+                    'transfer_info' => [
+                        'transfer_type' => $transferType,
+                        'to_service' => $targetService ? [
+                            'id' => $targetService->id,
+                            'nom' => $targetService->nom,
+                            'letter' => $targetService->letter_of_service
+                        ] : null,
+                        'to_advisor' => $targetAdvisor ? [
+                            'id' => $targetAdvisor->id,
+                            'username' => $targetAdvisor->username,
+                            'email' => $targetAdvisor->email
+                        ] : null,
+                        'reason' => $request->transfer_reason,
+                        'notes' => $request->transfer_notes,
+                        'priority_granted' => true,
+                        'collaborative_system' => 'Le ticket aura statut "new" (priorité absolue)'
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Erreur transfert ticket collaboratif', [
+                'ticket_id' => $request->ticket_id ?? null,
+                'conseiller_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'request_data' => $request->except(['_token'])
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du transfert : ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ===============================================
     // API AJAX POUR STATISTIQUES ET RECHERCHE
     // ===============================================
 
@@ -2433,6 +3258,10 @@ class DashboardController extends Controller
                 'my_tickets_processing' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'en_cours')->count(),
                 'my_tickets_completed' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'termine')->count(),
                 'my_average_wait_time' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->avg('temps_attente_estime') ?? 0,
+                
+                // 🆕 NOUVEAU : Statistiques de transfert collaboratif
+                'my_transfers_today' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('transferer', 'new')->count(),
+                'my_collaborative_activity' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->whereIn('transferer', ['new', 'transferé'])->count(),
             ];
 
             return response()->json([
@@ -2444,16 +3273,20 @@ class DashboardController extends Controller
                     'email' => $currentAdmin->email
                 ],
                 'queue_info' => [
-                    'type' => 'service_numbering_unique',
-                    'principle' => 'Numérotation par service avec système anti-doublon',
+                    'type' => 'collaborative_service_numbering_unique',
+                    'principle' => 'Numérotation par service avec système anti-doublon et transfert collaboratif',
                     'configured_time' => Setting::getDefaultWaitingTimeMinutes(),
-                    'anti_duplicate_system' => 'active'
+                    'anti_duplicate_system' => 'active',
+                    'collaborative_features' => [
+                        'transfer_priority' => 'active',
+                        'team_collaboration' => 'enabled'
+                    ]
                 ],
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
             
         } catch (\Exception $e) {
-            Log::error("Erreur statistiques isolées: " . $e->getMessage());
+            Log::error("Erreur statistiques isolées avec système collaboratif: " . $e->getMessage());
             
             return response()->json([
                 'success' => false, 
@@ -2808,17 +3641,21 @@ class DashboardController extends Controller
                 'Communiquez avec l\'équipe de gestion'
             ];
         } elseif ($user->isConseillerUser()) {
-            $data['type_description'] = 'Poste Conseiller - Support et assistance client';
+            $data['type_description'] = 'Poste Conseiller - Support et assistance client avec transfert collaboratif';
             $data['type_features'] = [
                 'Support client avancé',
                 'Résolution de problèmes',
                 'Conseils personnalisés',
-                'Suivi client'
+                'Suivi client',
+                'Transfert collaboratif entre conseillers', // 🆕 NOUVEAU
+                'Gestion priorité des tickets transférés' // 🆕 NOUVEAU
             ];
             $data['type_recommendations'] = [
                 'Restez à jour sur les procédures',
                 'Documentez les interactions clients',
-                'Collaborez avec l\'équipe support'
+                'Collaborez avec l\'équipe support',
+                'Utilisez le transfert pour optimiser le service', // 🆕 NOUVEAU
+                'Priorisez les tickets "new" reçus par transfert' // 🆕 NOUVEAU
             ];
         }
 
@@ -2845,7 +3682,11 @@ class DashboardController extends Controller
                 'country' => $user->agency->country
             ] : null,
             'login_info' => $user->getLastLoginInfo(),
-            'password_info' => $user->getPasswordInfo()
+            'password_info' => $user->getPasswordInfo(),
+            'collaborative_features' => $user->isConseillerUser() ? [
+                'transfer_support' => true,
+                'team_collaboration' => true
+            ] : null
         ];
     }
 
@@ -2867,507 +3708,6 @@ class DashboardController extends Controller
         return $password;
     }
 
-    // ===============================================
-    // 🆕 NOUVELLES MÉTHODES : TRANSFERT DYNAMIQUE
-    // ===============================================
-
-    /**
-     * 🔄 RÉCUPÉRER LES SERVICES DISPONIBLES POUR TRANSFERT
-     */
-    public function getTransferServices(Request $request): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            
-            if (!$user->isConseillerUser()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-
-            $creator = $user->getCreator();
-            if (!$creator) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Configuration manquante'
-                ], 500);
-            }
-
-            // 🎯 RÉCUPÉRER SEULEMENT LES SERVICES ACTIFS CRÉÉS PAR L'ADMIN
-            $services = $creator->createdServices()
-                              ->where('statut', 'actif')
-                              ->orderBy('nom', 'asc')
-                              ->get(['id', 'nom', 'letter_of_service'])
-                              ->map(function($service) {
-                                  return [
-                                      'id' => $service->id,
-                                      'nom' => $service->nom,
-                                      'letter_of_service' => $service->letter_of_service,
-                                      'display_name' => $service->letter_of_service . ' - ' . $service->nom
-                                  ];
-                              });
-
-            Log::info('Services de transfert chargés pour conseiller', [
-                'conseiller_id' => $user->id,
-                'admin_creator_id' => $creator->id,
-                'services_count' => $services->count()
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'services' => $services,
-                'total_services' => $services->count(),
-                'admin_info' => [
-                    'username' => $creator->username,
-                    'company' => $creator->company
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Erreur récupération services transfert', [
-                'conseiller_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération des services'
-            ], 500);
-        }
-    }
-
-    /**
-     * 🔄 RÉCUPÉRER LES CONSEILLERS DISPONIBLES POUR TRANSFERT
-     */
-    public function getAvailableAdvisors(Request $request): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            
-            if (!$user->isConseillerUser()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-
-            $creator = $user->getCreator();
-            if (!$creator) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Configuration manquante'
-                ], 500);
-            }
-
-            // 🎯 RÉCUPÉRER LES CONSEILLERS DE LA MÊME ÉQUIPE (CRÉÉS PAR LE MÊME ADMIN)
-            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
-                                         ->pluck('user_id')
-                                         ->toArray();
-
-            $advisors = User::whereIn('id', $myUserIds)
-                           ->where('user_type_id', 4) // Type conseiller
-                           ->where('status_id', 2) // Actifs seulement
-                           ->where('id', '!=', $user->id) // Exclure le conseiller actuel
-                           ->orderBy('username', 'asc')
-                           ->get(['id', 'username', 'email'])
-                           ->map(function($advisor) {
-                               // 🔍 VÉRIFIER SI LE CONSEILLER A UN TICKET EN COURS
-                               $hasCurrentTicket = Queue::where('conseiller_client_id', $advisor->id)
-                                                      ->whereDate('date', today())
-                                                      ->where('statut_global', 'en_cours')
-                                                      ->exists();
-
-                               // 📊 STATISTIQUES DU JOUR
-                               $ticketsToday = Queue::where('conseiller_client_id', $advisor->id)
-                                                   ->whereDate('date', today())
-                                                   ->where('statut_global', 'termine')
-                                                   ->count();
-
-                               return [
-                                   'id' => $advisor->id,
-                                   'username' => $advisor->username,
-                                   'email' => $advisor->email,
-                                   'display_name' => $advisor->username . ' (' . $advisor->email . ')',
-                                   'has_current_ticket' => $hasCurrentTicket,
-                                   'status_class' => $hasCurrentTicket ? 'busy' : 'available',
-                                   'tickets_today' => $ticketsToday,
-                                   'availability_status' => $hasCurrentTicket ? 'Occupé' : 'Disponible'
-                               ];
-                           });
-
-            Log::info('Conseillers de transfert chargés', [
-                'conseiller_id' => $user->id,
-                'admin_creator_id' => $creator->id,
-                'advisors_count' => $advisors->count(),
-                'available_advisors' => $advisors->where('has_current_ticket', false)->count()
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'advisors' => $advisors,
-                'total_advisors' => $advisors->count(),
-                'available_advisors' => $advisors->where('has_current_ticket', false)->count(),
-                'busy_advisors' => $advisors->where('has_current_ticket', true)->count(),
-                'team_info' => [
-                    'admin_username' => $creator->username,
-                    'team_size' => $advisors->count() + 1 // +1 pour inclure l'utilisateur actuel
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Erreur récupération conseillers transfert', [
-                'conseiller_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération des conseillers'
-            ], 500);
-        }
-    }
-
-    /**
-     * 🔄 RÉCUPÉRER LA CHARGE DE TRAVAIL D'UN CONSEILLER
-     */
-    public function getAdvisorWorkload(Request $request, $advisorId): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            
-            if (!$user->isConseillerUser()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-
-            $creator = $user->getCreator();
-            if (!$creator) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Configuration manquante'
-                ], 500);
-            }
-
-            // 🔍 VÉRIFIER QUE LE CONSEILLER FAIT PARTIE DE L'ÉQUIPE
-            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
-                                         ->pluck('user_id')
-                                         ->toArray();
-
-            if (!in_array($advisorId, $myUserIds)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Conseiller non autorisé'
-                ], 403);
-            }
-
-            $advisor = User::find($advisorId);
-            if (!$advisor || !$advisor->isConseillerUser()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Conseiller non trouvé'
-                ], 404);
-            }
-
-            // 📊 STATISTIQUES DÉTAILLÉES DU CONSEILLER
-            $today = today();
-            
-            $workloadStats = [
-                'advisor_info' => [
-                    'id' => $advisor->id,
-                    'username' => $advisor->username,
-                    'email' => $advisor->email
-                ],
-                'today_stats' => [
-                    'tickets_completed' => Queue::where('conseiller_client_id', $advisorId)
-                                               ->whereDate('date', $today)
-                                               ->where('statut_global', 'termine')
-                                               ->count(),
-                    
-                    'tickets_resolved' => Queue::where('conseiller_client_id', $advisorId)
-                                             ->whereDate('date', $today)
-                                             ->where('statut_global', 'termine')
-                                             ->where('resolu', 1)
-                                             ->count(),
-                    
-                    'current_ticket' => Queue::where('conseiller_client_id', $advisorId)
-                                            ->whereDate('date', $today)
-                                            ->where('statut_global', 'en_cours')
-                                            ->first(),
-                    
-                    'average_processing_time' => Queue::where('conseiller_client_id', $advisorId)
-                                                     ->whereDate('date', $today)
-                                                     ->where('statut_global', 'termine')
-                                                     ->whereNotNull('heure_de_fin')
-                                                     ->whereNotNull('heure_prise_en_charge')
-                                                     ->selectRaw('AVG(TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60) as avg_minutes')
-                                                     ->value('avg_minutes') ?? 0
-                ],
-                'week_stats' => [
-                    'tickets_completed' => Queue::where('conseiller_client_id', $advisorId)
-                                               ->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
-                                               ->where('statut_global', 'termine')
-                                               ->count()
-                ]
-            ];
-
-            // 🎯 GÉNÉRER UNE RECOMMANDATION
-            $recommendation = 'Conseiller disponible';
-            
-            if ($workloadStats['today_stats']['current_ticket']) {
-                $recommendation = 'Conseiller occupé avec un client';
-            } elseif ($workloadStats['today_stats']['tickets_completed'] > 10) {
-                $recommendation = 'Conseiller très actif aujourd\'hui';
-            } elseif ($workloadStats['today_stats']['tickets_completed'] > 5) {
-                $recommendation = 'Conseiller modérément actif';
-            } else {
-                $recommendation = 'Conseiller peu sollicité aujourd\'hui';
-            }
-
-            // 🔄 CALCULER UN SCORE DE DISPONIBILITÉ
-            $availabilityScore = 100;
-            if ($workloadStats['today_stats']['current_ticket']) {
-                $availabilityScore = 0; // Occupé
-            } else {
-                // Réduire le score selon la charge de travail
-                $todayLoad = $workloadStats['today_stats']['tickets_completed'];
-                $availabilityScore = max(20, 100 - ($todayLoad * 5));
-            }
-
-            Log::info('Charge de travail conseiller récupérée', [
-                'target_advisor_id' => $advisorId,
-                'requesting_advisor_id' => $user->id,
-                'today_completed' => $workloadStats['today_stats']['tickets_completed'],
-                'has_current_ticket' => (bool) $workloadStats['today_stats']['current_ticket'],
-                'availability_score' => $availabilityScore
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'workload' => $workloadStats,
-                'recommendation' => $recommendation,
-                'availability_score' => $availabilityScore,
-                'transfer_suitability' => $availabilityScore > 50 ? 'recommended' : 'not_recommended'
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Erreur récupération charge de travail', [
-                'advisor_id' => $advisorId,
-                'requesting_user_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération de la charge de travail'
-            ], 500);
-        }
-    }
-
-    /**
-     * 🔄 EFFECTUER LE TRANSFERT D'UN TICKET
-     */
-    public function transferTicket(Request $request): JsonResponse
-    {
-        
-        try {
-            $user = Auth::user();
-            
-            if (!$user->isConseillerUser()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé'
-                ], 403);
-            }
-
-            // 🔍 VALIDATION DES DONNÉES DE TRANSFERT
-            $validator = Validator::make($request->all(), [
-                'ticket_id' => 'required|integer|exists:queues,id',
-                'transfer_reason' => 'required|string|max:300',
-                'transfer_notes' => 'nullable|string|max:200',
-                'to_service' => 'nullable|integer|exists:services,id',
-                'to_advisor' => 'nullable|integer|exists:users,id'
-            ], [
-                'ticket_id.required' => 'ID du ticket obligatoire',
-                'ticket_id.exists' => 'Ticket non trouvé',
-                'transfer_reason.required' => 'Le motif du transfert est obligatoire',
-                'transfer_reason.max' => 'Le motif ne peut pas dépasser 300 caractères',
-                'to_service.exists' => 'Service de destination non trouvé',
-                'to_advisor.exists' => 'Conseiller de destination non trouvé'
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur de validation',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            // 🔍 VÉRIFICATIONS DE SÉCURITÉ
-            $creator = $user->getCreator();
-            if (!$creator) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Configuration manquante'
-                ], 500);
-            }
-
-            // Vérifier que le ticket appartient bien au conseiller
-            $ticket = Queue::where('id', $request->ticket_id)
-                          ->where('conseiller_client_id', $user->id)
-                          ->where('statut_global', 'en_cours')
-                          ->first();
-
-            if (!$ticket) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ticket non trouvé ou non autorisé'
-                ], 404);
-            }
-
-            // Valider au moins une destination
-            if (!$request->to_service && !$request->to_advisor) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Au moins un service ou un conseiller de destination doit être spécifié'
-                ], 422);
-            }
-
-            $myUserIds = AdministratorUser::where('administrator_id', $creator->id)
-                                         ->pluck('user_id')
-                                         ->toArray();
-
-            // 🔍 VALIDER LE SERVICE DE DESTINATION
-            $targetService = null;
-            if ($request->to_service) {
-                $targetService = Service::where('id', $request->to_service)
-                                       ->where('created_by', $creator->id)
-                                       ->where('statut', 'actif')
-                                       ->first();
-
-                if (!$targetService) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Service de destination non autorisé ou inactif'
-                    ], 403);
-                }
-            }
-
-            // 🔍 VALIDER LE CONSEILLER DE DESTINATION
-            $targetAdvisor = null;
-            if ($request->to_advisor) {
-                $targetAdvisor = User::where('id', $request->to_advisor)
-                                   ->whereIn('id', $myUserIds)
-                                   ->where('user_type_id', 4)
-                                   ->where('status_id', 2)
-                                   ->where('id', '!=', $user->id)
-                                   ->first();
-
-                if (!$targetAdvisor) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Conseiller de destination non autorisé ou inactif'
-                    ], 403);
-                }
-
-                // Vérifier que le conseiller cible n'a pas déjà un ticket en cours
-                $advisorHasTicket = Queue::where('conseiller_client_id', $targetAdvisor->id)
-                                        ->whereDate('date', today())
-                                        ->where('statut_global', 'en_cours')
-                                        ->exists();
-
-                if ($advisorHasTicket) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Le conseiller sélectionné a déjà un ticket en cours'
-                    ], 400);
-                }
-            }
-
-            // 🔄 EFFECTUER LE TRANSFERT
-            DB::beginTransaction();
-
-            try {
-                $transferSuccess = $ticket->transferTo(
-                    $targetService ? $targetService->id : null,
-                    $targetAdvisor ? $targetAdvisor->id : null,
-                    $request->transfer_reason,
-                    $request->transfer_notes,
-                    $user->id
-                );
-
-                if (!$transferSuccess) {
-                    throw new \Exception('Échec du transfert du ticket');
-                }
-
-                DB::commit();
-
-                // 🎯 DÉTERMINER LE TYPE DE TRANSFERT EFFECTUÉ
-                $transferType = 'unknown';
-                if ($targetService && $targetAdvisor) {
-                    $transferType = 'service_and_advisor';
-                } elseif ($targetService) {
-                    $transferType = 'service_only';
-                } elseif ($targetAdvisor) {
-                    $transferType = 'advisor_only';
-                }
-
-                Log::info('Ticket transféré avec succès', [
-                    'ticket_id' => $ticket->id,
-                    'numero_ticket' => $ticket->numero_ticket,
-                    'from_advisor_id' => $user->id,
-                    'from_advisor_username' => $user->username,
-                    'to_service_id' => $targetService ? $targetService->id : null,
-                    'to_service_name' => $targetService ? $targetService->nom : null,
-                    'to_advisor_id' => $targetAdvisor ? $targetAdvisor->id : null,
-                    'to_advisor_username' => $targetAdvisor ? $targetAdvisor->username : null,
-                    'transfer_type' => $transferType,
-                    'transfer_reason' => $request->transfer_reason
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => "Ticket {$ticket->numero_ticket} transféré avec succès",
-                    'ticket' => $ticket->fresh()->toTicketArray(),
-                    'transfer_info' => [
-                        'transfer_type' => $transferType,
-                        'to_service' => $targetService ? [
-                            'id' => $targetService->id,
-                            'nom' => $targetService->nom,
-                            'letter' => $targetService->letter_of_service
-                        ] : null,
-                        'to_advisor' => $targetAdvisor ? [
-                            'id' => $targetAdvisor->id,
-                            'username' => $targetAdvisor->username,
-                            'email' => $targetAdvisor->email
-                        ] : null,
-                        'reason' => $request->transfer_reason,
-                        'notes' => $request->transfer_notes
-                    ]
-                ]);
-
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Erreur transfert ticket', [
-                'ticket_id' => $request->ticket_id ?? null,
-                'conseiller_id' => Auth::id(),
-                'error' => $e->getMessage(),
-                'request_data' => $request->except(['_token'])
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du transfert : ' . $e->getMessage()
-            ], 500);
-        }
-    }
     /**
      * Formater l'âge du compte
      */
