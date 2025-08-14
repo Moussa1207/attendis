@@ -9,11 +9,39 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class Queue extends Model
+
 {
+    public const STATUT_EN_ATTENTE = 'en_attente';
+public const STATUT_EN_COURS   = 'en_cours';
+public const STATUT_TERMINE    = 'termine';
+
+public const TRANSFER_IN   = 'new';       // reçu chez le destinataire (prioritaire)
+public const TRANSFER_OUT  = 'transfere'; // forme canonique (ASCII, sans accent)
+public const TRANSFER_NONE = 'no';
+
+// Normalise toute valeur entrante/sortante du champ `transferer`
+private static function normalizeTransferFlag($v): string
+{
+    $v = strtolower(trim((string)$v));
+    return match ($v) {
+        'new', 'reçu', 'recu'                       => self::TRANSFER_IN,
+        'transfere', 'transféré', 'transferé', 'yes'=> self::TRANSFER_OUT,
+        'no', 'non', ''                              => self::TRANSFER_NONE,
+        default                                      => self::TRANSFER_NONE,
+    };
+}
+
+// Mutator Eloquent : dès qu’on assigne $model->transferer = ..., on normalise
+public function setTransfererAttribute($value): void
+{
+    $this->attributes['transferer'] = self::normalizeTransferFlag($value);
+}
+
     use HasFactory;
 
+
     /**
-     * ✅ ATTRIBUTS REMPLISSABLES - MODIFIÉ pour resolu tinyint et système collaboratif
+     * ✅ ATTRIBUTS REMPLISSABLES
      */
     protected $fillable = [
         'id_agence',
@@ -29,9 +57,9 @@ class Queue extends Model
         'heure_transfert',
         'conseiller_client_id',
         'conseiller_transfert',
-        'resolu', // ✅ MODIFIÉ : maintenant tinyint (0/1)
+        'resolu', // tinyint (0/1)
         'commentaire_resolution',
-        'transferer', // ✅ COLLABORATIF : "new", "transferé", "No"
+        'transferer', // "new", "transferé", "No"
         'debut',
         'numero_ticket',
         'position_file',
@@ -40,25 +68,25 @@ class Queue extends Model
         'historique',
         'created_by_ip',
         'notes_internes',
-        'transfer_reason', // 🆕 NOUVEAU : Motif du transfert
-        'transfer_notes',  // 🆕 NOUVEAU : Notes du transfert
+        'transfer_reason',
+        'transfer_notes',
     ];
 
     /**
-     * ✅ CASTS MODIFIÉS pour resolu tinyint et système collaboratif
+     * ✅ CASTS
      */
     protected $casts = [
         'date' => 'date',
         'historique' => 'json',
         'position_file' => 'integer',
         'temps_attente_estime' => 'integer',
-        'resolu' => 'integer', // ✅ NOUVEAU : cast en integer (0/1)
+        'resolu' => 'integer', // 0/1
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
     /**
-     * ✅ RELATIONS ELOQUENT - AMÉLIORÉES avec transfert collaboratif
+     * ✅ RELATIONS
      */
     public function service()
     {
@@ -81,7 +109,7 @@ class Queue extends Model
     }
 
     /**
-     * ✅ SCOPES POUR REQUÊTES - AMÉLIORÉS avec système collaboratif
+     * ✅ SCOPES
      */
     public function scopeToday($query)
     {
@@ -113,7 +141,7 @@ class Queue extends Model
         return $query->orderBy('created_at', 'asc');
     }
 
-    // 🆕 NOUVEAU : Scopes pour système collaboratif
+    // 🆕 Scopes système collaboratif
     public function scopeTransferredToMe($query)
     {
         return $query->where('transferer', 'new');
@@ -121,7 +149,8 @@ class Queue extends Model
 
     public function scopeTransferredByMe($query, $userId)
     {
-        return $query->where('conseiller_transfert', $userId)->where('transferer', 'transferé');
+        // Un ticket "envoyé par moi" = j'apparais comme expéditeur.
+   return $query->where('conseiller_transfert', $userId);
     }
 
     public function scopeNormalTickets($query)
@@ -134,21 +163,21 @@ class Queue extends Model
     }
 
     /**
-     * ✅ NOUVELLES MÉTHODES pour resolu tinyint
+     * ✅ resolu tinyint
      */
     public function isResolu(): bool
     {
-        return $this->resolu === 1;
+        return (int)$this->resolu === 1;
     }
 
     public function isNonResolu(): bool
     {
-        return $this->resolu === 0;
+        return (int)$this->resolu === 0;
     }
 
     public function getResoluLibelle(): string
     {
-        return match($this->resolu) {
+        return match((int)$this->resolu) {
             1 => 'Résolu',
             0 => 'Non résolu',
             default => 'Inconnu'
@@ -156,48 +185,52 @@ class Queue extends Model
     }
 
     /**
-     * 🆕 NOUVELLES MÉTHODES pour système collaboratif
+     * 🆕 Système collaboratif
      */
     public function isTransferredToMe(): bool
     {
-        return $this->transferer === 'new';
+        return self::normalizeTransferFlag($this->transferer) === self::TRANSFER_IN;
     }
 
     public function isTransferredByMe($userId): bool
     {
-        return $this->conseiller_transfert == $userId && $this->transferer === 'transferé';
+        return (int)$this->conseiller_transfert === (int)$userId;
     }
 
     public function isNormalTicket(): bool
     {
-        return in_array($this->transferer, [null, 'No', 'no']);
+       $flag = self::normalizeTransferFlag($this->transferer);
+       return $this->transferer === null || $flag === self::TRANSFER_NONE;
     }
 
     public function hasTransferPriority(): bool
     {
-        return $this->transferer === 'new';
+        return self::normalizeTransferFlag($this->transferer) === self::TRANSFER_IN;
     }
 
     public function getTransferStatus(): string
     {
-        return match($this->transferer) {
-            'new' => 'Reçu par transfert',
-            'transferé' => 'Transféré par moi',
-            default => 'Normal'
-        };
+        return match (self::normalizeTransferFlag($this->transferer)) {
+       self::TRANSFER_IN   => 'Reçu par transfert',
+      self::TRANSFER_OUT  => 'Transféré par moi', // conservé si jamais tu l’utilises plus tard
+        default             => 'Normal',
+   };
     }
 
     public function getTransferPriorityLevel(): string
     {
-        return match($this->transferer) {
-            'new' => 'high',
-            'transferé' => 'blocked',
-            default => 'normal'
-        };
+        $flag = self::normalizeTransferFlag($this->transferer);
+   return match ($flag) {
+      self::TRANSFER_IN  => 'high',
+      self::TRANSFER_OUT => 'blocked',
+      default            => 'normal',
+   };
     }
 
     /**
-     * 🆕 GÉNÉRATION AUTOMATIQUE DU NUMÉRO DE TICKET - PAR SERVICE AVEC FILE CHRONOLOGIQUE
+     * 🆕 GÉNÉRATION AUTOMATIQUE DU NUMÉRO (par service et par jour)
+     * - utilise MAX du suffixe pour être robuste (pas COUNT)
+     * - supporte un préfixe de longueur > 1 (letter_of_service)
      */
     public static function generateTicketNumber($serviceId, $date = null): string
     {
@@ -208,55 +241,54 @@ class Queue extends Model
             throw new \Exception('Service introuvable pour génération ticket');
         }
 
-        $serviceTicketCount = self::where('service_id', $serviceId)
-                                 ->where('date', $date)
-                                 ->count();
+        $prefix = (string) $service->letter_of_service;
+        $offset = strlen($prefix) + 1; // début du suffixe numérique
+        $lastNumber = self::where('service_id', $serviceId)
+            ->whereDate('date', $date)
+            ->where('numero_ticket', 'LIKE', $prefix . '%')
+            ->selectRaw("MAX(CAST(SUBSTRING(numero_ticket, {$offset}) AS UNSIGNED)) as max_num")
+            ->value('max_num');
 
-        $nextServiceNumber = $serviceTicketCount + 1;
-
-        return $service->letter_of_service . str_pad($nextServiceNumber, 3, '0', STR_PAD_LEFT);
+        $next = ((int)$lastNumber) + 1; // null => 0
+        return $prefix . str_pad($next, 3, '0', STR_PAD_LEFT);
     }
 
     /**
-     * 🆕 CALCUL DE LA POSITION DANS LA FILE UNIQUE CHRONOLOGIQUE COLLABORATIVE
+     * 🆕 POSITION DANS LA FILE (globale jour)
      */
     public static function calculateQueuePosition($date = null): int
     {
         $date = $date ?: today();
-        
-        $currentPosition = self::where('date', $date)
+        $currentPosition = self::whereDate('date', $date)
                               ->where('statut_global', 'en_attente')
                               ->count();
-
         return $currentPosition + 1;
     }
 
     /**
-     * ✅ ESTIMATION DU TEMPS D'ATTENTE AVEC PRIORITÉ COLLABORATIVE
+     * ✅ ESTIMATION DU TEMPS D'ATTENTE
      */
     public static function estimateWaitingTime($position = null, $hasPriority = false): int
     {
         $adminConfiguredTime = \App\Models\Setting::getDefaultWaitingTimeMinutes();
-        
+
         if ($position === null) {
             $position = self::calculateQueuePosition();
         }
 
-        // 🆕 Les tickets avec priorité transfert passent devant
         if ($hasPriority) {
             $priorityTickets = self::today()->enAttente()->transferredToMe()->count();
             $waitingCount = max(0, $priorityTickets - 1);
         } else {
             $waitingCount = max(0, $position - 1);
         }
-        
+
         $estimatedTime = $waitingCount * $adminConfiguredTime;
-        
         return max(0, min(300, $estimatedTime));
     }
 
     /**
-     * 🆕 CRÉATION D'UN NOUVEAU TICKET - LOGIQUE FIFO CHRONOLOGIQUE COLLABORATIVE
+     * 🆕 CRÉATION D'UN NOUVEAU TICKET (sécurisée)
      */
     public static function createTicket(array $data): self
     {
@@ -280,6 +312,13 @@ class Queue extends Model
                 throw new \Exception('Service actuellement fermé');
             }
 
+            // 🔒 Verrouille la plage (service + date) pour éviter un doublon de numéro
+            DB::table('queues')
+                ->where('service_id', $serviceId)
+                ->whereDate('date', $date)
+                ->lockForUpdate()
+                ->get();
+
             $ticketNumber = self::generateTicketNumber($serviceId, $date);
             $position = self::calculateQueuePosition($date);
             $estimatedTime = self::estimateWaitingTime($position);
@@ -299,8 +338,8 @@ class Queue extends Model
                 'position_file' => $position,
                 'temps_attente_estime' => $estimatedTime,
                 'statut_global' => 'en_attente',
-                'resolu' => 1, // ✅ MODIFIÉ : Par défaut résolu (1)
-                'transferer' => 'No', // ✅ COLLABORATIF : Ticket normal par défaut
+                'resolu' => 0,
+                'transferer' => 'No',
                 'debut' => 'No',
                 'created_by_ip' => request()->ip() ?? null,
                 'historique' => [
@@ -315,22 +354,17 @@ class Queue extends Model
 
             DB::commit();
 
-            Log::info('Nouveau ticket créé avec système collaboratif', [
+            Log::info('Nouveau ticket créé', [
                 'ticket_id' => $ticket->id,
                 'numero_ticket' => $ticket->numero_ticket,
                 'service_name' => $service->nom,
-                'client_name' => $ticket->prenom,
-                'resolu_default' => $ticket->resolu,
-                'transfer_status' => $ticket->transferer,
-                'position_chronologique' => $ticket->position_file,
-                'collaborative_system' => 'active'
             ]);
 
             return $ticket;
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Erreur création ticket avec système collaboratif', [
+            Log::error('Erreur création ticket', [
                 'error' => $e->getMessage(),
                 'data' => $data
             ]);
@@ -339,39 +373,33 @@ class Queue extends Model
     }
 
     /**
-     * ✅ MÉTHODES D'ÉTAT (inchangées)
+     * ✅ ÉTATS
      */
-    public function isEnAttente(): bool
-    {
-        return $this->statut_global === 'en_attente';
-    }
-
-    public function isEnCours(): bool
-    {
-        return $this->statut_global === 'en_cours';
-    }
-
-    public function isTermine(): bool
-    {
-        return $this->statut_global === 'termine';
-    }
-
-    public function isTransfere(): bool
-    {
-        return in_array($this->transferer, ['new', 'transferé']);
-    }
+    public function isEnAttente(): bool { return $this->statut_global === 'en_attente'; }
+    public function isEnCours(): bool { return $this->statut_global === 'en_cours'; }
+    public function isTermine(): bool { return $this->statut_global === 'termine'; }
+    public function isTransfere(): bool { 
+        $flag = self::normalizeTransferFlag($this->transferer);
+        return in_array($flag, [self::TRANSFER_IN, self::TRANSFER_OUT], true);
+     }
 
     /**
-     * ✅ PRISE EN CHARGE - AMÉLIORÉE avec système collaboratif
+     * ✅ PRISE EN CHARGE
+     * — protège les tickets transférés "new" réservés à un autre conseiller
      */
     public function priseEnCharge($conseillerId): bool
     {
         try {
+            // Exclusivité pour les tickets transférés en priorité
+            if ($this->hasTransferPriority() && $this->conseiller_client_id && (int)$this->conseiller_client_id !== (int)$conseillerId) {
+                throw new \Exception('Ticket réservé à un autre conseiller.');
+            }
+
             $currentTime = now()->format('H:i:s');
-            
+
             $this->update([
-                'conseiller_client_id' => $conseillerId, // ✅ Auto: ID conseiller
-                'heure_prise_en_charge' => $currentTime, // ✅ Auto: Heure d'appel
+                'conseiller_client_id' => $conseillerId,
+                'heure_prise_en_charge' => $currentTime,
                 'statut_global' => 'en_cours',
                 'debut' => 'Yes',
                 'historique' => array_merge($this->historique ?? [], [
@@ -388,18 +416,15 @@ class Queue extends Model
                 ])
             ]);
 
-            Log::info('Ticket pris en charge avec contexte collaboratif', [
+            Log::info('Ticket pris en charge', [
                 'ticket_id' => $this->id,
                 'numero_ticket' => $this->numero_ticket,
                 'conseiller_id' => $conseillerId,
-                'was_transferred' => $this->isTransferredToMe(),
-                'transfer_status' => $this->transferer,
-                'priority_taken' => $this->hasTransferPriority()
             ]);
 
             return true;
         } catch (\Exception $e) {
-            Log::error('Erreur prise en charge ticket collaboratif', [
+            Log::error('Erreur prise en charge ticket', [
                 'ticket_id' => $this->id,
                 'conseiller_id' => $conseillerId,
                 'error' => $e->getMessage()
@@ -409,29 +434,35 @@ class Queue extends Model
     }
 
     /**
-     * ✅ TERMINER - MODIFIÉ pour supporter resolu tinyint et commentaire obligatoire
+     * ✅ TERMINER (Traiter/Refuser) — sort de la file
      */
     public function terminer($resolu = 1, $commentaire = null): bool
     {
         try {
             $currentTime = now()->format('H:i:s');
-            
-            // ✅ VALIDATION : Commentaire obligatoire pour les refus
-            if ($resolu === 0 && empty($commentaire)) {
+
+            if ((int)$resolu === 0 && empty($commentaire)) {
                 throw new \Exception('Commentaire obligatoire pour les tickets non résolus');
             }
-            
+
             $this->update([
-                'heure_de_fin' => $currentTime, // ✅ Auto: Heure de fin
+                'heure_de_fin' => $currentTime,
                 'statut_global' => 'termine',
-                'resolu' => (int)$resolu, // ✅ MODIFIÉ : tinyint (0/1)
+                'resolu' => (int)$resolu,
                 'commentaire_resolution' => $commentaire,
+
+                // 🧹 Nettoyage file — empêche toute réapparition
+                'transferer' => 'No',
+                'position_file' => null,
+            ]);
+
+            $this->update([
                 'historique' => array_merge($this->historique ?? [], [
                     [
                         'action' => 'terminer',
                         'timestamp' => now()->toISOString(),
-                        'resolu' => $resolu,
-                        'resolu_libelle' => $resolu === 1 ? 'Résolu' : 'Non résolu',
+                        'resolu' => (int)$resolu,
+                        'resolu_libelle' => (int)$resolu === 1 ? 'Résolu' : 'Non résolu',
                         'commentaire' => $commentaire,
                         'collaborative_context' => [
                             'was_transferred' => $this->isTransferredToMe(),
@@ -442,20 +473,15 @@ class Queue extends Model
                 ])
             ]);
 
-            Log::info('Ticket terminé avec système collaboratif', [
+            Log::info('Ticket terminé', [
                 'ticket_id' => $this->id,
                 'numero_ticket' => $this->numero_ticket,
-                'resolu' => $resolu,
-                'resolu_libelle' => $this->getResoluLibelle(),
-                'has_comment' => !empty($commentaire),
-                'was_transferred' => $this->isTransferredToMe(),
-                'transfer_status' => $this->transferer,
-                'collaborative_completion' => true
+                'resolu' => (int)$resolu,
             ]);
 
             return true;
         } catch (\Exception $e) {
-            Log::error('Erreur finalisation ticket collaboratif', [
+            Log::error('Erreur finalisation ticket', [
                 'ticket_id' => $this->id,
                 'error' => $e->getMessage()
             ]);
@@ -464,7 +490,7 @@ class Queue extends Model
     }
 
     /**
-     * 🆕 DONNÉES POUR L'API/FRONTEND - MODIFIÉ pour resolu tinyint et système collaboratif
+     * 🆕 Données API/Frontend
      */
     public function toTicketArray(): array
     {
@@ -475,53 +501,48 @@ class Queue extends Model
             'service_letter' => $this->letter_of_service,
             'agence_id' => $this->id_agence,
             'client_name' => $this->prenom,
-            'prenom' => $this->prenom, // ✅ Champ principal pour les noms
+            'prenom' => $this->prenom,
             'telephone' => $this->telephone,
             'commentaire' => $this->commentaire,
-            'date' => $this->date->format('d/m/Y'),
+            'date' => $this->date?->format('d/m/Y'),
             'heure' => $this->formatHeureEnregistrement(),
-            'heure_d_enregistrement' => $this->heure_d_enregistrement, // ✅ Pour calcul temps réel
+            'heure_d_enregistrement' => $this->heure_d_enregistrement,
             'position' => $this->position_file,
             'temps_attente_estime' => $this->temps_attente_estime,
             'statut' => $this->statut_global,
             'statut_libelle' => $this->getStatutLibelle(),
-            'resolu' => $this->resolu, // ✅ NOUVEAU : 0/1
-            'resolu_libelle' => $this->getResoluLibelle(), // ✅ NOUVEAU : "Résolu"/"Non résolu"
+            'resolu' => $this->resolu,
+            'resolu_libelle' => $this->getResoluLibelle(),
             'commentaire_resolution' => $this->commentaire_resolution,
             'is_en_attente' => $this->isEnAttente(),
             'is_en_cours' => $this->isEnCours(),
             'is_termine' => $this->isTermine(),
-            'is_resolu' => $this->isResolu(), // ✅ NOUVEAU
-            'is_non_resolu' => $this->isNonResolu(), // ✅ NOUVEAU
+            'is_resolu' => $this->isResolu(),
+            'is_non_resolu' => $this->isNonResolu(),
             'conseiller' => $this->conseillerClient ? $this->conseillerClient->username : null,
-            'heure_prise_en_charge' => $this->heure_prise_en_charge, // ✅ Auto-rempli
-            'heure_de_fin' => $this->heure_de_fin, // ✅ Auto-rempli
-            'created_at' => $this->created_at->format('d/m/Y H:i:s'),
-            
-            // 🆕 NOUVEAU : Informations de transfert basiques
+            'heure_prise_en_charge' => $this->heure_prise_en_charge,
+            'heure_de_fin' => $this->heure_de_fin,
+            'created_at' => $this->created_at?->format('d/m/Y H:i:s'),
+            'created_at_iso' => $this->created_at?->toISOString(),
             'transferer' => $this->transferer,
             'is_transferred_to_me' => $this->isTransferredToMe(),
             'has_transfer_priority' => $this->hasTransferPriority(),
-            
+
             'queue_type' => 'collaborative_service_numbering_chronological_processing',
-            'arrival_order' => $this->created_at->format('H:i:s')
+            'arrival_order' => $this->created_at?->format('H:i:s')
         ];
     }
 
-    /**
-     * 🆕 NOUVEAU : Données enrichies avec informations complètes de transfert collaboratif
-     */
     public function toTicketArrayWithTransfer(): array
     {
         $basicArray = $this->toTicketArray();
-        
-        // ✅ Enrichir avec informations complètes de transfert
+
         $transferInfo = [
             'transfer_status' => $this->transferer,
             'transfer_status_label' => $this->getTransferStatus(),
             'priority_level' => $this->getTransferPriorityLevel(),
             'is_transferred_to_me' => $this->isTransferredToMe(),
-            'is_transferred_by_me' => false, // Sera défini par le contrôleur
+            'is_transferred_by_me' => false,
             'is_normal_ticket' => $this->isNormalTicket(),
             'has_transfer_priority' => $this->hasTransferPriority(),
             'transferred_by_id' => $this->conseiller_transfert,
@@ -541,18 +562,18 @@ class Queue extends Model
     }
 
     /**
-     * ✅ MÉTHODE D'AIDE POUR FORMATTER L'HEURE (inchangée)
+     * ✅ Format heure
      */
     private function formatHeureEnregistrement(): string
     {
         if (!$this->heure_d_enregistrement) {
             return '--:--';
         }
-        
+
         if (is_string($this->heure_d_enregistrement)) {
             return substr($this->heure_d_enregistrement, 0, 5);
         }
-        
+
         try {
             return Carbon::parse($this->heure_d_enregistrement)->format('H:i');
         } catch (\Exception $e) {
@@ -561,7 +582,7 @@ class Queue extends Model
     }
 
     /**
-     * ✅ LIBELLÉ DU STATUT (inchangé)
+     * ✅ Libellé du statut
      */
     public function getStatutLibelle(): string
     {
@@ -575,22 +596,20 @@ class Queue extends Model
     }
 
     /**
-     * 🔄 OBTENIR LA LISTE D'ATTENTE CHRONOLOGIQUE COLLABORATIVE (FIFO AVEC PRIORITÉ)
+     * 🔄 FILE CHRONOLOGIQUE (priorité transferts)
      */
     public static function getChronologicalQueueWithPriority($date = null): \Illuminate\Support\Collection
     {
         $date = $date ?: today();
 
-        // 🎯 PRIORITÉ 1 : Les tickets "new" (transférés) en premier par ordre chronologique
-        $priorityTickets = self::where('date', $date)
+        $priorityTickets = self::whereDate('date', $date)
                               ->where('statut_global', 'en_attente')
                               ->where('transferer', 'new')
                               ->orderBy('created_at', 'asc')
                               ->with(['service', 'agence', 'conseillerTransfert'])
                               ->get();
 
-        // 🎯 PRIORITÉ 2 : Les tickets normaux par ordre chronologique
-        $normalTickets = self::where('date', $date)
+        $normalTickets = self::whereDate('date', $date)
                             ->where('statut_global', 'en_attente')
                             ->where(function($query) {
                                 $query->whereNull('transferer')
@@ -601,7 +620,6 @@ class Queue extends Model
                             ->with(['service', 'agence'])
                             ->get();
 
-        // 🆕 Marquer chaque ticket avec sa priorité
         $priorityTickets->each(function($ticket) {
             $ticket->collaborative_priority = 'high';
             $ticket->priority_reason = 'Reçu par transfert';
@@ -612,19 +630,17 @@ class Queue extends Model
             $ticket->priority_reason = 'FIFO chronologique';
         });
 
-        // 🔄 Fusionner : priorité puis normal
         return $priorityTickets->concat($normalTickets);
     }
 
     /**
-     * 🔄 OBTENIR LE PROCHAIN TICKET À TRAITER AVEC PRIORITÉ COLLABORATIVE
+     * 🔄 PROCHAIN TICKET COLLABORATIF (global)
      */
     public static function getNextTicketCollaborative($date = null)
     {
         $date = $date ?: today();
 
-        // 🎯 PRIORITÉ 1 : Chercher d'abord un ticket "new"
-        $nextTicket = self::where('date', $date)
+        $nextTicket = self::whereDate('date', $date)
                          ->where('statut_global', 'en_attente')
                          ->where('transferer', 'new')
                          ->orderBy('created_at', 'asc')
@@ -635,8 +651,7 @@ class Queue extends Model
             return $nextTicket;
         }
 
-        // 🎯 PRIORITÉ 2 : Si pas de "new", prendre le premier normal
-        $nextTicket = self::where('date', $date)
+        $nextTicket = self::whereDate('date', $date)
                          ->where('statut_global', 'en_attente')
                          ->where(function($query) {
                              $query->whereNull('transferer')
@@ -654,15 +669,14 @@ class Queue extends Model
     }
 
     /**
-     * 🔄 OBTENIR LES PROCHAINS TICKETS D'UN SERVICE AVEC PRIORITÉ COLLABORATIVE
+     * 🔄 FILE PAR SERVICE (priorité transferts)
      */
     public static function getServiceQueueCollaborative($serviceId, $date = null): \Illuminate\Support\Collection
     {
         $date = $date ?: today();
 
-        // 🎯 Même logique que getChronologicalQueueWithPriority mais filtré par service
         $priorityTickets = self::where('service_id', $serviceId)
-                              ->where('date', $date)
+                              ->whereDate('date', $date)
                               ->where('statut_global', 'en_attente')
                               ->where('transferer', 'new')
                               ->orderBy('created_at', 'asc')
@@ -670,7 +684,7 @@ class Queue extends Model
                               ->get();
 
         $normalTickets = self::where('service_id', $serviceId)
-                            ->where('date', $date)
+                            ->whereDate('date', $date)
                             ->where('statut_global', 'en_attente')
                             ->where(function($query) {
                                 $query->whereNull('transferer')
@@ -685,38 +699,35 @@ class Queue extends Model
     }
 
     /**
-     * 🔄 STATISTIQUES DU SERVICE - MODIFIÉES pour resolu tinyint et transferts collaboratifs
+     * 🔄 STATS SERVICE
      */
     public static function getServiceStats($serviceId, $date = null): array
     {
         $date = $date ?: today();
 
         $baseStats = [
-            'total_tickets' => self::where('service_id', $serviceId)->where('date', $date)->count(),
-            'en_attente' => self::where('service_id', $serviceId)->where('date', $date)->where('statut_global', 'en_attente')->count(),
-            'en_cours' => self::where('service_id', $serviceId)->where('date', $date)->where('statut_global', 'en_cours')->count(),
-            'termines' => self::where('service_id', $serviceId)->where('date', $date)->where('statut_global', 'termine')->count(),
-            
-            // ✅ NOUVELLES STATS avec resolu tinyint
-            'resolus' => self::where('service_id', $serviceId)->where('date', $date)->where('resolu', 1)->count(),
-            'non_resolus' => self::where('service_id', $serviceId)->where('date', $date)->where('resolu', 0)->count(),
-            
-            // 🆕 NOUVEAU : Statistiques de transfert collaboratif
-            'tickets_transferred_in' => self::where('service_id', $serviceId)->where('date', $date)->where('transferer', 'new')->count(),
-            'tickets_transferred_out' => self::where('service_id', $serviceId)->where('date', $date)->where('transferer', 'transferé')->count(),
-            'normal_tickets' => self::where('service_id', $serviceId)->where('date', $date)->normalTickets()->count(),
-            
-            'temps_attente_moyen' => self::where('service_id', $serviceId)->where('date', $date)->avg('temps_attente_estime') ?? 0,
-            'dernier_ticket' => self::where('service_id', $serviceId)->where('date', $date)->orderBy('created_at', 'desc')->first(),
+            'total_tickets' => self::where('service_id', $serviceId)->whereDate('date', $date)->count(),
+            'en_attente' => self::where('service_id', $serviceId)->whereDate('date', $date)->where('statut_global', 'en_attente')->count(),
+            'en_cours' => self::where('service_id', $serviceId)->whereDate('date', $date)->where('statut_global', 'en_cours')->count(),
+            'termines' => self::where('service_id', $serviceId)->whereDate('date', $date)->where('statut_global', 'termine')->count(),
+
+            'resolus' => self::where('service_id', $serviceId)->whereDate('date', $date)->where('resolu', 1)->count(),
+            'non_resolus' => self::where('service_id', $serviceId)->whereDate('date', $date)->where('resolu', 0)->count(),
+
+            'tickets_transferred_in' => self::where('service_id', $serviceId)->whereDate('date', $date)->where('transferer', 'new')->count(),
+            'tickets_transferred_out' => self::where('service_id', $serviceId)->whereDate('date', $date)->whereNotNull('conseiller_transfert')->count(),
+            'normal_tickets' => self::where('service_id', $serviceId)->whereDate('date', $date)->normalTickets()->count(),
+
+            'temps_attente_moyen' => self::where('service_id', $serviceId)->whereDate('date', $date)->avg('temps_attente_estime') ?? 0,
+            'dernier_ticket' => self::where('service_id', $serviceId)->whereDate('date', $date)->orderBy('created_at', 'desc')->first(),
         ];
 
-        // 🆕 Prochains tickets avec priorité collaborative
         $prochains_tickets = self::getServiceQueueCollaborative($serviceId, $date)->take(5);
 
         return array_merge($baseStats, [
             'file_chronologique_collaborative' => [
                 'position_globale_actuelle' => self::calculateQueuePosition($date),
-                'total_attente_globale' => self::where('date', $date)->where('statut_global', 'en_attente')->count(),
+                'total_attente_globale' => self::whereDate('date', $date)->where('statut_global', 'en_attente')->count(),
                 'tickets_prioritaires' => $baseStats['tickets_transferred_in'],
                 'tickets_normaux' => $baseStats['normal_tickets'],
                 'temps_attente_configure' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
@@ -731,19 +742,15 @@ class Queue extends Model
                     ];
                 })->toArray(),
                 'ordre_traitement' => 'Priorité transferts puis FIFO chronologique',
-                
-                // ✅ NOUVELLES INFOS resolu avec transferts
                 'resolution_stats' => [
                     'taux_resolution' => $baseStats['total_tickets'] > 0 ? round(($baseStats['resolus'] / $baseStats['total_tickets']) * 100, 2) : 0,
                     'tickets_resolus' => $baseStats['resolus'],
                     'tickets_non_resolus' => $baseStats['non_resolus']
                 ],
-                
-                // 🆕 NOUVEAU : Stats collaboratives
                 'collaborative_stats' => [
                     'transfers_received' => $baseStats['tickets_transferred_in'],
                     'transfers_sent' => $baseStats['tickets_transferred_out'],
-                    'collaboration_rate' => $baseStats['total_tickets'] > 0 ? 
+                    'collaboration_rate' => $baseStats['total_tickets'] > 0 ?
                         round((($baseStats['tickets_transferred_in'] + $baseStats['tickets_transferred_out']) / $baseStats['total_tickets']) * 100, 2) : 0
                 ]
             ]
@@ -751,23 +758,22 @@ class Queue extends Model
     }
 
     /**
-     * 🆕 STATISTIQUES GLOBALES - MODIFIÉES pour resolu tinyint et système collaboratif
+     * 🆕 STATS GLOBALES
      */
     public static function getGlobalQueueStats($date = null): array
     {
         $date = $date ?: today();
 
-        $totalToday = self::where('date', $date)->count();
-        $enAttente = self::where('date', $date)->where('statut_global', 'en_attente')->count();
-        $enCours = self::where('date', $date)->where('statut_global', 'en_cours')->count();
-        $termines = self::where('date', $date)->where('statut_global', 'termine')->count();
-        $resolus = self::where('date', $date)->where('resolu', 1)->count();
-        $nonResolus = self::where('date', $date)->where('resolu', 0)->count();
-        
-        // 🆕 NOUVEAU : Stats de transfert collaboratif
-        $transfersReceived = self::where('date', $date)->where('transferer', 'new')->count();
-        $transfersSent = self::where('date', $date)->where('transferer', 'transferé')->count();
-        $normalTickets = self::where('date', $date)->normalTickets()->count();
+        $totalToday = self::whereDate('date', $date)->count();
+        $enAttente = self::whereDate('date', $date)->where('statut_global', 'en_attente')->count();
+        $enCours = self::whereDate('date', $date)->where('statut_global', 'en_cours')->count();
+        $termines = self::whereDate('date', $date)->where('statut_global', 'termine')->count();
+        $resolus = self::whereDate('date', $date)->where('resolu', 1)->count();
+        $nonResolus = self::whereDate('date', $date)->where('resolu', 0)->count();
+
+        $transfersReceived = self::whereDate('date', $date)->where('transferer', 'new')->count();
+        $transfersSent = self::whereDate('date', $date)->whereNotNull('conseiller_transfert')->count();
+        $normalTickets = self::whereDate('date', $date)->normalTickets()->count();
 
         return [
             'date' => $date->format('d/m/Y'),
@@ -779,22 +785,21 @@ class Queue extends Model
                 'resolus' => $resolus,
                 'non_resolus' => $nonResolus,
                 'taux_resolution' => $totalToday > 0 ? round(($resolus / $totalToday) * 100, 2) : 0,
-                
-                // 🆕 NOUVEAU : Stats collaboratives globales
+
                 'transfers_received' => $transfersReceived,
                 'transfers_sent' => $transfersSent,
                 'normal_tickets' => $normalTickets,
                 'collaboration_rate' => $totalToday > 0 ? round((($transfersReceived + $transfersSent) / $totalToday) * 100, 2) : 0,
-                
+
                 'prochaine_position' => self::calculateQueuePosition($date),
                 'temps_attente_configure' => \App\Models\Setting::getDefaultWaitingTimeMinutes(),
                 'temps_attente_estime_prochain' => self::estimateWaitingTime(),
-                'dernier_numero_genere' => self::where('date', $date)
+                'dernier_numero_genere' => self::whereDate('date', $date)
                                               ->orderBy('created_at', 'desc')
                                               ->first()?->numero_ticket ?? 'Aucun',
                 'principe' => 'Numérotation par service, traitement chronologique avec priorité transferts et résolution binaire'
             ],
-            'repartition_par_service' => self::where('date', $date)
+            'repartition_par_service' => self::whereDate('date', $date)
                                            ->join('services', 'queues.service_id', '=', 'services.id')
                                            ->selectRaw('
                                                services.nom as service_name, 
@@ -802,12 +807,12 @@ class Queue extends Model
                                                COUNT(*) as tickets_count, 
                                                SUM(resolu) as resolus_count,
                                                SUM(CASE WHEN transferer = "new" THEN 1 ELSE 0 END) as transfers_received,
-                                               SUM(CASE WHEN transferer = "transferé" THEN 1 ELSE 0 END) as transfers_sent
+                                               SUM(CASE WHEN conseiller_transfert IS NOT NULL THEN 1 ELSE 0 END) as transfers_sent
                                            ')
                                            ->groupBy('services.id', 'services.nom', 'services.letter_of_service')
                                            ->get()
                                            ->toArray(),
-            'sequence_chronologique_collaborative' => self::where('date', $date)
+            'sequence_chronologique_collaborative' => self::whereDate('date', $date)
                                                         ->orderBy('created_at', 'asc')
                                                         ->limit(20)
                                                         ->get(['numero_ticket', 'created_at', 'heure_d_enregistrement', 'resolu', 'transferer'])
@@ -841,28 +846,32 @@ class Queue extends Model
         ];
     }
 
+    public function getTransfererAttribute($value)
+{
+    return self::normalizeTransferFlag($value);
+}
+
     /**
-     * ✅ NETTOYAGE AUTOMATIQUE DES ANCIENS TICKETS (inchangé)
+     * ✅ NETTOYAGE AUTOMATIQUE
      */
     public static function cleanOldTickets($daysToKeep = 30): int
     {
         $cutoffDate = now()->subDays($daysToKeep);
-        
+
         $deletedCount = self::where('date', '<', $cutoffDate)
                            ->where('statut_global', 'termine')
                            ->delete();
 
-        Log::info('Nettoyage automatique des tickets collaboratifs', [
+        Log::info('Nettoyage automatique des tickets', [
             'tickets_supprimés' => $deletedCount,
             'cutoff_date' => $cutoffDate->format('Y-m-d'),
-            'collaborative_system' => 'maintained'
         ]);
-            
+
         return $deletedCount;
     }
 
     /**
-     * ✅ BOOT METHOD - MODIFIÉ pour resolu tinyint par défaut et système collaboratif
+     * ✅ BOOT : valeurs par défaut
      */
     protected static function boot()
     {
@@ -872,7 +881,7 @@ class Queue extends Model
             if (empty($queue->date)) {
                 $queue->date = today();
             }
-            
+
             if (empty($queue->heure_d_enregistrement)) {
                 $queue->heure_d_enregistrement = now()->format('H:i:s');
             }
@@ -881,19 +890,17 @@ class Queue extends Model
                 $queue->statut_global = 'en_attente';
             }
 
-            // ✅ NOUVEAU : resolu par défaut à 1 (résolu)
             if (!isset($queue->resolu)) {
-                $queue->resolu = 1;
+                $queue->resolu = 0;
             }
-            
-            // 🆕 NOUVEAU : transferer par défaut à "No" (ticket normal)
+
             if (empty($queue->transferer)) {
                 $queue->transferer = 'No';
             }
         });
 
         static::created(function ($queue) {
-            Log::info('Ticket créé avec système collaboratif', [
+            Log::info('Ticket créé', [
                 'id' => $queue->id,
                 'numero_ticket' => $queue->numero_ticket,
                 'service' => $queue->service->nom ?? 'N/A',
@@ -904,22 +911,19 @@ class Queue extends Model
                 'resolu_default' => $queue->resolu,
                 'transfer_status' => $queue->transferer,
                 'priority_level' => $queue->getTransferPriorityLevel(),
-                'ordre_concept' => 'Numérotation par service, traitement chronologique collaborative avec résolution binaire',
-                'collaborative_system' => 'active'
             ]);
         });
     }
 
     /**
-     * 🔄 TRANSFÉRER LE TICKET VERS UN AUTRE SERVICE ET/OU CONSEILLER - VERSION COLLABORATIVE
+     * 🔄 TRANSFERT COLLABORATIF (sécurisé pour changement de service)
      */
     public function transferToCollaborative($newServiceId = null, $newAdvisorId = null, $reason = null, $notes = null, $fromAdvisorId = null): bool
     {
         try {
             $currentTime = now()->format('H:i:s');
             $transferDate = now()->toISOString();
-            
-            // 🔍 VALIDATION DES PARAMÈTRES
+
             if (!$newServiceId && !$newAdvisorId) {
                 throw new \Exception('Au moins un service ou un conseiller de destination doit être spécifié');
             }
@@ -928,94 +932,88 @@ class Queue extends Model
                 throw new \Exception('Le motif du transfert est obligatoire');
             }
 
-            // 🔍 VÉRIFIER QUE LE TICKET EST EN COURS
             if ($this->statut_global !== 'en_cours') {
                 throw new \Exception('Seuls les tickets en cours peuvent être transférés');
             }
 
-            // 🔍 VALIDATION DU SERVICE DE DESTINATION
             $newService = null;
             if ($newServiceId) {
                 $newService = \App\Models\Service::where('id', $newServiceId)
                                                 ->where('statut', 'actif')
                                                 ->first();
-                
                 if (!$newService) {
                     throw new \Exception('Service de destination non trouvé ou inactif');
                 }
             }
 
-            // 🔍 VALIDATION DU CONSEILLER DE DESTINATION
             $newAdvisor = null;
             if ($newAdvisorId) {
                 $newAdvisor = \App\Models\User::where('id', $newAdvisorId)
-                                             ->where('user_type_id', 4) // Type conseiller
-                                             ->where('status_id', 2) // Actif
+                                             ->where('user_type_id', 4)
+                                             ->where('status_id', 2)
                                              ->first();
-                
                 if (!$newAdvisor) {
                     throw new \Exception('Conseiller de destination non trouvé ou inactif');
                 }
 
-                // Vérifier que le conseiller n'a pas déjà un ticket en cours
                 $advisorBusy = self::where('conseiller_client_id', $newAdvisorId)
                                   ->whereDate('date', today())
                                   ->where('statut_global', 'en_cours')
                                   ->exists();
-
                 if ($advisorBusy) {
                     throw new \Exception('Le conseiller de destination a déjà un ticket en cours');
                 }
             }
 
-            // 🔄 SAUVEGARDER L'ANCIEN CONSEILLER POUR HISTORIQUE
             $oldAdvisorId = $this->conseiller_client_id;
             $oldServiceId = $this->service_id;
 
-            // 🔄 PRÉPARER LES NOUVELLES DONNÉES COLLABORATIVES
             $updateData = [
                 'heure_transfert' => $currentTime,
-                'transferer' => 'new', // ✅ COLLABORATIF : Le destinataire recevra un ticket "new" (priorité)
-                'statut_global' => 'en_attente', // ✅ RETOUR EN FILE D'ATTENTE avec priorité
-                'resolu' => 1, // ✅ RESET à résolu par défaut pour nouveau traitement
-                'commentaire_resolution' => null, // ✅ RESET commentaire résolution
-                'heure_de_fin' => null, // ✅ RESET heure de fin
-                'heure_prise_en_charge' => null, // ✅ RESET heure prise en charge
-                'conseiller_transfert' => $oldAdvisorId, // ✅ Sauvegarder qui a transféré
-                'transfer_reason' => trim($reason), // 🆕 NOUVEAU : Motif du transfert
-                'transfer_notes' => $notes ? trim($notes) : null, // 🆕 NOUVEAU : Notes du transfert
+                'transferer' => 'new', // priorité chez destinataire
+                'statut_global' => 'en_attente',
+                'resolu' => 0,
+                'commentaire_resolution' => null,
+                'heure_de_fin' => null,
+                'heure_prise_en_charge' => null,
+                'conseiller_transfert' => $oldAdvisorId,
+                'transfer_reason' => trim($reason),
+                'transfer_notes' => $notes ? trim($notes) : null,
                 'updated_at' => now()
             ];
 
-            // 🎯 MISE À JOUR DU SERVICE SI SPÉCIFIÉ
+            // Service de destination -> régénérer un numéro (sécurisé)
             if ($newServiceId) {
                 $updateData['service_id'] = $newServiceId;
                 $updateData['letter_of_service'] = $newService->letter_of_service;
-                
-                // 🆕 GÉNÉRER UN NOUVEAU NUMÉRO DE TICKET SI CHANGEMENT DE SERVICE
+
                 if ($oldServiceId !== $newServiceId) {
+                    // 🔒 verrou avant nouvelle numérotation
+                    DB::table('queues')
+                        ->where('service_id', $newServiceId)
+                        ->whereDate('date', $this->date)
+                        ->lockForUpdate()
+                        ->get();
+
                     $newTicketNumber = self::generateTicketNumber($newServiceId, $this->date);
                     $updateData['numero_ticket'] = $newTicketNumber;
                 }
             }
 
-            // 🎯 MISE À JOUR DU CONSEILLER SI SPÉCIFIÉ
             if ($newAdvisorId) {
                 $updateData['conseiller_client_id'] = $newAdvisorId;
             } else {
-                // Si pas de nouveau conseiller spécifié, libérer le ticket (file d'attente générale)
-                $updateData['conseiller_client_id'] = null;
+                $updateData['conseiller_client_id'] = null; // libéré dans la file générale (mais "new")
             }
 
-            // 🔄 RECALCULER LA POSITION DANS LA FILE (priorité transfert)
-            $priorityPosition = self::where('date', $this->date)
+            // Repositionnement dans la sous-file prioritaire "new"
+            $priorityPosition = self::whereDate('date', $this->date)
                                    ->where('statut_global', 'en_attente')
                                    ->where('transferer', 'new')
                                    ->count() + 1;
-            
+
             $updateData['position_file'] = $priorityPosition;
 
-            // 🆕 ENRICHIR L'HISTORIQUE AVEC DÉTAILS DU TRANSFERT COLLABORATIF
             $currentHistory = $this->historique ?? [];
             $transferHistoryEntry = [
                 'action' => 'collaborative_transfer',
@@ -1042,106 +1040,64 @@ class Queue extends Model
 
             $updateData['historique'] = array_merge($currentHistory, [$transferHistoryEntry]);
 
-            // 🔄 EFFECTUER LA MISE À JOUR
             $success = $this->update($updateData);
-
             if (!$success) {
                 throw new \Exception('Échec de la mise à jour du ticket');
             }
 
-            // 🔄 MARQUER L'ANCIEN TICKET COMME TRANSFÉRÉ PAR LE CONSEILLER ACTUEL
-            // NOTE: Cette partie peut nécessiter une table séparée pour un suivi plus précis
-            
-            // 🎯 LOG DÉTAILLÉ DU TRANSFERT COLLABORATIF
-            Log::info('Ticket transféré avec système collaboratif - détails complets', [
+            Log::info('Ticket transféré (collaboratif)', [
                 'ticket_id' => $this->id,
                 'numero_ticket' => $this->numero_ticket,
                 'new_numero_ticket' => $updateData['numero_ticket'] ?? $this->numero_ticket,
-                'from_advisor_id' => $oldAdvisorId,
-                'to_advisor_id' => $newAdvisorId,
                 'from_service_id' => $oldServiceId,
                 'to_service_id' => $newServiceId,
-                'transfer_reason' => $reason,
-                'transfer_notes' => $notes,
-                'new_priority_position' => $priorityPosition,
-                'transfer_time' => $currentTime,
-                'transfer_type' => $transferHistoryEntry['transfer_type'],
-                'collaborative_system' => 'active',
-                'priority_status' => 'Le ticket aura maintenant le statut "new" (priorité absolue)',
-                'destination_will_see' => 'Ticket avec priorité maximale dans leur file'
+                'to_advisor_id' => $newAdvisorId,
+                'priority_position' => $priorityPosition,
             ]);
 
             return true;
 
         } catch (\Exception $e) {
-            Log::error('Erreur lors du transfert collaboratif de ticket', [
+            Log::error('Erreur transfert collaboratif', [
                 'ticket_id' => $this->id,
-                'numero_ticket' => $this->numero_ticket,
-                'new_service_id' => $newServiceId,
-                'new_advisor_id' => $newAdvisorId,
-                'from_advisor_id' => $fromAdvisorId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'collaborative_system' => 'error_during_transfer'
             ]);
-            
+
             return false;
         }
     }
 
-    /**
-     * 🔍 DÉTERMINER LE TYPE DE TRANSFERT
-     */
     private function determineTransferType($newServiceId = null, $newAdvisorId = null): string
     {
-        if ($newServiceId && $newAdvisorId) {
-            return 'collaborative_service_and_advisor';
-        } elseif ($newServiceId) {
-            return 'collaborative_service_only';
-        } elseif ($newAdvisorId) {
-            return 'collaborative_advisor_only';
-        } else {
-            return 'unknown';
-        }
+        if ($newServiceId && $newAdvisorId) return 'collaborative_service_and_advisor';
+        if ($newServiceId) return 'collaborative_service_only';
+        if ($newAdvisorId) return 'collaborative_advisor_only';
+        return 'unknown';
     }
 
-    /**
-     * 🔍 VÉRIFIER SI LE TICKET A ÉTÉ TRANSFÉRÉ
-     */
     public function wasTransferred(): bool
     {
-        return in_array($this->transferer, ['new', 'transferé']);
+        $flag = self::normalizeTransferFlag($this->transferer);
+        return in_array($flag, [self::TRANSFER_IN, self::TRANSFER_OUT], true);
     }
 
-    /**
-     * 🔍 OBTENIR L'HISTORIQUE DES TRANSFERTS COLLABORATIFS
-     */
     public function getCollaborativeTransferHistory(): array
     {
-        if (!$this->historique) {
-            return [];
-        }
-
+        if (!$this->historique) return [];
         return array_filter($this->historique, function($entry) {
-            return isset($entry['action']) && in_array($entry['action'], ['transfer', 'collaborative_transfer']);
+            return isset($entry['action']) && in_array($entry['action'], ['transfer', 'collaborative_transfer'], true);
         });
     }
 
-    /**
-     * 🔍 OBTENIR LE CONSEILLER QUI A TRANSFÉRÉ LE TICKET
-     */
     public function getTransferredFrom()
     {
         if (!$this->wasTransferred() || !$this->conseiller_transfert) {
             return null;
         }
-
         return \App\Models\User::find($this->conseiller_transfert);
     }
 
-    /**
-     * 🆕 NOUVEAU : Obtenir les statistiques de collaboration pour un conseiller
-     */
     public static function getCollaborativeStatsForAdvisor($advisorId, $date = null): array
     {
         $date = $date ?: today();
@@ -1151,19 +1107,18 @@ class Queue extends Model
                                            ->whereDate('date', $date)
                                            ->where('transferer', 'new')
                                            ->count(),
-            
-            'tickets_sent_today' => self::where('conseiller_transfert', $advisorId)
+
+           'tickets_sent_today' => self::where('conseiller_transfert', $advisorId)
                                        ->whereDate('date', $date)
-                                       ->where('transferer', 'transferé')
                                        ->count(),
-            
+
             'tickets_resolved_from_transfers' => self::where('conseiller_client_id', $advisorId)
                                                     ->whereDate('date', $date)
                                                     ->where('transferer', 'new')
                                                     ->where('statut_global', 'termine')
                                                     ->where('resolu', 1)
                                                     ->count(),
-            
+
             'collaboration_score' => self::where('conseiller_client_id', $advisorId)
                                          ->whereDate('date', $date)
                                          ->where('transferer', 'new')
@@ -1174,14 +1129,36 @@ class Queue extends Model
                                          ->count()
         ];
     }
+ // Ticket en cours pour un conseiller (fiable après refresh)
+public static function getCurrentTicketForAdvisor(int $advisorId, $date = null): ?self
+{
+    $date = $date ?: today();
 
-    /**
-     * 🆕 NOUVEAU : Obtenir les tickets avec priorité pour un service donné
-     */
+    //  Cas nominal
+    $ticket = self::whereDate('date', $date)
+        ->where('conseiller_client_id', $advisorId)
+        ->where('statut_global', self::STATUT_EN_COURS)
+        ->whereNull('heure_de_fin')                       // pas fini
+        ->orderByDesc('heure_prise_en_charge')            // le + récent
+        ->first();
+
+    if ($ticket) return $ticket;
+
+    //  Fallback tolérant (héritage) : si un ancien code a oublié le statut
+    $ticket = self::whereDate('date', $date)
+        ->where('conseiller_client_id', $advisorId)
+        ->where('debut', 'Yes')                           // démarré
+        ->whereNull('heure_de_fin')
+        ->orderByDesc('updated_at')
+        ->first();
+
+    return $ticket ?: null;
+}
+
     public static function getPriorityTicketsForService($serviceId, $date = null)
     {
         $date = $date ?: today();
-        
+
         return self::where('service_id', $serviceId)
                    ->whereDate('date', $date)
                    ->where('statut_global', 'en_attente')

@@ -15,7 +15,7 @@
                     <div class="dropdown-menu dropdown-menu-right dropdown-lg p-0">
                         <div class="app-search-topbar">
                             <form action="#" method="get">
-                                <input type="search" name="search" class="from-control top-search mb-0" placeholder="Rechercher un ticket...">
+                                <input type="search" name="search" class="form-control top-search mb-0" placeholder="Rechercher un ticket...">
                                 <button type="submit"><i class="ti-search"></i></button>
                             </form>
                         </div>
@@ -92,13 +92,14 @@
                 </li> 
                 <li class="creat-btn">
                     <div class="nav-link">
-                        <button class="btn btn-success btn-sm btn-call-next" onclick="advisorInterface.callNextTicket()">
-                            <i data-feather="phone-call" class="mr-2"></i>
-                            <span class="btn-text">Appeler premier</span>
-                            <span class="btn-loading d-none">
-                                <span class="spinner-border spinner-border-sm mr-1"></span>Appel...
-                            </span>
-                        </button>
+                        <button id="callNextBtn" class="btn btn-success btn-sm btn-call-next" onclick="advisorInterface.callNextTicket()">
+    <i data-feather="phone-call" class="mr-2"></i>
+    <span class="btn-text">Appeler premier</span>
+    <span class="btn-loading d-none">
+        <span class="spinner-border spinner-border-sm mr-1"></span>Appel...
+    </span>
+</button>
+
                     </div>                                
                 </li>                           
             </ul>
@@ -224,7 +225,7 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <h5 class="card-title mb-0">
-                                        🎯 File d'attente FIFO
+                                         File d'attente 
                                         <span class="badge badge-light ml-2" id="queueCountBadge">{{ $fileStats['tickets_en_attente'] ?? 0 }} tickets</span>
                                     </h5>
                                     <small class="text-muted">Premier arrivé, premier servi - Les tickets "new" (reçus) ont la priorité absolue</small>
@@ -676,7 +677,7 @@
                     <!-- Choix du type de transfert -->
                     <div class="form-group">
                         <label class="font-weight-semibold">Type de transfert</label>
-                        <div class="transfer-type-selector">
+                        <div class="transfer-type-selector d-flex align-items-center flex-nowrap overflow-auto">
                             <div class="form-check form-check-inline">
                                 <input class="form-check-input" type="radio" name="transferType" id="transferToService" value="service" checked>
                                 <label class="form-check-label" for="transferToService">
@@ -1668,6 +1669,33 @@
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+/* --- Forcer l'alignement sur une ligne pour "Type de transfert" --- */
+.transfer-type-selector {
+  display: flex;             /* aligne horizontalement */
+  align-items: center;
+  gap: 12px;                 /* espace entre options */
+  flex-wrap: nowrap;         /* une seule ligne */
+  white-space: nowrap;       /* empêche le retour à la ligne interne */
+  overflow-x: auto;          /* scroll horizontal sur petits écrans */
+  -webkit-overflow-scrolling: touch;
+}
+
+.transfer-type-selector .form-check-inline {
+  display: inline-flex;      /* évite un fallback block éventuel */
+  align-items: center;
+  margin-right: 12px;
+  margin-bottom: 0;          /* pas d'espacement vertical */
+}
+
+.transfer-type-selector .form-check-input {
+  margin-top: 0;             /* aligne le radio avec le texte/icone */
+}
+
+.transfer-type-selector .form-check-label {
+  display: inline-flex;      /* pour centrer l’icône + texte */
+  align-items: center;
+}
+
 </style>
 
 <!-- JAVASCRIPT AMÉLIORÉ avec gestion priorité transfert et notifications subtiles -->
@@ -1703,10 +1731,13 @@ class AdvisorInterface {
                 completeTicket: '{{ route("conseiller.complete-ticket") }}',
                 transferTicket: '{{ route("conseiller.transfer-ticket") }}',
                 myStats: '{{ route("conseiller.my-stats") }}',
-                history: '{{ route("conseiller.history") }}',
+                // ✅ nouvelles routes pour l’historique fiable
+                history: '{{ route("conseiller.resolution-history") }}',
+                historyStats: '{{ route("conseiller.resolution-stats") }}',               
                 availableServices: '{{ route("api.conseiller.available-services") }}',
                 availableAdvisors: '{{ route("api.conseiller.available-advisors") }}',
-                advisorWorkload: '{{ route("api.conseiller.advisor-workload", ":id") }}'
+                advisorWorkload: '{{ route("api.conseiller.advisor-workload", ["advisorId" => "__ID__"]) }}',
+                currentTicket: '{{ route("conseiller.current-ticket") }}'
             }
         };
         
@@ -1718,6 +1749,7 @@ class AdvisorInterface {
             this.setupAjax();
             this.bindEvents();
             await this.loadInitialData();
+            await this.loadCurrentTicketFromServer(true);
             await this.loadTransferData();
             this.startWaitingTimeUpdater();
             this.isInitialized = true;
@@ -1765,25 +1797,13 @@ class AdvisorInterface {
      * Obtenir le statut de transfert du ticket
      */
     getTransferStatus(ticket) {
-        if (ticket.transferer) {
-            const status = ticket.transferer.toString().toLowerCase();
-            
-            switch (status) {
-                case 'new':
-                    return 'new';
-                case 'transferé':
-                case 'transfere':
-                case 'yes':
-                    return 'transferé';
-                case 'no':
-                case 'non':
-                default:
-                    return '-';
-            }
-        }
-        
-        return '-';
-    }
+  const raw = (ticket.transferer || ticket.statut_transfert || '').toString().toLowerCase().trim();
+  if (['new','reçu','recu'].includes(raw)) return 'new';
+  if (['transfere','transféré','transferé','yes'].includes(raw)) return 'transfere';
+  if (['no','non','-',''].includes(raw)) return '-';
+  return '-';
+}
+
 
     /**
      * Obtenir la classe CSS pour le statut de transfert
@@ -1794,7 +1814,7 @@ class AdvisorInterface {
         switch (status) {
             case 'new':
                 return 'transfer-success';
-            case 'transferé':
+            case 'transfere':
                 return 'transfer-info';
             default:
                 return 'transfer-muted';
@@ -1813,7 +1833,7 @@ class AdvisorInterface {
      */
     didITransferThis(ticket) {
         const status = this.getTransferStatus(ticket);
-        return status === 'transferé';
+        return status === 'transfere';
     }
 
     setupAjax() {
@@ -1892,10 +1912,10 @@ class AdvisorInterface {
             }
             
             // 3. Les tickets "transferé" passent après les normaux
-            if (statusA === 'transferé' && statusB === '-') {
+            if (statusA === 'transfere' && statusB === '-') {
                 return 1;
             }
-            if (statusB === 'transferé' && statusA === '-') {
+            if (statusB === 'transfere' && statusA === '-') {
                 return -1;
             }
             
@@ -2046,7 +2066,7 @@ class AdvisorInterface {
             workloadText.textContent = 'Chargement...';
             workloadInfo.style.display = 'block';
             
-            const workloadUrl = this.config.apiRoutes.advisorWorkload.replace(':id', advisorId);
+            const workloadUrl = this.config.apiRoutes.advisorWorkload.replace('__ID__', encodeURIComponent(advisorId));
             const response = await this.apiCall('GET', workloadUrl);
             
             if (response.success) {
@@ -2272,7 +2292,7 @@ class AdvisorInterface {
                 // Déterminer le statut du ticket
                 const isFirst = index === 0;
                 const isNewTransfer = transferStatus === 'new';
-                const isTransferredAway = transferStatus === 'transferé';
+                const isTransferredAway = transferStatus === 'transfere';
                 
                 let itemClass = 'ticket-item';
                 let canBeCalled = false;
@@ -2300,7 +2320,7 @@ class AdvisorInterface {
                             ${transferStatus}
                         </span>
                     `;
-                } else if (transferStatus === 'transferé') {
+                } else if (transferStatus === 'transfere') {
                     transferIndicator = `
                         <span class="transfer-indicator ${transferStatusClass}">
                             <i data-feather="share" style="width: 10px; height: 10px;"></i>
@@ -2322,7 +2342,7 @@ class AdvisorInterface {
                 }
                 
                 html += `
-                    <div class="${itemClass}" 
+                    <div class="${itemClass}" data-id="${validatedTicket.id}" 
                          onclick="advisorInterface.showTicketDetails(${validatedTicket.id})" 
                          style="animation-delay: ${index * 0.05}s">
                         
@@ -2422,7 +2442,7 @@ class AdvisorInterface {
                     notesItem.style.display = 'none';
                 }
             }
-        } else if (transferStatus === 'transferé') {
+        } else if (transferStatus === 'transfere') {
             transferBadge.style.display = 'block';
             transferBadge.innerHTML = `
                 <span class="badge badge-secondary transfer-badge">
@@ -2538,42 +2558,67 @@ class AdvisorInterface {
     }
 
     updateWaitingTimes() {
-        const ticketElements = document.querySelectorAll('.ticket-item');
-        ticketElements.forEach((element, index) => {
-            const ticket = this.ticketsData[index];
-            if (ticket) {
-                const waitingTime = this.calculateRealWaitingTime(ticket.heure_d_enregistrement || ticket.created_at);
-                const timeElement = element.querySelector('.ticket-waiting-time');
-                if (timeElement) {
-                    timeElement.textContent = waitingTime + 'min';
-                    
-                    timeElement.classList.remove('normal', 'warning', 'urgent');
-                    if (waitingTime > 30) {
-                        timeElement.classList.add('urgent');
-                    } else if (waitingTime > 15) {
-                        timeElement.classList.add('warning');
-                    } else {
-                        timeElement.classList.add('normal');
-                    }
-                }
-            }
-        });
-    }
+  document.querySelectorAll('.ticket-item[data-id]').forEach(el => {
+    const id = parseInt(el.getAttribute('data-id'), 10);
+    const t = this.ticketsData.find(x => x.id === id);
+    if (!t) return;
+    const mins = this.calculateRealWaitingTime(t.heure_d_enregistrement || t.created_at);
+    const timeEl = el.querySelector('.ticket-waiting-time');
+    if (!timeEl) return;
+    timeEl.textContent = mins + 'min';
+    timeEl.classList.remove('normal','warning','urgent');
+    timeEl.classList.add(mins > 30 ? 'urgent' : mins > 15 ? 'warning' : 'normal');
+  });
+}
+
 
     async callNextTicket() {
-        if (this.isPaused) {
-            this.showSubtleNotification('warning', 'Service en pause', 'Reprenez votre service d\'abord');
-            return;
-        }
+        if (this.currentTicket) {
+  this.showCurrentTicketModal(this.currentTicket);
+  this.showSubtleNotification('info', 'Déjà en cours', 'Vous avez déjà un ticket actif.');
+  return;
+}
+  if (this.isPaused) {
+    this.showSubtleNotification('warning', 'Service en pause', 'Reprenez votre service d\'abord');
+    return;
+  }
+  try {
+    if (typeof this.setButtonLoading === 'function') this.setButtonLoading('#callNextBtn', true);
 
-        if (this.ticketsData.length === 0) {
-            this.showSubtleNotification('info', 'File vide', 'Aucun ticket en attente');
-            return;
-        }
+    const res = await this.apiCall('POST', this.config.apiRoutes.callTicket);
 
-        const firstTicket = this.ticketsData[0];
-        await this.callTicket(firstTicket.id);
+    // ✅ Cas normal : on vient d’attribuer un ticket
+    if (res.ok && res.success && res.ticket) {
+      this.currentTicket = res.ticket;
+      this.showCurrentTicketModal(res.ticket);
+      if (typeof this.refreshTickets === 'function') await this.refreshTickets();
+      this.showSubtleNotification('success', 'Ticket attribué', res.message || 'Vous pouvez traiter le client');
+      this.playNotificationSound?.();
+      return;
     }
+
+    // ✅ Cas 400 avec ticket en cours (backend te le renvoie dans current_ticket)
+    if (!res.ok && res.current_ticket) {
+      this.currentTicket = res.current_ticket;
+      this.showCurrentTicketModal(res.current_ticket);
+      this.showSubtleNotification('warning', 'Déjà en cours', res.message || 'Un ticket est déjà en cours');
+      return;
+    }
+
+    // file vide / autre message serveur
+    if (res.success === false) {
+      this.showSubtleNotification('info', 'Aucun ticket', res.message || 'File vide');
+      return;
+    }
+
+    this.showSubtleNotification('error', 'Erreur', 'Réponse inattendue du serveur');
+  } catch (e) {
+    this.showSubtleNotification('error', 'Erreur', e.message || 'Impossible d’appeler le prochain ticket');
+  } finally {
+    if (typeof this.setButtonLoading === 'function') this.setButtonLoading('#callNextBtn', false);
+  }
+}
+
 
     async callTicket(ticketId) {
         const sortedTickets = this.sortTicketsWithTransferPriority(this.ticketsData);
@@ -2587,7 +2632,7 @@ class AdvisorInterface {
         const transferStatus = this.getTransferStatus(targetTicket);
         const isFirst = sortedTickets[0].id === ticketId;
         
-        if (transferStatus === 'transferé') {
+        if (transferStatus === 'transfere') {
             this.showSubtleNotification('warning', 'Ticket transféré', 'Ce ticket a été transféré et ne peut plus être appelé');
             return;
         }
@@ -2889,13 +2934,17 @@ class AdvisorInterface {
         }
     }
 
-    showCurrentTicket() {
-        if (this.currentTicket) {
-            this.showCurrentTicketModal(this.currentTicket);
-        } else {
-            this.showSubtleNotification('info', 'Aucun ticket', 'Appelez le premier ticket de la file');
-        }
-    }
+    async showCurrentTicket() {
+  if (this.currentTicket) {
+    this.showCurrentTicketModal(this.currentTicket);
+    return;
+  }
+  const found = await this.loadCurrentTicketFromServer(true);
+  if (!found) {
+    this.showSubtleNotification('info', 'Aucun ticket', 'Appelez le premier ticket de la file');
+  }
+}
+
 
     showCompletedTickets() {
         this.showHistory();
@@ -2916,124 +2965,108 @@ class AdvisorInterface {
         // Implémenter si nécessaire selon vos besoins
     }
 
-    async showHistory() {
-        try {
-            $('#historyModal').modal('show');
-            
-            const response = await this.apiCall('GET', this.config.apiRoutes.history);
-            
-            if (response.success) {
-                this.renderHistoryModal(response.tickets, response.summary);
-            } else {
-                throw new Error(response.message || 'Erreur lors du chargement');
-            }
-        } catch (error) {
-            console.error('❌ Error loading history:', error);
-            document.getElementById('historyContent').innerHTML = `
-                <div class="text-center py-4">
-                    <i data-feather="alert-circle" class="text-danger mb-2" style="width: 48px; height: 48px;"></i>
-                    <p class="text-muted">Erreur lors du chargement de l'historique</p>
-                </div>
-            `;
-            if (typeof feather !== 'undefined') feather.replace();
-        }
+ async showHistory() {
+  $('#historyModal').modal('show');
+  try {
+    const [statsRes, histRes] = await Promise.all([
+      this.apiCall('GET', this.config.apiRoutes.historyStats),
+      this.apiCall('GET', this.config.apiRoutes.history + '?origin=all') // all|received|normal
+    ]);
+
+    if (!statsRes.success || !histRes.success) {
+      throw new Error('Chargement incomplet');
     }
 
-    renderHistoryModal(tickets, summary) {
-        let html = `
-            <div class="history-summary mb-4">
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-success">${summary.total_traites || 0}</h4>
-                            <p class="text-muted mb-0">Tickets traités</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-danger">${summary.total_refuses || 0}</h4>
-                            <p class="text-muted mb-0">Tickets refusés</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-warning">${summary.total_transferes || 0}</h4>
-                            <p class="text-muted mb-0">Tickets transférés</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-info">${summary.temps_moyen_traitement || 0}min</h4>
-                            <p class="text-muted mb-0">Temps moyen</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Code</th>
-                            <th>Client</th>
-                            <th>Service</th>
-                            <th>Statut</th>
-                            <th>Date/Heure</th>
-                            <th>Durée</th>
-                            <th>Commentaire</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-        
-        if (tickets && tickets.length > 0) {
-            tickets.forEach(ticket => {
-                const statusBadge = this.getStatusBadge(ticket.statut_traiter);
-                const comment = ticket.commentaire_resolution || ticket.commentaire || '';
-                const hasComment = comment.trim() !== '';
-                
-                html += `
-                    <tr>
-                        <td><strong>${ticket.numero_ticket}</strong></td>
-                        <td>${ticket.prenom || ticket.client_name || 'N/A'}</td>
-                        <td>${ticket.service}</td>
-                        <td>${statusBadge}</td>
-                        <td>${ticket.date_traitement || ticket.updated_at || 'N/A'}</td>
-                        <td>${ticket.duree_traitement || 0}min</td>
-                        <td>
-                            ${hasComment ? `
-                                <span class="comment-preview" title="${this.escapeHtml(comment)}">
-                                    ${this.escapeHtml(comment.substring(0, 30))}${comment.length > 30 ? '...' : ''}
-                                </span>
-                                ${comment.length > 30 ? `
-                                    <a href="#" class="text-primary ml-1" onclick="advisorInterface.showCommentModal('${this.escapeHtml(comment)}', '${ticket.numero_ticket}'); return false;">
-                                        <i data-feather="eye" style="width: 14px; height: 14px;"></i>
-                                    </a>
-                                ` : ''}
-                            ` : '<span class="text-muted">-</span>'}
-                        </td>
-                    </tr>
-                `;
-            });
-        } else {
-            html += `
-                <tr>
-                    <td colspan="7" class="text-center text-muted py-4">
-                        Aucun ticket dans l'historique
-                    </td>
-                </tr>
-            `;
-        }
-        
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-        
-        document.getElementById('historyContent').innerHTML = html;
-        if (typeof feather !== 'undefined') feather.replace();
-    }
+    const s = statsRes.resolution_stats || {};
+    const summary = {
+      total_traites: s.total_traites || 0,
+      total_refuses: s.tickets_non_resolus || 0,
+      total_recus_traites: s.tickets_recus_traites || 0,
+      avg_minutes: s.avg_processing_time_min ?? 0
+    };
+
+    this.renderHistoryModal(histRes.tickets || [], summary);
+  } catch (e) {
+    document.getElementById('historyContent').innerHTML = `
+      <div class="text-center py-4">
+        <i data-feather="alert-circle" class="text-danger mb-2" style="width:48px;height:48px;"></i>
+        <p class="text-muted">Erreur lors du chargement de l'historique</p>
+      </div>`;
+    if (typeof feather !== 'undefined') feather.replace();
+  }
+}
+
+
+
+   renderHistoryModal(tickets, summary) {
+  const avg = (summary.avg_minutes || 0).toFixed(1);
+
+  let html = `
+    <div class="history-summary mb-4">
+      <div class="row text-center">
+        <div class="col-md-3"><h4 class="text-success">${summary.total_traites}</h4><p class="text-muted mb-0">Tickets traités</p></div>
+        <div class="col-md-3"><h4 class="text-danger">${summary.total_refuses}</h4><p class="text-muted mb-0">Tickets refusés</p></div>
+        <div class="col-md-3"><h4 class="text-warning">${summary.total_recus_traites}</h4><p class="text-muted mb-0">Reçus (traités)</p></div>
+        <div class="col-md-3"><h4 class="text-info">${avg}min</h4><p class="text-muted mb-0">Temps moyen</p></div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Client</th>
+            <th>Service</th>
+            <th>Origine</th> <!-- 👈 nouveau -->
+            <th>Statut</th>
+            <th>Date/Heure</th>
+            <th>Durée</th>
+            <th>Commentaire</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  if (tickets.length === 0) {
+    html += `<tr><td colspan="8" class="text-center text-muted py-4">Aucun ticket dans l'historique</td></tr>`;
+  } else {
+    tickets.forEach(t => {
+      const badgeStatut = t.statut_traiter === 'traité'
+        ? '<span class="badge badge-success">Traité</span>'
+        : '<span class="badge badge-danger">Refusé</span>';
+
+      const badgeOrigin = t.origin === 'reçu'
+        ? '<span class="badge badge-success">Reçu</span>'
+        : '<span class="badge badge-secondary">Normal</span>';
+
+      const comment = (t.commentaire_resolution || '').trim();
+      const preview = comment ? `${this.escapeHtml(comment.substring(0, 30))}${comment.length > 30 ? '…' : ''}` : '<span class="text-muted">-</span>';
+      const more = (comment && comment.length > 30)
+        ? `<a href="#" class="text-primary ml-1" onclick="advisorInterface.showCommentModal('${this.escapeHtml(comment)}', '${t.numero_ticket}');return false;"><i data-feather="eye" style="width:14px;height:14px;"></i></a>`
+        : '';
+
+      html += `
+        <tr>
+          <td><strong>${t.numero_ticket}</strong></td>
+          <td>${t.client_name || 'N/A'}</td>
+          <td>${t.service || 'N/A'}</td>
+          <td>${badgeOrigin}</td>
+          <td>${badgeStatut}</td>
+          <td>${t.date_traitement || 'N/A'}</td>
+          <td>${t.duree_traitement || 'N/A'}</td>
+          <td>${preview} ${more}</td>
+        </tr>
+      `;
+    });
+  }
+
+  html += `</tbody></table></div>`;
+
+  document.getElementById('historyContent').innerHTML = html;
+  if (typeof feather !== 'undefined') feather.replace();
+}
+
 
     getStatusBadge(status) {
         switch(status) {
@@ -3112,7 +3145,7 @@ class AdvisorInterface {
                     iconName = 'arrow-down-left';
                     badgeClass = 'badge-success';
                     badgeText = 'New';
-                } else if (transferStatus === 'transferé') {
+                } else if (transferStatus === 'transfere') {
                     avatarBg = 'bg-secondary';
                     iconName = 'share';
                     badgeClass = 'badge-secondary';
@@ -3223,7 +3256,7 @@ class AdvisorInterface {
         if (transferStatus === 'new') {
             statusBadge = '<span class="badge badge-success">Nouveau (Priorité)</span>';
             statusText = 'Ticket reçu par transfert - priorité maximale';
-        } else if (transferStatus === 'transferé') {
+        } else if (transferStatus === 'transfere') {
             statusBadge = '<span class="badge badge-secondary">Transféré par moi</span>';
             statusText = 'Ticket que j\'ai transféré - ne peut plus être appelé';
         } else if (waitingTime > 30) {
@@ -3281,7 +3314,7 @@ class AdvisorInterface {
                         </div>
                     ` : ''}
                     
-                    ${transferStatus === 'transferé' && ticket.transfer_info ? `
+                    ${transferStatus === 'transfere' && ticket.transfer_info ? `
                         <h6 class="font-weight-semibold mb-2 text-secondary">Ticket que j'ai transféré</h6>
                         <div class="alert alert-secondary">
                             <small><strong>Transféré vers:</strong> ${ticket.transfer_info.transferred_to || '--'}</small><br>
@@ -3406,37 +3439,36 @@ class AdvisorInterface {
             this.showSubtleNotification('success', 'Export terminé', 'Fichier téléchargé');
         }, 1500);
     }
-
-    async apiCall(method, url, data = null, signal = null) {
-        const options = {
-            method,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        };
-
-        if (signal) {
-            options.signal = signal;
-        }
-
-        if (data) {
-            if (data instanceof FormData) {
-                options.body = data;
-            } else {
-                options.headers['Content-Type'] = 'application/json';
-                options.body = JSON.stringify(data);
-            }
-        }
-
-        const response = await fetch(url, options);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.json();
+async apiCall(method, url, data = null, signal = null) {
+  const options = {
+    method,
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
     }
+  };
+  if (signal) options.signal = signal;
+  if (data) {
+    if (data instanceof FormData) options.body = data;
+    else { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(data); }
+  }
+
+  const response = await fetch(url, options);
+  let payload = null;
+  try { payload = await response.json(); } catch(_) { payload = {}; }
+  return { http_status: response.status, ok: response.ok, ...payload };
+}
+ 
+ async loadCurrentTicketFromServer(showModalIfFound = false) {
+  const res = await this.apiCall('GET', this.config.apiRoutes.currentTicket);
+  if (res.success && res.ticket) {
+    this.currentTicket = res.ticket;
+    if (showModalIfFound) this.showCurrentTicketModal(this.currentTicket);
+    return true;
+  }
+  return false;
+}
+
 
     setButtonLoading(selector, isLoading) {
         const button = document.querySelector(selector);

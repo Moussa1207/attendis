@@ -148,148 +148,169 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
                         'is_comment_provided' => !empty(trim($commentaire))
                     ]
                 ]);
-            })->name('conseiller.validate-resolution-comment');
+            })->name('conseiller.validate-resolution-comment'); });
             
-            Route::get('/resolution-stats', function(Request $request) {
-                try {
-                    $user = Auth::user();
-                    
-                    if (!$user->isConseillerUser()) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Accès non autorisé'
-                        ], 403);
-                    }
+ Route::get('/resolution-stats', function(Request $request) {
+    try {
+        $user = Auth::user();
+        if (!$user->isConseillerUser()) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
+        }
 
-                    $date = $request->get('date', today());
-                    $period = $request->get('period', 'today');
+        $date   = $request->get('date', today());
+        $period = $request->get('period', 'today');
 
-                    $dateRange = match($period) {
-                        'today' => [$date, $date],
-                        'week' => [now()->startOfWeek(), now()->endOfWeek()],
-                        'month' => [now()->startOfMonth(), now()->endOfMonth()],
-                        default => [$date, $date]
-                    };
+        $dateRange = match($period) {
+            'today' => [$date, $date],
+            'week'  => [now()->startOfWeek(), now()->endOfWeek()],
+            'month' => [now()->startOfMonth(), now()->endOfMonth()],
+            default => [$date, $date],
+        };
 
-                    $baseQuery = Queue::where('conseiller_client_id', $user->id)
-                                     ->where('statut_global', 'termine');
+        $base = Queue::where('conseiller_client_id', $user->id)
+                     ->where('statut_global', 'termine');
 
-                    if ($period === 'today') {
-                        $baseQuery = $baseQuery->whereDate('date', $date);
-                    } else {
-                        $baseQuery = $baseQuery->whereBetween('date', $dateRange);
-                    }
+        if ($period === 'today') {
+            $base = $base->whereDate('date', $date);
+        } else {
+            $base = $base->whereBetween('date', $dateRange);
+        }
 
-                    $totalTraites = $baseQuery->count();
-                    $resolus = (clone $baseQuery)->where('resolu', 1)->count();
-                    $nonResolus = (clone $baseQuery)->where('resolu', 0)->count();
-                    $avecCommentaires = (clone $baseQuery)->whereNotNull('commentaire_resolution')
-                                                         ->where('commentaire_resolution', '!=', '')
-                                                         ->count();
+        $totalTraites  = (clone $base)->count();
+        $resolus       = (clone $base)->where('resolu', 1)->count();
+        $nonResolus    = (clone $base)->where('resolu', 0)->count();
 
-                    $tauxResolution = $totalTraites > 0 ? round(($resolus / $totalTraites) * 100, 2) : 0;
-                    $tauxCommentaires = $totalTraites > 0 ? round(($avecCommentaires / $totalTraites) * 100, 2) : 0;
+        // ✅ tickets reçus (par transfert) que CE conseiller a terminés
+        $recusTraites  = (clone $base)->where('transferer', 'new')->count();
 
-                    return response()->json([
-                        'success' => true,
-                        'period' => $period,
-                        'date_range' => $dateRange,
-                        'resolution_stats' => [
-                            'total_traites' => $totalTraites,
-                            'tickets_resolus' => $resolus,
-                            'tickets_non_resolus' => $nonResolus,
-                            'tickets_avec_commentaires' => $avecCommentaires,
-                            'taux_resolution' => $tauxResolution,
-                            'taux_commentaires' => $tauxCommentaires,
-                            'performance_score' => $tauxResolution,
-                        ],
-                        'conseiller_info' => [
-                            'username' => $user->username,
-                            'email' => $user->email
-                        ],
-                        'format_info' => [
-                            'resolu_format' => 'tinyint (0=non résolu, 1=résolu)',
-                            'commentaire_obligatoire_refus' => true
-                        ]
-                    ]);
+        // ✅ tickets traités “normaux”
+        $normauxTraites = max(0, $totalTraites - $recusTraites);
 
-                } catch (\Exception $e) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Erreur lors du calcul des statistiques de résolution'
-                    ], 500);
-                }
-            })->name('conseiller.resolution-stats');
+        // ✅ temps moyen de traitement (prise en charge -> fin), en minutes
+        $avgDurationMin = (clone $base)
+            ->whereNotNull('heure_prise_en_charge')
+            ->whereNotNull('heure_de_fin')
+            ->avg(\DB::raw('TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60'));
+        $avgDurationMin = round($avgDurationMin ?? 0, 1);
+
+        // taux utiles
+        $tauxResolution  = $totalTraites > 0 ? round(($resolus / $totalTraites) * 100, 2) : 0;
+
+        return response()->json([
+            'success' => true,
+            'period'  => $period,
+            'date_range' => $dateRange,
+            'resolution_stats' => [
+                'total_traites'             => $totalTraites,
+                'tickets_resolus'           => $resolus,
+                'tickets_non_resolus'       => $nonResolus,
+                'tickets_recus_traites'     => $recusTraites,    // 👈 “reçu par transfert” ET terminé
+                'tickets_normaux_traites'   => $normauxTraites,  // 👈 traités sans transfert
+                'taux_resolution'           => $tauxResolution,
+                'avg_processing_time_min'   => $avgDurationMin,  // 👈 temps moyen propre
+            ],
+            'conseiller_info' => [
+                'username' => $user->username,
+                'email'    => $user->email,
+            ],
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => 'Erreur stats historique'], 500);
+    }
+})->name('conseiller.resolution-stats');
+
             
-            Route::get('/resolution-history/{action?}', function(Request $request, $action = null) {
-                try {
-                    $user = Auth::user();
-                    
-                    if (!$user->isConseillerUser()) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Accès non autorisé'
-                        ], 403);
-                    }
+           Route::get('/resolution-history/{action?}', function(Request $request, $action = null) {
+    try {
+        $user = Auth::user();
+        if (!$user->isConseillerUser()) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
+        }
 
-                    $date = $request->get('date', today());
-                    $limit = min($request->get('limit', 20), 50);
+        $date   = $request->get('date', today());
+        $limit  = min($request->get('limit', 50), 100);
+        $origin = $request->get('origin', 'all'); // received|normal|all
 
-                    $query = Queue::where('conseiller_client_id', $user->id)
-                                 ->whereDate('date', $date)
-                                 ->where('statut_global', 'termine')
-                                 ->with(['service:id,nom,letter_of_service']);
+        $q = Queue::where('conseiller_client_id', $user->id)
+                  ->where('statut_global', 'termine')
+                  ->whereDate('date', $date)
+                  ->with(['service:id,nom,letter_of_service']);
 
-                    if ($action === 'traiter') {
-                        $query = $query->where('resolu', 1);
-                    } elseif ($action === 'refuser') {
-                        $query = $query->where('resolu', 0);
-                    }
+        if ($action === 'traiter') {
+            $q->where('resolu', 1);
+        } elseif ($action === 'refuser') {
+            $q->where('resolu', 0);
+        }
 
-                    $tickets = $query->orderBy('heure_de_fin', 'desc')
-                                   ->limit($limit)
-                                   ->get()
-                                   ->map(function($ticket) {
-                                       return [
-                                           'id' => $ticket->id,
-                                           'numero_ticket' => $ticket->numero_ticket,
-                                           'client_name' => $ticket->prenom,
-                                           'service_name' => $ticket->service->nom ?? 'N/A',
-                                           'telephone' => $ticket->telephone,
-                                           'heure_prise_en_charge' => $ticket->heure_prise_en_charge,
-                                           'heure_de_fin' => $ticket->heure_de_fin,
-                                           'resolu' => $ticket->resolu,
-                                           'resolu_libelle' => $ticket->resolu === 1 ? 'Résolu' : 'Non résolu',
-                                           'commentaire_resolution' => $ticket->commentaire_resolution,
-                                           'has_comment' => !empty($ticket->commentaire_resolution),
-                                           'action_performed' => $ticket->resolu === 1 ? 'traiter' : 'refuser'
-                                       ];
-                                   });
+        if ($origin === 'received') {
+            $q->where('transferer', 'new');
+        } elseif ($origin === 'normal') {
+            $q->where(function($x) {
+                $x->whereNull('transferer')
+                  ->orWhereIn('transferer', ['No','no','']);
+            });
+        }
 
-                    return response()->json([
-                        'success' => true,
-                        'action_filter' => $action,
-                        'tickets' => $tickets,
-                        'count' => $tickets->count(),
-                        'date' => $date
-                    ]);
+        $tickets = $q->orderBy('heure_de_fin', 'desc')
+                     ->limit($limit)
+                     ->get()
+                     ->map(function($t) {
+                        $dureeMin = null;
+                        if ($t->heure_prise_en_charge && $t->heure_de_fin) {
+                            try {
+                                $start = \Carbon\Carbon::createFromFormat('H:i:s', $t->heure_prise_en_charge);
+                                $end   = \Carbon\Carbon::createFromFormat('H:i:s', $t->heure_de_fin);
+                                $dureeMin = $start->diffInMinutes($end);
+                            } catch (\Exception $e) {
+                                $dureeMin = null;
+                            }
+                        }
 
-                } catch (\Exception $e) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Erreur lors de la récupération de l\'historique de résolution'
-                    ], 500);
-                }
-            })->name('conseiller.resolution-history');
-        });
-        
+                        return [
+                            'id'                    => $t->id,
+                            'numero_ticket'         => $t->numero_ticket,
+                            'client_name'           => $t->prenom,
+                            'service'               => $t->service->nom ?? 'N/A',
+                            'service_name'          => $t->service->nom ?? 'N/A',
+                            'telephone'             => $t->telephone,
+                            'statut_traiter'        => $t->resolu === 1 ? 'traité' : 'refusé',
+                            'origin'                => $t->transferer === 'new' ? 'reçu' : 'normal',
+                            'date_traitement'       => $t->updated_at ? $t->updated_at->format('d/m/Y H:i') : 'N/A',
+                            'duree_traitement'      => is_null($dureeMin) ? 'N/A' : ($dureeMin.'min'),
+                            'duree_minutes'         => $dureeMin,
+                            'commentaire_resolution'=> $t->commentaire_resolution,
+
+                            'heure_prise_en_charge' => $t->heure_prise_en_charge,
+                            'heure_de_fin'          => $t->heure_de_fin,
+                            'resolu'                => $t->resolu,
+                            'resolu_libelle'        => $t->resolu === 1 ? 'Résolu' : 'Non résolu',
+                            'has_comment'           => !empty($t->commentaire_resolution),
+                            'action_performed'      => $t->resolu === 1 ? 'traiter' : 'refuser',
+                        ];
+                     });
+
+        return response()->json([
+            'success'       => true,
+            'action_filter' => $action,
+            'origin_filter' => $origin,
+            'tickets'       => $tickets,
+            'count'         => $tickets->count(),
+            'date'          => \Carbon\Carbon::parse($date)->format('d/m/Y'),
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => 'Erreur lors de la récupération de l\'historique'], 500);
+    }
+})->name('conseiller.resolution-history');
+
+    
         Route::prefix('api/conseiller')->group(function () {
             Route::get('/refresh-queue', [DashboardController::class, 'refreshConseillerQueue'])
                 ->name('api.conseiller.refresh-queue');
             Route::get('/next-ticket', [DashboardController::class, 'getNextTicketPreview'])
                 ->name('api.conseiller.next-ticket');
             Route::get('/current-ticket', [DashboardController::class, 'getCurrentTicketStatus'])
-                ->name('api.conseiller.current-ticket');
+                ->name('conseiller.current-ticket');
             Route::get('/notifications', [DashboardController::class, 'getConseillerNotifications'])
                 ->name('api.conseiller.notifications');
             Route::get('/live-stats', [DashboardController::class, 'getLiveConseillerStats'])
@@ -368,6 +389,75 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             })->name('api.conseiller.live-resolution-stats');
         });
     });
+
+  Route::get('/api/accueil/called-clients', function (Illuminate\Http\Request $request) {
+    $user = Auth::user();
+
+    // Accueil ou Ecran peuvent voir le mur d’appels
+    if (!$user->isAccueilUser() && !$user->isEcranUser()) {
+        return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
+    }
+
+    $creator = $user->getCreator();
+    if (!$creator) {
+        return response()->json(['success' => true, 'data' => []]);
+    }
+
+    $serviceIds = \App\Models\Service::where('created_by', $creator->id)->pluck('id');
+
+    // 1) Tous les tickets APPELÉS aujourd’hui (=> rang global fiable)
+    $calledAll = \App\Models\Queue::whereIn('service_id', $serviceIds)
+        ->whereDate('date', today())
+        ->where(function($q){
+            $q->whereNotNull('heure_prise_en_charge')
+              // fallback : si certains passent en "en_cours" sans heure, on ne les perd pas
+              ->orWhere('statut_global', 'en_cours');
+        })
+        ->orderBy('heure_prise_en_charge', 'asc')
+        ->orderBy('id', 'asc')
+        ->get(['id','heure_prise_en_charge','updated_at']);
+
+    // Map id => rang (1..N) pour toute la journée
+    $rankMap = $calledAll->values()->pluck('id')->flip()->map(fn($i) => $i + 1);
+
+    // 2) Les derniers appels pour l’affichage (on en donne 12 pour la robustesse)
+    $lastCalls = \App\Models\Queue::whereIn('service_id', $serviceIds)
+        ->whereDate('date', today())
+        ->where(function($q){
+            $q->whereNotNull('heure_prise_en_charge')
+              ->orWhere('statut_global', 'en_cours');
+        })
+        ->with(['service:id,nom,letter_of_service', 'conseillerClient:id,username'])
+        ->orderBy('heure_prise_en_charge', 'desc')
+        ->orderBy('id', 'desc')
+        ->limit(12)
+        ->get();
+
+    $data = $lastCalls->map(function($t) use ($rankMap) {
+        // heure affichée : priorité à l’heure de prise en charge, sinon fallback updated_at
+        $calledAt = $t->heure_prise_en_charge
+            ? \Carbon\Carbon::createFromFormat('H:i:s', $t->heure_prise_en_charge)->format('H:i')
+            : ($t->updated_at ? $t->updated_at->format('H:i') : '--:--');
+
+        return [
+            'id'            => $t->id,
+            'ticket_number' => $t->numero_ticket,
+            'telephone'     => $t->telephone ?? '—',              // ✅ numéro renvoyé
+            'called_at'     => $calledAt,
+            'advisor_name'  => optional($t->conseillerClient)->username ?? '—',
+            'service_name'  => optional($t->service)->nom ?? 'N/A',
+            'statut_global' => $t->statut_global,
+            'rang'          => $rankMap[$t->id] ?? null,          // ✅ rang du jour
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'data'    => $data,
+        'count'   => $data->count(),
+        'date'    => now()->format('Y-m-d'),
+    ]);
+})->name('api.accueil.called-clients');
 
     /*
     |--------------------------------------------------------------------------
