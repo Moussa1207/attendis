@@ -5,7 +5,17 @@
     <!-- Top Bar Start -->
     <div class="topbar">
         <nav class="navbar-custom">
-            <ul class="list-unstyled topbar-nav float-right mb-0">
+            {{-- LEFT: Hamburger --}}
+            <ul class="list-unstyled topbar-nav mb-0">
+                <li>
+                    <button class="nav-link button-menu-mobile">
+                        <i data-feather="menu" class="align-self-center topbar-icon"></i>
+                    </button>
+                </li>
+            </ul>
+
+            {{-- RIGHT: User menu --}}
+            <ul class="list-unstyled topbar-nav mb-0">
                 <li class="dropdown">
                     <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
                        aria-haspopup="false" aria-expanded="false">
@@ -28,13 +38,6 @@
                             @csrf
                         </form>
                     </div>
-                </li>
-            </ul>
-            <ul class="list-unstyled topbar-nav mb-0">
-                <li>
-                    <button class="nav-link button-menu-mobile">
-                        <i data-feather="menu" class="align-self-center topbar-icon"></i>
-                    </button>
                 </li>
             </ul>
         </nav>
@@ -71,36 +74,36 @@
 /* --------- Base & layout --------- */
 body{background:#f8f9fa;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}
 .page-wrapper{min-height:100vh}
-.page-content{width:100%;padding:20px;margin-top:0}
+.page-content{width:100%;padding:20px;margin-top:0;border-top:0!important}
 .container-fluid{max-width:1400px;margin:0 auto}
 
-/* ===== Topbar : ligne pleine largeur (anti “cassure”) ===== */
+/* ===== Topbar plein largeur, propre ===== */
 .topbar{
-  position:relative;              /* nécessaire pour ::after */
   background:#fff;
   height:60px;
   padding:0 15px;
-  z-index:1040;                   /* au-dessus du contenu */
-  border-bottom:none;             /* on évite la bordure native */
+  z-index:1040;
+  border-bottom:0!important;
+  /* trait fin sur toute la largeur */
+  box-shadow: inset 0 -1px 0 #e9edf3;
 }
-.topbar::after{
-  content:"";
-  position:absolute;
-  left:0; right:0; bottom:0;
-  height:1px;
-  background:#e9edf3;            /* teinte douce */
-  z-index:2;                      /* au-dessus des enfants */
-  pointer-events:none;
-}
-/* l’intérieur ne dessine aucune bordure qui pourrait “casser” la ligne */
 .topbar .navbar-custom{
+  display:flex;
+  align-items:center;
+  justify-content:space-between; /* gauche <-> droite */
+  height:60px;
   padding:0;
-  border-bottom:none !important;
-  box-shadow:none !important;
   background:transparent;
+  border-bottom:0!important;
+  box-shadow:none!important;
 }
-.topbar .button-menu-mobile{background:none;border:none;color:#6c757d;font-size:18px;padding:15px 10px}
-.topbar .nav-user{padding:10px 0}
+.topbar .navbar-custom > ul{display:flex;align-items:center;margin:0}
+.topbar .button-menu-mobile{
+  display:flex;align-items:center;justify-content:center;
+  height:60px;line-height:60px;padding:0 12px;
+  background:none;border:none;color:#6c757d;font-size:18px;
+}
+.topbar .nav-user{display:flex;align-items:center;height:60px;padding:0}
 .icon-xs{width:16px;height:16px}
 
 /* --------- Grille d'appel --------- */
@@ -117,18 +120,13 @@ body{background:#f8f9fa;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}
 
 /* ✅ Case la plus récente (mise en valeur) */
 .client-card.active{
-  background:#d1fae5;
-  border-color:#34c38f;
+  background:#d1fae5;border-color:#34c38f;
   box-shadow:0 0 0 2px rgba(52,195,143,.18) inset, 0 8px 20px rgba(52,195,143,.12);
 }
 
 /* ✅ Affichage du code uniquement */
 .client-ticket{
-  font-size:32px;
-  font-weight:900;
-  color:#0d6efd;
-  letter-spacing:.5px;
-  font-family:'Courier New',monospace;
+  font-size:32px;font-weight:900;color:#0d6efd;letter-spacing:.5px;font-family:'Courier New',monospace;
 }
 
 /* Placeholder */
@@ -173,8 +171,8 @@ const API_CALLED = (gridEl && gridEl.dataset.api) ? gridEl.dataset.api : '/api/a
 
 /* ================== STATE ================== */
 let slots = new Array(SLOTS).fill(null);
-let lastSeenOrder = 0;   // fallback si rang indisponible
-let lastSeenRang  = 0;   // rang max vu (empêche “8” avant “7”)
+let lastSeenOrder = 0;
+let lastSeenRang  = 0;
 let pollTimer = null;
 
 /* ================== UTILS ================== */
