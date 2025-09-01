@@ -48,7 +48,7 @@
         <ul class="metismenu left-sidenav-menu">
             @if(Auth::user()->isEcranUser())
                 {{-- ========================================== --}}
-                {{-- MENU ULTRA SIMPLIFIÉ POUR POSTE ECRAN --}}
+                {{-- MENU SIMPLE POUR POSTE ECRAN --}}
                 {{-- ========================================== --}}
                 
                 <li class="menu-label mt-0">MENU</li>
@@ -57,13 +57,24 @@
                 <li>
                     <a href="{{ route('layouts.app-users') }}"> 
                         <i data-feather="monitor" class="align-self-center menu-icon"></i>
-                        <span>Ecran</span>
+                        <span>Écran</span>
                     </a>
                 </li>
 
+            @elseif(Auth::user()->isAccueilUser())
+                {{-- ========================================== --}}
+                {{-- MENU SIMPLE POUR POSTE ACCUEIL --}}
+                {{-- ========================================== --}}
                 
-
+                <li class="menu-label mt-0">MENU</li>
                 
+                <!-- Menu unique : Accueil -->
+                <li>
+                    <a href="{{ route('layouts.app-users') }}"> 
+                        <i data-feather="users" class="align-self-center menu-icon"></i>
+                        <span>Accueil</span>
+                    </a>
+                </li>
 
             @else
                 {{-- ========================================== --}}
@@ -83,8 +94,12 @@
                         @if(Auth::user()->isAdmin())
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('layouts.app') }}">
-                                    <i class="ti-control-record"></i>Analytics (Admin)
+                                    <i class="ti-control-record"></i>Statistiques
                                 </a>
+                                <a class="nav-link" href="{{ route('layouts.history') }}">
+                                  <i class="ti-control-record"></i>Historique
+                                </a>
+
                             </li>
                         @else
                             <li class="nav-item">

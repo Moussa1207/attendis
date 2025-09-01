@@ -3238,25 +3238,46 @@ private function findCurrentTicketForAdvisor(): ?\App\Models\Queue
     /**
      * ✅ Statistiques seulement pour les utilisateurs de l'admin
      */
-    public function getStats(Request $request)
+public function getStats(Request $request)
     {
         if (!Auth::user()->isAdmin()) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Accès non autorisé'
-            ], 403);
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
         }
 
         try {
             $currentAdmin = Auth::user();
-            
+            $period = $request->get('period', 'today');
+
+            // Utilisateurs rattachés (mapping AdministratorUser) + moi-même
             $myUserIds = AdministratorUser::where('administrator_id', $currentAdmin->id)
                                          ->pluck('user_id')
                                          ->toArray();
-            
             $myUserIds[] = $currentAdmin->id;
+
+            // Services créés par cet admin
             $myServiceIds = Service::where('created_by', $currentAdmin->id)->pluck('id');
 
+            // Plage temporelle (pour les blocs complémentaires : breakdown/trends)
+            [$start, $end] = match ($period) {
+                'today'    => [today(), today()],
+                'week'     => [now()->startOfWeek(), now()->endOfWeek()],
+                'lastweek' => [now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()],
+                'month'    => [now()->startOfMonth(), now()->endOfMonth()],
+                default    => [today(), today()],
+            };
+
+            // ✅ CORRECTION 1 : Conseillers actifs comptés correctement selon leur statut
+            $myConseillerUsers = User::whereIn('id', $myUserIds)
+                                   ->where('user_type_id', 4) // Type conseiller
+                                   ->get();
+            
+            $myActiveConseillers = $myConseillerUsers->where('status_id', 2)->count(); // Status 2 = Actif
+            $myTotalConseillers = $myConseillerUsers->count();
+
+            // ✅ CORRECTION 2 : Temps d'attente moyen depuis les paramètres admin (pas calculé)
+            $adminConfiguredWaitTime = Setting::getDefaultWaitingTimeMinutes();
+
+            // Stats principales (inchangées sauf conseillers et temps d'attente)
             $stats = [
                 'my_total_users' => count($myUserIds) - 1,
                 'my_active_users' => User::whereIn('id', $myUserIds)->where('status_id', 2)->count() - 1,
@@ -3266,30 +3287,129 @@ private function findCurrentTicketForAdvisor(): ?\App\Models\Queue
                 'my_users_needing_password_reset' => AdministratorUser::where('administrator_id', $currentAdmin->id)
                                                                      ->where('password_reset_required', true)
                                                                      ->count(),
-                
+
                 'my_admin_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
                 'my_ecran_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 2)->count(),
                 'my_accueil_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 3)->count(),
                 'my_conseiller_users' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->count(),
-                
+
                 'my_agencies' => Agency::where('created_by', $currentAdmin->id)->count(),
                 'my_active_agencies' => Agency::where('created_by', $currentAdmin->id)->where('status', 'active')->count(),
                 'my_services' => Service::where('created_by', $currentAdmin->id)->count(),
                 'my_active_services' => Service::where('created_by', $currentAdmin->id)->where('statut', 'actif')->count(),
-                
+
                 'my_tickets_today' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->count(),
                 'my_tickets_waiting' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'en_attente')->count(),
                 'my_tickets_processing' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'en_cours')->count(),
                 'my_tickets_completed' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('statut_global', 'termine')->count(),
-                'my_average_wait_time' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->avg('temps_attente_estime') ?? 0,
                 
-                // 🆕 NOUVEAU : Statistiques de transfert collaboratif
+                // ✅ CORRECTION 2 : Utiliser le temps configuré par l'admin au lieu d'une moyenne calculée
+                'my_average_wait_time' => $adminConfiguredWaitTime,
+
                 'my_transfers_today' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->where('transferer', 'new')->count(),
                 'my_collaborative_activity' => Queue::whereIn('service_id', $myServiceIds)->whereDate('date', today())->whereIn('transferer', [Queue::TRANSFER_IN, Queue::TRANSFER_OUT])->count(),
             ];
 
+            // Taux de résolution du jour
+            $completedToday = $stats['my_tickets_completed'];
+            $resolvedToday  = Queue::whereIn('service_id', $myServiceIds)
+                                   ->whereDate('date', today())
+                                   ->where('statut_global', 'termine')
+                                   ->where('resolu', 1)->count();
+            $stats['my_resolution_rate_today'] = $completedToday > 0 ? round(($resolvedToday / $completedToday) * 100, 1) : 0.0;
+
+            // ✅ CORRECTION 1 : Utiliser les valeurs correctement calculées pour les conseillers
+            $stats['my_total_advisors']  = $myTotalConseillers;
+            $stats['my_active_advisors'] = $myActiveConseillers;
+
+            // Breakdown services (sur la période choisie)
+            $servicePerf = Queue::select('service_id')
+                ->selectRaw('COUNT(*) as tickets')
+                ->selectRaw('SUM(CASE WHEN resolu = 1 THEN 1 ELSE 0 END) as resolus')
+                ->selectRaw('AVG(temps_attente_estime) as wait_avg')
+                ->whereIn('service_id', $myServiceIds)
+                ->whereBetween('date', [$start, $end])
+                ->groupBy('service_id')
+                ->with('service:id,nom,letter_of_service')
+                ->get()
+                ->map(function ($row) use ($adminConfiguredWaitTime) {
+                    $resolution = $row->tickets > 0 ? round(($row->resolus / $row->tickets) * 100) : 0;
+                    return [
+                        'id'         => (int) $row->service_id,
+                        'label'      => ($row->service->letter_of_service ?? '-') . ' - ' . ($row->service->nom ?? 'N/A'),
+                        'tickets'    => (int) $row->tickets,
+                        'resolution' => $resolution,
+                        // ✅ CORRECTION : Utiliser le temps configuré par l'admin pour l'affichage
+                        'wait_avg'   => $adminConfiguredWaitTime,
+                    ];
+                })->values();
+            $stats['service_breakdown_today'] = $servicePerf;
+
+            // Tendances 7 jours (inchangé)
+            $labels = []; $ticketsSeries = []; $resolutionSeries = [];
+            for ($i = 6; $i >= 0; $i--) {
+                $d = today()->subDays($i);
+                $labels[] = $d->locale('fr_FR')->translatedFormat('D');
+                $dayBase = Queue::whereIn('service_id', $myServiceIds)->whereDate('date', $d)->where('statut_global', 'termine');
+                $treated = (clone $dayBase)->count();
+                $resol   = (clone $dayBase)->where('resolu', 1)->count();
+                $ticketsSeries[] = $treated;
+                $resolutionSeries[] = $treated > 0 ? round(($resol / $treated) * 100, 1) : 0;
+            }
+            $stats['trends_week'] = [
+                'labels'     => $labels,
+                'tickets'    => $ticketsSeries,
+                'resolution' => $resolutionSeries,
+            ];
+
+            // Sparkline (attente)
+            $stats['queue_sparkline'] = [$stats['my_tickets_waiting']];
+
+            // ✅ Alertes basées sur le temps d'attente configuré par l'admin
+            $alerts = [];
+            $actualAvgWaitTime = Queue::whereIn('service_id', $myServiceIds)
+                                    ->whereDate('date', today())
+                                    ->avg('temps_attente_estime') ?? 0;
+            
+            if ($actualAvgWaitTime > ($adminConfiguredWaitTime * 1.3)) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'title' => 'Attente élevée',
+                    'message' => 'La file d\'attente est plus longue que prévu.',
+                    'detail' => 'Attente moyenne: ' . round($actualAvgWaitTime) . ' min (réglage admin: ' . $adminConfiguredWaitTime . ' min)',
+                ];
+            }
+            if (($stats['my_resolution_rate_today'] ?? 0) >= 85) {
+                $alerts[] = [
+                    'type' => 'info',
+                    'title' => 'Bonne performance',
+                    'message' => 'Le taux de résolution est satisfaisant aujourd\'hui.',
+                    'detail' => 'Taux: ' . $stats['my_resolution_rate_today'] . '% (objectif: 85%)',
+                ];
+            }
+            $stats['alerts'] = $alerts;
+
+            // ✅ Log avec informations de correction
+            Log::info('Stats admin corrigées récupérées', [
+                'admin_id' => $currentAdmin->id,
+                'corrections_applied' => [
+                    'conseillers_actifs_fix' => true,
+                    'temps_attente_admin_fix' => true
+                ],
+                'conseiller_stats' => [
+                    'total' => $myTotalConseillers,
+                    'actifs' => $myActiveConseillers,
+                    'detail_statuts' => $myConseillerUsers->groupBy('status_id')->map->count()->toArray()
+                ],
+                'temps_attente_info' => [
+                    'configured_by_admin' => $adminConfiguredWaitTime,
+                    'actual_average' => round($actualAvgWaitTime, 1),
+                    'using_admin_setting' => true
+                ]
+            ]);
+
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'stats' => $stats,
                 'admin_info' => [
                     'id' => $currentAdmin->id,
@@ -3299,25 +3419,33 @@ private function findCurrentTicketForAdvisor(): ?\App\Models\Queue
                 'queue_info' => [
                     'type' => 'collaborative_service_numbering_unique',
                     'principle' => 'Numérotation par service avec système anti-doublon et transfert collaboratif',
-                    'configured_time' => Setting::getDefaultWaitingTimeMinutes(),
+                    'configured_time' => $adminConfiguredWaitTime, // ✅ Valeur admin
                     'anti_duplicate_system' => 'active',
                     'collaborative_features' => [
                         'transfer_priority' => 'active',
                         'team_collaboration' => 'enabled'
                     ]
                 ],
+                'corrections_info' => [
+                    'conseillers_actifs_corrected' => true,
+                    'temps_attente_uses_admin_setting' => true,
+                    'admin_configured_wait_time' => $adminConfiguredWaitTime
+                ],
+                'period' => $period,
+                'date_range' => [$start->format('Y-m-d'), $end->format('Y-m-d')],
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
-            
+
         } catch (\Exception $e) {
-            Log::error("Erreur statistiques isolées avec système collaboratif: " . $e->getMessage());
-            
-            return response()->json([
-                'success' => false, 
-                'message' => 'Erreur lors de la récupération des statistiques'
-            ], 500);
+            Log::error("Erreur statistiques admin corrigées: " . $e->getMessage(), [
+                'admin_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['success' => false, 'message' => 'Erreur lors de la récupération des statistiques'], 500);
         }
     }
+
+
 
     /**
      * ✅ Recherche seulement dans ses utilisateurs
@@ -3450,23 +3578,23 @@ private function findCurrentTicketForAdvisor(): ?\App\Models\Queue
     /**
      * ✅ Statistiques avancées isolées
      */
-    public function getAdvancedStats(Request $request)
+  public function getAdvancedStats(Request $request)
     {
         if (!Auth::user()->isAdmin()) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Accès non autorisé'
-            ], 403);
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
         }
 
         try {
             $currentAdminId = Auth::id();
-            
+            $period = $request->get('period', 'today');
+
+            // Périmètre utilisateurs (rétro-compatibilité)
             $myUserIds = AdministratorUser::where('administrator_id', $currentAdminId)
                                          ->pluck('user_id')
                                          ->toArray();
             $myUserIds[] = $currentAdminId;
-            
+
+            // Stats par type (inchangées)
             $statsByType = [
                 'admin' => [
                     'total' => User::whereIn('id', $myUserIds)->where('user_type_id', 1)->count(),
@@ -3491,22 +3619,152 @@ private function findCurrentTicketForAdvisor(): ?\App\Models\Queue
                     'active' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 2)->count(),
                     'inactive' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 1)->count(),
                     'suspended' => User::whereIn('id', $myUserIds)->where('user_type_id', 4)->where('status_id', 3)->count(),
-                ]
+                ],
             ];
 
+            // Plage temporelle pour les stats conseillers
+            [$start, $end] = match ($period) {
+                'today'    => [today(), today()],
+                'week'     => [now()->startOfWeek(), now()->endOfWeek()],
+                'lastweek' => [now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()],
+                'month'    => [now()->startOfMonth(), now()->endOfMonth()],
+                default    => [today(), today()],
+            };
+
+            // ✅ CORRECTION : Ids conseillers ACTIFS seulement (status_id = 2)
+            $allAdvisorIds = User::whereIn('id', $myUserIds)->where('user_type_id', 4)->pluck('id');
+            $activeAdvisorIds = User::whereIn('id', $myUserIds)
+                                  ->where('user_type_id', 4)
+                                  ->where('status_id', 2) // Seulement les actifs
+                                  ->pluck('id');
+
+            // Global conseillers (période)
+            $treated = Queue::whereIn('conseiller_client_id', $activeAdvisorIds) // ✅ Seulement actifs
+                            ->whereBetween('date', [$start, $end])
+                            ->where('statut_global', 'termine');
+
+            $ticketsTraites = (clone $treated)->count();
+            $resolus        = (clone $treated)->where('resolu', 1)->count();
+
+            $avgDurationMin = (clone $treated)
+                ->whereNotNull('heure_prise_en_charge')
+                ->whereNotNull('heure_de_fin')
+                ->avg(DB::raw('TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60'));
+            $avgDurationMin = round($avgDurationMin ?? 0, 1);
+
+            // ✅ CORRECTION : En ligne = conseillers ACTIFS avec ticket en cours
+            $enLigne = Queue::whereIn('conseiller_client_id', $activeAdvisorIds) // ✅ Seulement actifs
+                            ->whereDate('date', today())
+                            ->where('statut_global', 'en_cours')
+                            ->distinct('conseiller_client_id')
+                            ->count('conseiller_client_id');
+
+            $totalActiveAdvisors = $activeAdvisorIds->count(); // ✅ Compter seulement les actifs
+            $moyParConseiller = $totalActiveAdvisors > 0 ? round($ticketsTraites / $totalActiveAdvisors, 1) : 0;
+
+            $summary = [
+                'tickets_traites' => $ticketsTraites,
+                'temps_moyen_min' => $avgDurationMin,
+                'taux_resolution' => $ticketsTraites > 0 ? round(($resolus / $ticketsTraites) * 100, 1) : 0,
+                'en_ligne' => $enLigne,
+                'total' => $totalActiveAdvisors, // ✅ Total des actifs
+                'moyenne_par_conseiller' => $moyParConseiller,
+            ];
+
+            // ✅ CORRECTION : Détails par conseiller - seulement les ACTIFS
+            $conseillers = User::whereIn('id', $activeAdvisorIds) // ✅ Seulement actifs
+                ->select('id','username','last_login_at','status_id')
+                ->get()
+                ->map(function($u) use ($start, $end) {
+                    $base = Queue::where('conseiller_client_id', $u->id)
+                                 ->whereBetween('date', [$start, $end]);
+
+                    $done = (clone $base)->where('statut_global','termine');
+                    $countTraites = (clone $done)->count();
+                    $countResolus = (clone $done)->where('resolu', 1)->count();
+                    $countRefuses = (clone $done)->where('resolu', 0)->count();
+
+                    $avgMin = (clone $done)
+                        ->whereNotNull('heure_prise_en_charge')
+                        ->whereNotNull('heure_de_fin')
+                        ->avg(DB::raw('TIME_TO_SEC(TIMEDIFF(heure_de_fin, heure_prise_en_charge))/60'));
+                    $avgMin = round($avgMin ?? 0, 1);
+
+                    $last = (clone $done)->orderBy('heure_de_fin','desc')->orderBy('updated_at','desc')->first();
+                    $lastHuman = $last && $last->updated_at ? Carbon::parse($last->updated_at)->locale('fr_FR')->diffForHumans() : '—';
+
+                    $hasCurrent = Queue::where('conseiller_client_id', $u->id)
+                                       ->whereDate('date', today())
+                                       ->where('statut_global', 'en_cours')
+                                       ->exists();
+                    
+                    // ✅ Status basé sur le vrai statut utilisateur + ticket en cours
+                    $status = 'offline'; // Par défaut
+                    if ($u->status_id == 2) { // Actif
+                        $status = $hasCurrent ? 'busy' : 'online';
+                    } elseif ($u->status_id == 1) { // Inactif
+                        $status = 'inactive';
+                    } elseif ($u->status_id == 3) { // Suspendu
+                        $status = 'suspended';
+                    }
+
+                    // Score perf simple (70% résolution + 30% rapidité)
+                    $tauxRes = $countTraites > 0 ? ($countResolus / $countTraites) : 0;
+                    $speedScore = max(0, min(1, (15 - ($avgMin ?: 15)) / 15)); // 1 si <=15min, 0 si >=30
+                    $perf = round(100 * (0.7 * $tauxRes + 0.3 * $speedScore));
+
+                    return [
+                        'id' => $u->id,
+                        'name' => $u->username,
+                        'status' => $status,
+                        'user_status_id' => $u->status_id, // ✅ Ajout du statut réel
+                        'tickets_traites' => $countTraites,
+                        'resolus' => $countResolus,
+                        'refuses' => $countRefuses,
+                        'temps_moyen_min' => $avgMin,
+                        'performance' => $perf,
+                        'dernier_ticket' => $lastHuman,
+                    ];
+                })->values();
+
+            // ✅ Log avec informations de correction
+            Log::info('Stats avancées conseillers corrigées', [
+                'admin_id' => $currentAdminId,
+                'corrections_applied' => [
+                    'only_active_advisors_counted' => true,
+                    'status_based_filtering' => true
+                ],
+                'advisor_counts' => [
+                    'total_advisors_all_status' => $allAdvisorIds->count(),
+                    'active_advisors_only' => $activeAdvisorIds->count(),
+                    'en_ligne' => $enLigne,
+                    'breakdown_by_status' => $statsByType['conseiller']
+                ]
+            ]);
+
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'stats_by_type' => $statsByType,
+                'summary' => $summary,
+                'conseillers' => $conseillers,
+                'corrections_info' => [
+                    'active_advisors_only' => true,
+                    'status_filtering_applied' => true,
+                    'total_active_advisors' => $totalActiveAdvisors
+                ],
+                'period' => $period,
                 'timestamp' => now()->format('d/m/Y H:i:s')
             ]);
-            
+
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Erreur lors de la récupération des statistiques avancées'
-            ], 500);
+            Log::error("Erreur stats avancées conseillers corrigées: " . $e->getMessage(), [
+                'admin_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['success' => false, 'message' => 'Erreur lors de la récupération des statistiques avancées'], 500);
         }
     }
+
 
     /**
      * ✅ Export seulement des utilisateurs de l'admin

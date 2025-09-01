@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\HistoryController;
 use App\Models\Setting;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserManagementController;
@@ -655,6 +656,19 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
     Route::middleware('admin')->group(function () {
         Route::get('/layouts/app', [DashboardController::class, 'adminDashboard'])
             ->name('layouts.app');
+
+            Route::middleware(['auth'])->group(function () {
+    // Page
+    Route::get('/historique', [HistoryController::class, 'index'])->name('layouts.history');
+    
+
+    // APIs (JSON + export)
+    Route::get('/api/history/tickets', [HistoryController::class, 'tickets'])->name('history.tickets');
+    Route::get('/api/history/tickets/export', [HistoryController::class, 'export'])->name('history.tickets.export');
+});
+Route::get('/api/history/tickets/{ticketId}/details', [HistoryController::class, 'ticketDetails'])
+    ->whereNumber('ticketId')
+    ->name('history.ticket.details');
 
         /*
         |--------------------------------------------------------------------------
