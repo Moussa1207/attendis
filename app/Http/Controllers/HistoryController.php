@@ -22,7 +22,7 @@ class HistoryController extends Controller
         return view('layouts.history');
     }
 
-    // API JSON
+    // API JSON avec pagination fixée à 8 éléments
     public function tickets(Request $request)
     {
         $admin = Auth::user();
@@ -32,7 +32,10 @@ class HistoryController extends Controller
 
         // Services du périmètre de l'admin connecté
         $serviceIds = Service::where('created_by', $admin->id)->pluck('id');
-        $per = min((int)$request->get('per_page', 25), 100);
+        
+        // Configuration de pagination FIXÉE à 8 éléments
+        $per = 8; // Toujours 8 éléments par page
+        $page = max((int)$request->get('page', 1), 1); // Au minimum page 1
 
         // Relations
         $with = ['service'];
@@ -46,6 +49,7 @@ class HistoryController extends Controller
             $with[] = $advisorRel . '.agency';
         }
 
+        // Requête principale avec pagination
         $q = Queue::whereIn('service_id', $serviceIds)
             ->with($with)
             ->orderBy('created_at', 'desc');
@@ -116,10 +120,21 @@ class HistoryController extends Controller
             });
         }
 
-        $page = $q->paginate($per)->appends($request->all());
+        // PAGINATION LARAVEL - FIXÉE À 8 ÉLÉMENTS
+        $paginatedResults = $q->paginate($per, ['*'], 'page', $page);
+        
+        // Log pour debug
+        \Log::info('Pagination debug (8 éléments fixes)', [
+            'requested_page' => $page,
+            'per_page_fixed' => $per,
+            'total_items' => $paginatedResults->total(),
+            'current_page' => $paginatedResults->currentPage(),
+            'last_page' => $paginatedResults->lastPage(),
+            'items_count' => $paginatedResults->count()
+        ]);
 
-        // Mapping
-        $data = $page->getCollection()->map(function ($t) use ($advisorRel, $TRANSFER_IN) {
+        // Mapping des données
+        $data = $paginatedResults->getCollection()->map(function ($t) use ($advisorRel, $TRANSFER_IN) {
             $treated    = $t->statut_global === 'termine';
             $refused    = $treated && (int)$t->resolu === 0;
             $transfere  = ($t->transferer === $TRANSFER_IN);
@@ -190,7 +205,7 @@ class HistoryController extends Controller
 
                 'advisor'            => $advisor,
                 'agency'             => $t->agency ?? null,
-                'has_details'        => true, // 🆕 Indique qu'on peut voir les détails
+                'has_details'        => true,
             ];
         });
 
@@ -209,6 +224,7 @@ class HistoryController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Retour JSON avec métadonnées de pagination correctes
         return response()->json([
             'success' => true,
             'filters' => [
@@ -217,16 +233,26 @@ class HistoryController extends Controller
             ],
             'data' => $data,
             'meta' => [
-                'current_page' => $page->currentPage(),
-                'last_page'    => $page->lastPage(),
-                'per_page'     => $page->perPage(),
-                'total'        => $page->total(),
+                'current_page' => $paginatedResults->currentPage(),
+                'last_page'    => $paginatedResults->lastPage(),
+                'per_page'     => 8, // Toujours 8
+                'total'        => $paginatedResults->total(),
+                'from'         => $paginatedResults->firstItem(),
+                'to'           => $paginatedResults->lastItem(),
+                // Info de debug utile
+                'debug' => [
+                    'requested_page' => $page,
+                    'fixed_per_page' => 8,
+                    'has_more_pages' => $paginatedResults->hasMorePages(),
+                    'on_first_page' => $paginatedResults->onFirstPage(),
+                    'service_ids_count' => count($serviceIds)
+                ]
             ],
         ]);
     }
 
     /**
-     * 🆕 NOUVEAU : Récupérer les détails complets d'un ticket
+     * Récupérer les détails complets d'un ticket
      */
     public function ticketDetails(Request $request, $ticketId)
     {
@@ -312,7 +338,7 @@ class HistoryController extends Controller
                 ] : null,
             ];
 
-            // 🔄 Timeline chronologique basée sur l'historique JSON
+            // Timeline chronologique basée sur l'historique JSON
             $timeline = [];
             
             // 1. Création
@@ -396,7 +422,7 @@ class HistoryController extends Controller
                 ];
             }
 
-            // 🔄 Historique JSON enrichi (si disponible)
+            // Historique JSON enrichi (si disponible)
             $historiqueJson = [];
             if ($ticket->historique) {
                 try {
@@ -412,7 +438,7 @@ class HistoryController extends Controller
                 }
             }
 
-            // 📊 Calculs de durées
+            // Calculs de durées
             $durations = [
                 'temps_attente' => null,
                 'temps_traitement' => null,
@@ -478,7 +504,7 @@ class HistoryController extends Controller
         }
     }
 
-    // Export CSV
+    // Export CSV avec pagination correcte
     public function export(Request $request)
     {
         // Fallback sécurisé pour la valeur "transféré"

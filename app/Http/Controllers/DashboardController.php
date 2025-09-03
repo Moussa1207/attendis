@@ -3343,7 +3343,15 @@ public function getStats(Request $request)
                         'wait_avg'   => $adminConfiguredWaitTime,
                     ];
                 })->values();
+                $suffix = match ($period) {
+                  'today'    => 'today',
+                   'week'     => 'week',
+                   'lastweek' => 'lastweek',
+                   'month'    => 'month',
+                    default    => 'today',
+                };
             $stats['service_breakdown_today'] = $servicePerf;
+            $stats['service_breakdown'] = $servicePerf;
 
             // Tendances 7 jours (inchangé)
             $labels = []; $ticketsSeries = []; $resolutionSeries = [];
@@ -3357,11 +3365,11 @@ public function getStats(Request $request)
                 $resolutionSeries[] = $treated > 0 ? round(($resol / $treated) * 100, 1) : 0;
             }
             $stats['trends_week'] = [
-                'labels'     => $labels,
-                'tickets'    => $ticketsSeries,
-                'resolution' => $resolutionSeries,
-            ];
-
+                       'labels'     => $labels,
+                       'tickets'    => $ticketsSeries,
+                       'resolution' => $resolutionSeries,
+                                    ];
+             $stats['trends'] = $stats['trends_week'];
             // Sparkline (attente)
             $stats['queue_sparkline'] = [$stats['my_tickets_waiting']];
 

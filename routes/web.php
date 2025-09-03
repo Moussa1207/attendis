@@ -116,6 +116,15 @@ Route::middleware(['auth', 'check.user.status'])->group(function () {
             Route::get('/export', [DashboardController::class, 'exportConseillerData'])
                 ->name('conseiller.export');
 
+                Route::get('/statistiques', function() {
+    $user = Auth::user();
+    if (!$user->isConseillerUser()) {
+        return redirect()->route('login')->with('error', 'Accès non autorisé');
+    }
+    
+     return view('layouts.statistiqueconseiller');
+     })->name('layouts.statistiqueconseiller');
+
             Route::post('/validate-resolution-comment', function(Request $request) {
                 $validator = Validator::make($request->all(), [
                     'action' => 'required|in:traiter,refuser',

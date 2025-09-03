@@ -99,7 +99,6 @@
                                 <a class="nav-link" href="{{ route('layouts.history') }}">
                                   <i class="ti-control-record"></i>Historique
                                 </a>
-
                             </li>
                         @else
                             <li class="nav-item">
@@ -107,6 +106,13 @@
                                     <i class="ti-control-record"></i>Mon Espace
                                 </a>
                             </li>
+                            @if(Auth::user()->isConseillerUser())
+                                <li class="nav-item">
+                                    <a href="{{ route('layouts.statistiqueconseiller') }}" class="btn btn-outline-info">
+                                      <i data-feather="bar-chart-2" class="mr-2"></i>Mes Statistiques
+                                    </a>
+                                </li>
+                            @endif
                         @endif
                     </ul>
                 </li>

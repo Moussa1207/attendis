@@ -70,6 +70,8 @@
           <div class="card h-100">
             <div class="card-header header-flat d-flex justify-content-between align-items-center">
               <h4 class="card-title mb-0"><i data-feather="clock" class="mr-2"></i>Tickets</h4>
+              <!-- Affichage de la pagination fixe (informatif seulement) -->
+              
             </div>
 
             <div class="card-body">
@@ -153,13 +155,64 @@
                 </table>
               </div>
 
-              <div class="d-flex justify-content-between align-items-center mt-3">
-                <small class="text-muted" id="histMeta">—</small>
-                <div>
-                  <button class="btn btn-sm btn-outline-secondary no-radius" onclick="histPage('prev')">Préc.</button>
-                  <button class="btn btn-sm btn-outline-secondary no-radius" onclick="histPage('next')">Suiv.</button>
+              <!-- ====== SECTION PAGINATION FIXE À 8 ÉLÉMENTS ====== -->
+              <div class="d-flex justify-content-between align-items-center mt-3 pagination-section">
+                <div class="d-flex align-items-center">
+                  <small class="text-muted mr-3" id="histMeta">—</small>
+                  <small class="text-primary page-indicator" id="pageIndicator" style="font-weight: 500;"></small>
+                </div>
+                
+                <div class="pagination-controls d-flex align-items-center">
+                  <!-- Bouton Première page -->
+                  <button 
+                    class="btn btn-sm btn-outline-secondary no-radius mr-1" 
+                    onclick="histGoToPage(1)" 
+                    id="btnFirst"
+                    title="Première page">
+                    <i data-feather="chevrons-left" class="icon-xs"></i>
+                  </button>
+                  
+                  <!-- Bouton Précédent -->
+                  <button 
+                    class="btn btn-sm btn-outline-secondary no-radius mr-2" 
+                    onclick="histPage('prev')" 
+                    id="btnPrev"
+                    title="Page précédente">
+                    <i data-feather="chevron-left" class="icon-xs mr-1"></i>Préc.
+                  </button>
+                  
+                  <!-- Input de navigation directe -->
+                  <div class="input-group input-group-sm mx-2 page-input-group" style="width: 100px;">
+                    <input 
+                      type="number" 
+                      class="form-control form-control-sm text-center no-radius" 
+                      id="pageInput" 
+                      min="1" 
+                      placeholder="Page"
+                      onkeypress="if(event.key==='Enter') histGoToPage(this.value)"
+                      style="font-size: 12px;">
+                  </div>
+                  
+                  <!-- Bouton Suivant -->
+                  <button 
+                    class="btn btn-sm btn-outline-secondary no-radius ml-2" 
+                    onclick="histPage('next')" 
+                    id="btnNext"
+                    title="Page suivante">
+                    Suiv.<i data-feather="chevron-right" class="icon-xs ml-1"></i>
+                  </button>
+                  
+                  <!-- Bouton Dernière page -->
+                  <button 
+                    class="btn btn-sm btn-outline-secondary no-radius ml-1" 
+                    onclick="histGoToPage(histState.last)" 
+                    id="btnLast"
+                    title="Dernière page">
+                    <i data-feather="chevrons-right" class="icon-xs"></i>
+                  </button>
                 </div>
               </div>
+
             </div>
 
           </div>
@@ -174,7 +227,7 @@
   </div>
 </div>
 
-<!-- ====== MODAL DÉTAILS TICKET - TAILLE RÉDUITE ====== -->
+<!-- ====== MODAL DÉTAILS TICKET ====== -->
 <div class="modal fade" id="ticketDetailsModal" tabindex="-1" role="dialog" aria-labelledby="ticketDetailsModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
@@ -211,8 +264,8 @@
 window.APP = {
   routes: {
     historyIndex: "{{ route('layouts.history') }}",
-    historyApi:   "{{ route('history.tickets') }}",          // JSON (liste & filtres)
-    historyExport:"{{ route('history.tickets.export') }}",   // CSV
+    historyApi:   "{{ route('history.tickets') }}",
+    historyExport:"{{ route('history.tickets.export') }}",
     historyDetails: "{{ route('history.ticket.details', ['ticketId' => 'TICKET_ID']) }}"
   }
 };
@@ -283,14 +336,20 @@ function normalizeStatus(t){
   }
 }
 
-// =================== ÉTAT ===================
-let histState = { page:1, last:1, total:0, per:25 };
+// =================== ÉTAT DE PAGINATION - FIXÉ À 8 ÉLÉMENTS ===================
+let histState = { 
+  page: 1, 
+  last: 1, 
+  total: 0, 
+  per: 8,    // TOUJOURS 8, non modifiable
+  loading: false
+};
 
 function histQuery(page=1){
   const f = document.getElementById('histFilterForm');
   const p = new URLSearchParams();
   p.set('page', page);
-  p.set('per_page', histState.per);
+  // Pas de per_page dans la query car fixé côté serveur à 8
   ['date_from','date_to','status','service_id','agency_id','search','resolu'].forEach(n=>{
     const v = f.elements[n]?.value?.trim();
     if (v) p.set(n, v);
@@ -315,6 +374,7 @@ function clearAndFillSelect(sel, items, mapLabel='name', mapValue='id'){
     });
   }
 }
+
 function histRenderOptions(f){
   clearAndFillSelect(document.querySelector('#histFilterForm select[name="service_id"]'), f.services||[]);
   clearAndFillSelect(document.querySelector('#histFilterForm select[name="agency_id"]'),  f.agencies||[]);
@@ -326,15 +386,16 @@ function histRenderRows(rows){
 
   if (!rows.length){
     tb.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">
-      <i data-feather="inbox" class="mr-1"></i>Aucun ticket
+      <i data-feather="inbox" class="mr-1"></i>Aucun ticket trouvé
     </td></tr>`;
     return;
   }
 
   rows.forEach((t, index) => {
-    if (index < 1 || (typeof window !== 'undefined' && window.location.search.includes('debug=1'))) {
-      console.group(`🔍 Ticket ${t?.code || t?.id}`);
-      console.log({ prise_en_charge_at:t?.prise_en_charge_at, statut:t?.statut_global, resolu:t?.resolu, shared_at:t?.shared_at, treated_at:t?.treated_at });
+    // Debug pour le premier ticket
+    if (index < 1) {
+      console.group(`Ticket ${t?.code || t?.id}`);
+      console.log({ prise_en_charge_at:t?.prise_en_charge_at, statut:t?.statut_global, resolu:t?.resolu });
       console.groupEnd();
     }
 
@@ -345,7 +406,6 @@ function histRenderRows(rows){
     const datePriseEnCharge = fmtPriseEnCharge(t);
     const status = normalizeStatus(t);
 
-    // Résolution : utilise t.resolu si présent, sinon déduit du statut
     let resoluVal = (typeof t.resolu !== 'undefined') ? Number(t.resolu) : null;
     if (resoluVal === null) {
       if (t.refused_at) resoluVal = 0;
@@ -384,7 +444,7 @@ function histRenderRows(rows){
       </td>
     `;
 
-    // Highlight "récemment pris en charge" (<= 5 min)
+    // Highlight récent
     if (t?.prise_en_charge_at && !/En (cours|attente)/.test(t.prise_en_charge_at)) {
       try {
         const [d,m,yTime] = t.prise_en_charge_at.split('/');
@@ -400,46 +460,236 @@ function histRenderRows(rows){
   });
 }
 
-function histRenderMeta(m){
+// =================== PAGINATION COMPLÈTE - FIXE À 8 ===================
+
+function histPage(dir) {
+  if (histState.loading) {
+    console.log('Chargement en cours, navigation ignorée');
+    return;
+  }
+
+  let newPage = histState.page;
+  
+  if (dir === 'prev') {
+    newPage = Math.max(1, histState.page - 1);
+  } else if (dir === 'next') {
+    newPage = Math.min(histState.last, histState.page + 1);
+  }
+  
+  if (newPage !== histState.page) {
+    console.log(`Navigation: page ${histState.page} → ${newPage}/${histState.last}`);
+    histLoad(newPage, false);
+  }
+}
+
+function histGoToPage(pageNumber) {
+  if (histState.loading) return;
+  
+  const targetPage = Math.max(1, Math.min(histState.last, parseInt(pageNumber) || 1));
+  if (targetPage !== histState.page) {
+    console.log(`Navigation directe vers page ${targetPage}`);
+    histLoad(targetPage, false);
+  }
+}
+
+function histRenderMeta(m) {
+  const oldState = { ...histState };
+  
   histState.page  = m.current_page || 1;
   histState.last  = m.last_page    || 1;
   histState.total = m.total        || 0;
-  histState.per   = m.per_page     || 25;
+  histState.per   = 8; // TOUJOURS 8
 
-  const first = (histState.page-1)*histState.per + 1;
-  const last  = Math.min(histState.page*histState.per, histState.total);
-  document.getElementById('histMeta').textContent =
-    histState.total ? `Affichage de ${first} à ${last} sur ${histState.total}` : '—';
+  // Debug critique
+  console.group('📊 Pagination fixe à 8 éléments');
+  console.log('Meta reçue:', m);
+  console.log('État après mise à jour:', {
+    page: `${oldState.page} → ${histState.page}`,
+    total_pages: `${oldState.last} → ${histState.last}`,
+    total_items: histState.total,
+    per_page: 8 // Toujours 8
+  });
+  console.groupEnd();
+
+  const first = Math.max(1, (histState.page - 1) * 8 + 1);
+  const last  = Math.min(histState.page * 8, histState.total);
+  
+  const metaText = histState.total > 0 
+    ? `Affichage de ${first} à ${last} sur ${histState.total} (8 par page)`
+    : '—';
+  
+  document.getElementById('histMeta').textContent = metaText;
+
+  updatePageIndicator();
+  updatePaginationButtons();
+  updatePageInput();
 }
 
-// =================== NAVIGATION / ACTIONS ===================
-async function histLoad(page=1, toast=false){
-  try{
-    const data = await histFetch(`${APP.routes.historyApi}?${histQuery(page)}`);
-    histRenderOptions(data.filters||{});
-    histRenderRows(data.data||[]);
-    histRenderMeta(data.meta||{});
-    if (toast) histToast('Résultats mis à jour.','success');
-  }catch(e){
-    histToast('Erreur de chargement.','danger');
+function updatePageIndicator() {
+  const indicator = document.getElementById('pageIndicator');
+  if (indicator) {
+    if (histState.last > 1) {
+      indicator.textContent = `Page ${histState.page}/${histState.last}`;
+      indicator.style.display = 'inline-block';
+    } else {
+      indicator.style.display = 'none';
+    }
+  }
+}
+
+function updatePaginationButtons() {
+  const btnFirst = document.getElementById('btnFirst');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnLast = document.getElementById('btnLast');
+
+  const isFirstPage = histState.page <= 1;
+  const isLastPage = histState.page >= histState.last;
+  const hasPages = histState.last > 1;
+
+  // Bouton Première page
+  if (btnFirst) {
+    btnFirst.disabled = isFirstPage || !hasPages;
+    btnFirst.style.display = hasPages ? 'inline-block' : 'none';
+    updateButtonStyle(btnFirst, !isFirstPage && hasPages);
+  }
+
+  // Bouton Précédent  
+  if (btnPrev) {
+    btnPrev.disabled = isFirstPage || !hasPages;
+    updateButtonStyle(btnPrev, !isFirstPage && hasPages);
+    btnPrev.setAttribute('title', 
+      isFirstPage ? 'Première page' : `Page précédente (${histState.page - 1})`
+    );
+  }
+
+  // Bouton Suivant
+  if (btnNext) {
+    btnNext.disabled = isLastPage || !hasPages;
+    updateButtonStyle(btnNext, !isLastPage && hasPages);
+    btnNext.setAttribute('title', 
+      isLastPage ? 'Dernière page' : `Page suivante (${histState.page + 1})`
+    );
+  }
+
+  // Bouton Dernière page
+  if (btnLast) {
+    btnLast.disabled = isLastPage || !hasPages;
+    btnLast.style.display = hasPages ? 'inline-block' : 'none';
+    updateButtonStyle(btnLast, !isLastPage && hasPages);
+  }
+
+  console.log('Boutons pagination (8 éléments fixes):', {
+    page: `${histState.page}/${histState.last}`,
+    prev_enabled: !isFirstPage && hasPages,
+    next_enabled: !isLastPage && hasPages,
+    has_pages: hasPages
+  });
+}
+
+function updateButtonStyle(button, isActive) {
+  if (!button) return;
+  
+  button.classList.remove('btn-outline-secondary', 'btn-outline-primary');
+  
+  if (isActive) {
+    button.classList.add('btn-outline-primary');
+  } else {
+    button.classList.add('btn-outline-secondary');
+  }
+}
+
+function updatePageInput() {
+  const pageInput = document.getElementById('pageInput');
+  if (pageInput) {
+    pageInput.max = histState.last;
+    pageInput.placeholder = `1-${histState.last}`;
+    
+    if (histState.last <= 1) {
+      pageInput.style.display = 'none';
+      pageInput.parentElement.style.display = 'none';
+    } else {
+      pageInput.style.display = 'block';
+      pageInput.parentElement.style.display = 'flex';
+    }
+  }
+}
+
+// Fonction histLoad avec pagination fixe à 8
+async function histLoad(page = 1, toast = false) {
+  if (histState.loading) {
+    console.log('Chargement déjà en cours, requête ignorée');
+    return;
+  }
+
+  try {
+    histState.loading = true;
+    setLoadingState(true);
+    
+    const requestedPage = Math.max(1, parseInt(page) || 1);
+    const url = `${APP.routes.historyApi}?${histQuery(requestedPage)}`;
+    
+    console.log(`🔄 URL requête (8 éléments fixes): ${url}`);
+    
+    const data = await histFetch(url);
+    
+    // DÉBOGAGE CRITIQUE
+    console.group('📊 RÉPONSE SERVEUR (8 éléments fixes)');
+    console.log('Success:', data.success);
+    console.log('Meta:', data.meta);
+    console.log('Data count:', data.data?.length);
+    console.log('Debug info:', data.meta?.debug);
+    
+    if (!data.meta || !data.meta.last_page) {
+      console.error('❌ ERREUR CRITIQUE: Métadonnées de pagination manquantes!');
+      console.log('Réponse complète reçue:', data);
+    }
+    console.groupEnd();
+    
+    histRenderOptions(data.filters || {});
+    histRenderRows(data.data || []);
+    histRenderMeta(data.meta || {});
+    
+    if (toast) {
+      histToast('Résultats mis à jour.', 'success');
+    }
+    
+  } catch (e) {
     console.error('❌ Erreur chargement historique:', e);
-  }finally{
+    histToast('Erreur de chargement.', 'danger');
+  } finally {
+    histState.loading = false;
+    setLoadingState(false);
     if (window.feather?.replace) feather.replace();
   }
 }
-function histPage(dir){
-  let p = histState.page;
-  if (dir==='prev') p = Math.max(1, p-1);
-  if (dir==='next') p = Math.min(histState.last, p+1);
-  if (p!==histState.page) histLoad(p,false);
+
+function setLoadingState(isLoading) {
+  const buttons = ['btnFirst', 'btnPrev', 'btnNext', 'btnLast'].map(id => document.getElementById(id));
+  
+  buttons.forEach(btn => {
+    if (btn) {
+      if (isLoading) {
+        btn.style.opacity = '0.6';
+        btn.style.pointerEvents = 'none';
+      } else {
+        btn.style.opacity = '';
+        btn.style.pointerEvents = '';
+      }
+    }
+  });
 }
+
+// =================== ACTIONS ===================
 function histReset(){
   document.getElementById('histFilterForm').reset();
   histLoad(1,true);
 }
+
 function histExport(){
   window.open(`${APP.routes.historyExport}?${histQuery(histState.page)}`, '_blank');
 }
+
 function histToast(message, type='info'){
   const el = document.createElement('div');
   el.className = `alert alert-${type} alert-dismissible fade show`;
@@ -449,7 +699,33 @@ function histToast(message, type='info'){
   setTimeout(()=>el.remove(),2500);
 }
 
-// =================== MODAL DÉTAILS TICKET ===================
+// =================== RACCOURCIS CLAVIER ===================
+function initPaginationKeyboards() {
+  document.addEventListener('keydown', function(e) {
+    if (histState.loading) return;
+    
+    if (e.ctrlKey && e.key === 'ArrowLeft' && histState.page > 1) {
+      e.preventDefault();
+      histPage('prev');
+    }
+    else if (e.ctrlKey && e.key === 'ArrowRight' && histState.page < histState.last) {
+      e.preventDefault();
+      histPage('next');
+    }
+    else if (e.ctrlKey && e.key === 'Home' && histState.page > 1) {
+      e.preventDefault();
+      histGoToPage(1);
+    }
+    else if (e.ctrlKey && e.key === 'End' && histState.page < histState.last) {
+      e.preventDefault();
+      histGoToPage(histState.last);
+    }
+  });
+
+  console.log('Raccourcis pagination activés (Ctrl + flèches, Ctrl + Home/End)');
+}
+
+// =================== MODAL DÉTAILS ===================
 async function showTicketDetails(ticketId) {
   try {
     $('#ticketDetailsModal').modal('show');
@@ -685,6 +961,7 @@ function getStatusColor(status) {
     default: return 'secondary';
   }
 }
+
 function getStatusIcon(status) {
   switch ((status||'').toLowerCase()) {
     case 'termine': return 'check-circle';
@@ -695,6 +972,7 @@ function getStatusIcon(status) {
     default: return 'help-circle';
   }
 }
+
 function printTicketDetails() {
   const modalContent = document.getElementById('ticketDetailsContent').innerHTML;
   const w = window.open('', '_blank');
@@ -736,10 +1014,25 @@ function startAutoRefresh() {
 function stopAutoRefresh() {
   if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
 }
-document.addEventListener('DOMContentLoaded', () => {
+
+// =================== INITIALISATION - PAGINATION FIXE À 8 ===================
+document.addEventListener('DOMContentLoaded', function() {
+  // État initial fixé à 8 éléments par page
+  histState.per = 8;
+  
   histLoad(1, false);
+  initPaginationKeyboards();
   startAutoRefresh();
-  document.addEventListener('visibilitychange', () => document.hidden ? stopAutoRefresh() : startAutoRefresh());
+  
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      startAutoRefresh();
+    }
+  });
+
+  console.log('🚀 Historique avec pagination fixe initialisé (8 éléments par page)');
 });
 </script>
 
@@ -748,16 +1041,125 @@ document.addEventListener('DOMContentLoaded', () => {
 .stats-scope .table-flat td,.stats-scope .table-flat th{border-top:1px solid #eef2f7}
 .stats-scope .thead-light th{background:#f9fafb}
 
+/* =================== PAGINATION FIXE À 8 ÉLÉMENTS =================== */
+.pagination-section {
+  background: rgba(248,249,250,0.5);
+  border-radius: 8px;
+  padding: 15px;
+  border: 1px solid #e9ecef;
+}
+
+.pagination-controls .btn {
+  transition: all 0.2s ease;
+  border-width: 1px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pagination-controls .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+  background-color: #f8f9fa!important;
+  border-color: #dee2e6!important;
+  color: #adb5bd!important;
+}
+
+.pagination-controls .btn.btn-outline-primary {
+  border-color: #007bff;
+  color: #007bff;
+  background: white;
+}
+
+.pagination-controls .btn.btn-outline-primary:hover:not(:disabled) {
+  background-color: #007bff;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,123,255,.25);
+}
+
+.pagination-controls .btn.btn-outline-secondary {
+  border-color: #6c757d;
+  color: #6c757d;
+  background: white;
+}
+
+.pagination-controls .btn.btn-outline-secondary:hover:not(:disabled) {
+  background-color: #6c757d;
+  color: white;
+}
+
+.page-input-group #pageInput {
+  border: 1px solid #dee2e6;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.page-input-group #pageInput:focus {
+  border-color: #007bff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.page-indicator {
+  background: rgba(0,123,255,.08)!important;
+  padding: 4px 8px!important;
+  border-radius: 4px!important;
+  border: 1px solid rgba(0,123,255,.15)!important;
+  font-size: 11px!important;
+  font-weight: 600!important;
+}
+
+/* Responsive pagination */
+@media (max-width: 768px) {
+  .pagination-section {
+    padding: 10px;
+  }
+  
+  .pagination-controls {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .pagination-controls .btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .page-input-group {
+    width: 80px!important;
+    margin: 0 2px!important;
+  }
+  
+  .page-input-group #pageInput {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+  
+  .page-indicator {
+    font-size: 10px!important;
+    padding: 2px 4px!important;
+  }
+}
+
+@media (max-width: 576px) {
+  .pagination-section .d-flex {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .pagination-controls {
+    justify-content: center;
+  }
+}
+
 /* Badges de statut */
 .badge-status-treated{background:rgba(40,167,69,.1)!important;color:#28a745!important;border:1px solid rgba(40,167,69,.2);padding:3px 8px!important;font-size:.7rem!important;font-weight:500!important;display:inline-flex!important;align-items:center!important;gap:3px!important;border-radius:12px!important}
 .badge-status-refused{background:rgba(220,53,69,.1)!important;color:#dc3545!important;border:1px solid rgba(220,53,69,.2);padding:3px 8px!important;font-size:.7rem!important;font-weight:500!important;display:inline-flex!important;align-items:center!important;gap:3px!important;border-radius:12px!important}
 .badge-status-transferred{background:rgba(111,66,193,.1)!important;color:#6f42c1!important;border:1px solid rgba(111,66,193,.2);padding:3px 8px!important;font-size:.7rem!important;font-weight:500!important;display:inline-flex!important;align-items:center!important;gap:3px!important;border-radius:12px!important}
 .badge-status-progress{background:rgba(23,162,184,.1)!important;color:#17a2b8!important;border:1px solid rgba(23,162,184,.2);padding:3px 8px!important;font-size:.7rem!important;font-weight:500!important;display:inline-flex!important;align-items:center!important;gap:3px!important;border-radius:12px!important}
 .badge-secondary{background:rgba(108,117,125,.1)!important;color:#6c757d!important;border:1px solid rgba(108,117,125,.2);padding:3px 8px!important;font-size:.7rem!important;font-weight:500!important;display:inline-flex!important;align-items:center!important;gap:3px!important;border-radius:12px!important}
-.badge-status-treated:hover{background:rgba(40,167,69,.15)!important;border-color:rgba(40,167,69,.3)!important;transition:all .2s}
-.badge-status-refused:hover{background:rgba(220,53,69,.15)!important;border-color:rgba(220,53,69,.3)!important;transition:all .2s}
-.badge-status-transferred:hover{background:rgba(111,66,193,.15)!important;border-color:rgba(111,66,193,.3)!important;transition:all .2s}
-.badge-status-progress:hover{background:rgba(23,162,184,.15)!important;border-color:rgba(23,162,184,.3)!important;transition:all .2s}
 
 /* Badge agence */
 .badge-light-info{background:rgba(23,162,184,.08)!important;color:#17a2b8!important;border:1px solid rgba(23,162,184,.15)!important;font-size:.7rem!important;font-weight:500!important;display:inline-flex!important;align-items:center!important;gap:3px!important;padding:2px 6px!important;border-radius:10px!important}
@@ -777,10 +1179,9 @@ document.addEventListener('DOMContentLoaded', () => {
 /* Highlight récent */
 .recent-takeup{background:linear-gradient(90deg,rgba(40,167,69,.05) 0%,rgba(40,167,69,.02) 100%)!important;border-left:3px solid #28a745!important;animation:recentGlow 3s ease-out!important}
 @keyframes recentGlow{0%{background:rgba(40,167,69,.15)!important;transform:scale(1.01)}100%{background:linear-gradient(90deg,rgba(40,167,69,.05) 0%,rgba(40,167,69,.02) 100%)!important;transform:scale(1)}}
-.text-muted .icon-xs{width:12px!important;height:12px!important}
 
 /* ====== Modal détails COMPACT ====== */
-.modal-lg{max-width:800px!important} /* ✅ CORRECTION : Taille réduite de 1200px à 800px */
+.modal-lg{max-width:800px!important}
 .bg-gradient-primary{background:linear-gradient(45deg,#007bff,#0056b3)!important}
 
 /* Timeline compacte */
@@ -802,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* Responsive modal */
 @media (max-width:768px){
-  .modal-lg{max-width:95%!important;margin:10px auto!important} /* ✅ Mobile : 95% au lieu de 1200px */
+  .modal-lg{max-width:95%!important;margin:10px auto!important}
   .card-body .row{margin:0}
   .card-body .col-sm-6{padding:5px}
   .timeline-content-compact{font-size:12px;padding:6px 10px}
